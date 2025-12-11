@@ -199,19 +199,22 @@ class UnifiedExpenseServiceClass {
     // ✅ v3.0: استخدام count() الجديد
     const total = await powerSyncService.count('expenses', whereClause, params);
 
-    // ✅ v3.0: استخدام query() الجديد
+    // ⚡ v3.0: columns محددة
     const expenses = await powerSyncService.query<Expense>({
-      sql: `SELECT * FROM expenses WHERE ${whereClause} ORDER BY expense_date DESC, created_at DESC LIMIT ? OFFSET ?`,
+      sql: `SELECT id, organization_id, category_id, description, amount, expense_date,
+                   payment_method, notes, receipt_url, created_at, updated_at, created_by, is_deleted
+            FROM expenses WHERE ${whereClause} ORDER BY expense_date DESC, created_at DESC LIMIT ? OFFSET ?`,
       params: [...params, limit, offset]
     });
 
-    // جلب تفاصيل الفئات
+    // ⚡ v3.0: جلب تفاصيل الفئات - columns محددة
     const expensesWithCategories: ExpenseWithCategory[] = await Promise.all(
       expenses.map(async (expense) => {
         let category_details;
         if (expense.category_id) {
           category_details = await powerSyncService.queryOne<ExpenseCategory>({
-            sql: 'SELECT * FROM expense_categories WHERE id = ?',
+            sql: `SELECT id, name, description, organization_id, created_at
+                  FROM expense_categories WHERE id = ?`,
             params: [expense.category_id]
           });
         }
@@ -235,9 +238,11 @@ class UnifiedExpenseServiceClass {
    * ⚡ جلب مصروف واحد
    */
   async getExpense(expenseId: string): Promise<ExpenseWithCategory | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const expense = await powerSyncService.queryOne<Expense>({
-      sql: 'SELECT * FROM expenses WHERE id = ? AND (is_deleted IS NULL OR is_deleted = 0)',
+      sql: `SELECT id, organization_id, category_id, description, amount, expense_date,
+                   payment_method, notes, receipt_url, created_at, updated_at, created_by, is_deleted
+            FROM expenses WHERE id = ? AND (is_deleted IS NULL OR is_deleted = 0)`,
       params: [expenseId]
     });
 
@@ -245,8 +250,10 @@ class UnifiedExpenseServiceClass {
 
     let category_details;
     if (expense.category_id) {
+      // ⚡ v3.0: columns محددة
       category_details = await powerSyncService.queryOne<ExpenseCategory>({
-        sql: 'SELECT * FROM expense_categories WHERE id = ?',
+        sql: `SELECT id, name, description, organization_id, created_at
+              FROM expense_categories WHERE id = ?`,
         params: [expense.category_id]
       });
     }
@@ -263,9 +270,10 @@ class UnifiedExpenseServiceClass {
   async getCategories(): Promise<ExpenseCategory[]> {
     const orgId = this.getOrgId();
 
-    // ✅ v3.0: استخدام query() الجديد
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<ExpenseCategory>({
-      sql: 'SELECT * FROM expense_categories WHERE organization_id = ? ORDER BY name ASC',
+      sql: `SELECT id, name, description, organization_id, created_at, updated_at
+            FROM expense_categories WHERE organization_id = ? ORDER BY name ASC`,
       params: [orgId]
     });
   }
@@ -354,9 +362,11 @@ class UnifiedExpenseServiceClass {
     expenseId: string,
     updates: Partial<Omit<Expense, 'id' | 'organization_id' | 'created_at'>>
   ): Promise<Expense | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<Expense>({
-      sql: 'SELECT * FROM expenses WHERE id = ?',
+      sql: `SELECT id, organization_id, category_id, description, amount, expense_date,
+                   payment_method, notes, receipt_url, created_at, updated_at, created_by
+            FROM expenses WHERE id = ?`,
       params: [expenseId]
     });
 
@@ -395,9 +405,10 @@ class UnifiedExpenseServiceClass {
     categoryId: string,
     updates: Partial<Omit<ExpenseCategory, 'id' | 'organization_id' | 'created_at'>>
   ): Promise<ExpenseCategory | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<ExpenseCategory>({
-      sql: 'SELECT * FROM expense_categories WHERE id = ?',
+      sql: `SELECT id, name, description, organization_id, created_at, updated_at
+            FROM expense_categories WHERE id = ?`,
       params: [categoryId]
     });
 

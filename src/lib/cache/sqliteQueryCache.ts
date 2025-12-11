@@ -24,33 +24,37 @@ class SQLiteQueryCache {
     queries: 0
   };
 
-  // ⚡ حد أقصى لحجم الكاش لمنع تسرب الذاكرة
-  private MAX_CACHE_SIZE = 50;
+  // ⚡ v3.0: زيادة حجم الكاش من 50 إلى 500 لتحسين الأداء
+  private MAX_CACHE_SIZE = 500;
 
   /**
    * TTL افتراضي حسب نوع الجدول (بالميلي ثانية)
+   * ⚡ v3.0: تحسين TTL لتقليل الاستعلامات المتكررة
    */
   private TTL_MAP: Record<string, number> = {
-    // جداول ثابتة نسبياً - cache طويل
-    'product_categories': 10 * 60 * 1000, // 10 دقائق
-    'product_subcategories': 10 * 60 * 1000,
-    'employees': 5 * 60 * 1000, // 5 دقائق
-    'user_permissions': 5 * 60 * 1000,
-    'pos_settings': 5 * 60 * 1000,
-    
-    // جداول متغيرة - cache متوسط
-    'products': 2 * 60 * 1000, // دقيقتان
-    'inventory': 2 * 60 * 1000,
-    'customers': 2 * 60 * 1000,
-    
-    // جداول متغيرة جداً - cache قصير
-    'orders': 30 * 1000, // 30 ثانية
-    'order_items': 30 * 1000,
-    'transactions': 30 * 1000,
-    'sync_queue': 10 * 1000, // 10 ثوان
-    
-    // افتراضي
-    'default': 60 * 1000 // دقيقة واحدة
+    // جداول ثابتة جداً - cache طويل جداً (30 دقيقة)
+    'product_categories': 30 * 60 * 1000,
+    'product_subcategories': 30 * 60 * 1000,
+    'employees': 30 * 60 * 1000,
+    'user_permissions': 30 * 60 * 1000,
+    'pos_settings': 30 * 60 * 1000,
+    'organizations': 30 * 60 * 1000,
+
+    // جداول متغيرة - cache متوسط (10 دقائق)
+    'products': 10 * 60 * 1000,
+    'inventory': 5 * 60 * 1000,
+    'customers': 10 * 60 * 1000,
+    'product_colors': 10 * 60 * 1000,
+    'product_sizes': 10 * 60 * 1000,
+
+    // جداول متغيرة جداً - cache قصير (دقيقة واحدة)
+    'orders': 60 * 1000,
+    'order_items': 60 * 1000,
+    'transactions': 60 * 1000,
+    'sync_queue': 30 * 1000,
+
+    // افتراضي (5 دقائق)
+    'default': 5 * 60 * 1000
   };
 
   /**
@@ -258,18 +262,49 @@ class SQLiteQueryCache {
 // Singleton instance
 export const sqliteCache = new SQLiteQueryCache();
 
-// تنظيف دوري كل 5 دقائق
-if (typeof window !== 'undefined') {
-  setInterval(() => {
+// ⚡ v4.0: إدارة intervals مع إمكانية التنظيف
+let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+let statsIntervalId: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * بدء التنظيف الدوري
+ */
+export function startCacheCleanup(): void {
+  if (typeof window === 'undefined') return;
+
+  // تجنب إنشاء intervals متعددة
+  if (cleanupIntervalId) return;
+
+  // تنظيف كل 5 دقائق
+  cleanupIntervalId = setInterval(() => {
     sqliteCache.cleanup();
   }, 5 * 60 * 1000);
 
-  // عرض إحصائيات كل دقيقة (في dev mode فقط)
-  if (import.meta.env.DEV) {
-    setInterval(() => {
+  // عرض إحصائيات في dev mode فقط
+  if (import.meta.env.DEV && !statsIntervalId) {
+    statsIntervalId = setInterval(() => {
       sqliteCache.logStats();
-    }, 60 * 1000);
+    }, 5 * 60 * 1000);
   }
+}
+
+/**
+ * إيقاف التنظيف الدوري (مفيد عند unmount أو cleanup)
+ */
+export function stopCacheCleanup(): void {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+  }
+  if (statsIntervalId) {
+    clearInterval(statsIntervalId);
+    statsIntervalId = null;
+  }
+}
+
+// بدء التنظيف تلقائياً عند التحميل
+if (typeof window !== 'undefined') {
+  startCacheCleanup();
 }
 
 /**

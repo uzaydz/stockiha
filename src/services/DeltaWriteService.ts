@@ -280,72 +280,87 @@ class DeltaWriteServiceClass {
   // ========================================
 
   /**
-   * ⚡ إنشاء منتج مع variants
+   * ⚡ v4.0: إنشاء منتج مع variants - باستخدام Batch Operations للأداء العالي
+   * تحسين من 100+ INSERT إلى 3 فقط
    */
   async createProductWithVariants(
     organizationId: string,
     product: Record<string, any>,
-    colors?: Array<{ name: string; code?: string; quantity?: number; barcode?: string }>,
-    sizes?: Array<{ name: string; colorId: string; quantity?: number; barcode?: string }>
+    colors?: Array<{ name: string; code?: string; quantity?: number; barcode?: string; price?: number; purchase_price?: number }>,
+    sizes?: Array<{ name: string; colorId: string; quantity?: number; barcode?: string; price?: number; purchase_price?: number }>
   ): Promise<WriteResult> {
     try {
       const productId = product.id || crypto.randomUUID();
+      const now = new Date().toISOString();
 
-      await powerSyncService.transaction(async () => {
-        // إنشاء المنتج
-        await powerSyncService.mutate({
-          table: 'products',
-          operation: 'INSERT',
-          data: {
-            ...product,
-            id: productId,
-            organization_id: organizationId,
-            has_variants: (colors && colors.length > 0) ? 1 : 0,
-            created_at: new Date().toISOString()
-          }
-        });
-
-        // إنشاء الألوان
-        if (colors) {
-          for (const color of colors) {
-            await powerSyncService.mutate({
-              table: 'product_colors',
-              operation: 'INSERT',
-              data: {
-                id: crypto.randomUUID(),
-                product_id: productId,
-                organization_id: organizationId,
-                name: color.name,
-                color_code: color.code || '#000000',
-                quantity: color.quantity || 0,
-                barcode: color.barcode || null,
-                created_at: new Date().toISOString()
-              }
-            });
-          }
-        }
-
-        // إنشاء المقاسات
-        if (sizes) {
-          for (const size of sizes) {
-            await powerSyncService.mutate({
-              table: 'product_sizes',
-              operation: 'INSERT',
-              data: {
-                id: crypto.randomUUID(),
-                product_id: productId,
-                color_id: size.colorId,
-                organization_id: organizationId,
-                size_name: size.name,
-                quantity: size.quantity || 0,
-                barcode: size.barcode || null,
-                created_at: new Date().toISOString()
-              }
-            });
-          }
+      // ⚡ v4.0: إنشاء المنتج أولاً
+      await powerSyncService.mutate({
+        table: 'products',
+        operation: 'INSERT',
+        data: {
+          ...product,
+          id: productId,
+          organization_id: organizationId,
+          has_variants: (colors && colors.length > 0) ? 1 : 0,
+          has_colors: (colors && colors.length > 0) ? 1 : 0,
+          created_at: now,
+          updated_at: now
         }
       });
 
+      // ⚡ v4.0: Batch INSERT للألوان - استعلام واحد بدلاً من N استعلامات
+      if (colors && colors.length > 0) {
+        const colorData = colors.map(color => ({
+          id: crypto.randomUUID(),
+          product_id: productId,
+          organization_id: organizationId,
+          name: color.name,
+          color_code: color.code || '#000000',
+          quantity: color.quantity || 0,
+          barcode: color.barcode || null,
+          price: color.price || null,
+          purchase_price: color.purchase_price || null,
+          created_at: now,
+          updated_at: now
+        }));
+
+        await powerSyncService.mutateBatch({
+          table: 'product_colors',
+          operation: 'INSERT',
+          data: colorData,
+          chunkSize: 50
+        });
+
+        console.log(`[DeltaWrite] ⚡ Batch inserted ${colorData.length} colors`);
+      }
+
+      // ⚡ v4.0: Batch INSERT للمقاسات - استعلام واحد بدلاً من N استعلامات
+      if (sizes && sizes.length > 0) {
+        const sizeData = sizes.map(size => ({
+          id: crypto.randomUUID(),
+          product_id: productId,
+          color_id: size.colorId,
+          organization_id: organizationId,
+          size_name: size.name,
+          quantity: size.quantity || 0,
+          barcode: size.barcode || null,
+          price: size.price || null,
+          purchase_price: size.purchase_price || null,
+          created_at: now,
+          updated_at: now
+        }));
+
+        await powerSyncService.mutateBatch({
+          table: 'product_sizes',
+          operation: 'INSERT',
+          data: sizeData,
+          chunkSize: 50
+        });
+
+        console.log(`[DeltaWrite] ⚡ Batch inserted ${sizeData.length} sizes`);
+      }
+
+      console.log(`[DeltaWrite] ✅ Product created with variants: ${productId} (${colors?.length || 0} colors, ${sizes?.length || 0} sizes)`);
       return { success: true, id: productId };
     } catch (error: any) {
       console.error(`[DeltaWrite] CreateProductWithVariants failed:`, error);
@@ -421,7 +436,8 @@ class DeltaWriteServiceClass {
   // ========================================
 
   /**
-   * ⚡ إنشاء طلب مع عناصره
+   * ⚡ v4.0: إنشاء طلب مع عناصره - باستخدام Batch Operations للأداء العالي
+   * تحسين من N+1 INSERT إلى 2 فقط (order + batch items)
    */
   async createOrderWithItems(
     organizationId: string,
@@ -430,35 +446,37 @@ class DeltaWriteServiceClass {
   ): Promise<WriteResult> {
     try {
       const orderId = order.id || crypto.randomUUID();
+      const now = new Date().toISOString();
 
-      await powerSyncService.transaction(async () => {
-        // إنشاء الطلب
-        await powerSyncService.mutate({
-          table: 'orders',
-          operation: 'INSERT',
-          data: {
-            ...order,
-            id: orderId,
-            organization_id: organizationId,
-            created_at: new Date().toISOString()
-          }
-        });
-
-        // إنشاء عناصر الطلب
-        for (const item of items) {
-          await powerSyncService.mutate({
-            table: 'order_items',
-            operation: 'INSERT',
-            data: {
-              ...item,
-              id: item.id || crypto.randomUUID(),
-              order_id: orderId,
-              organization_id: organizationId,
-              created_at: new Date().toISOString()
-            }
-          });
+      // 1️⃣ إنشاء الطلب
+      await powerSyncService.mutate({
+        table: 'orders',
+        operation: 'INSERT',
+        data: {
+          ...order,
+          id: orderId,
+          organization_id: organizationId,
+          created_at: now
         }
       });
+
+      // 2️⃣ إنشاء عناصر الطلب دفعة واحدة باستخدام Batch Operations
+      if (items.length > 0) {
+        const itemsData = items.map(item => ({
+          ...item,
+          id: item.id || crypto.randomUUID(),
+          order_id: orderId,
+          organization_id: organizationId,
+          created_at: now
+        }));
+
+        await powerSyncService.mutateBatch({
+          table: 'order_items',
+          operation: 'INSERT',
+          data: itemsData,
+          chunkSize: 100  // معالجة حتى 100 عنصر في كل دفعة
+        });
+      }
 
       return { success: true, id: orderId };
     } catch (error: any) {
@@ -657,9 +675,17 @@ class DeltaWriteServiceClass {
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
-    // ⚡ الاستعلام الرئيسي مع Pagination + LEFT JOIN للصور المحلية (Offline Support)
+    // ⚡ v3.0: تحديد columns محددة بدلاً من SELECT * لتحسين الأداء
     const productsSql = `
-      SELECT p.*, lic.base64_data as thumbnail_base64
+      SELECT
+        p.id, p.name, p.sku, p.barcode, p.price, p.purchase_price, p.compare_at_price,
+        p.stock_quantity, p.min_stock_level, p.category_id, p.subcategory_id,
+        p.description, p.thumbnail_image, p.images, p.has_variants, p.use_sizes,
+        p.sell_by_weight, p.sell_by_meter, p.sell_by_box,
+        p.available_weight, p.available_length, p.available_boxes,
+        p.weight_unit, p.price_per_weight_unit, p.price_per_meter, p.box_price, p.units_per_box,
+        p.is_active, p.organization_id, p.created_at, p.updated_at,
+        lic.base64_data as thumbnail_base64
       FROM products p
       LEFT JOIN local_image_cache lic ON lic.product_id = p.id
       WHERE ${whereConditions}
@@ -727,16 +753,24 @@ class DeltaWriteServiceClass {
 
     const placeholders = productIds.map(() => '?').join(',');
 
-    // جلب الألوان والمقاسات معاً
-    const [allColors, allSizes] = await Promise.all([
+    // ⚡ v3.0: تحديد columns محددة بدلاً من SELECT * لتحسين الأداء
+    const [allColors, allSizes, allWholesaleTiers] = await Promise.all([
       powerSyncService.query<any>({
-        sql: `SELECT * FROM product_colors WHERE product_id IN (${placeholders})`,
+        sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price, image_url
+              FROM product_colors WHERE product_id IN (${placeholders})`,
         params: productIds
       }),
       powerSyncService.query<any>({
-        sql: `SELECT ps.* FROM product_sizes ps
+        sql: `SELECT ps.id, ps.color_id, ps.size_name, ps.quantity, ps.barcode, ps.price, ps.purchase_price
+              FROM product_sizes ps
               INNER JOIN product_colors pc ON ps.color_id = pc.id
               WHERE pc.product_id IN (${placeholders})`,
+        params: productIds
+      }),
+      // ⚡ جلب مستويات أسعار الجملة من product_wholesale_tiers
+      powerSyncService.query<any>({
+        sql: `SELECT id, product_id, min_quantity, price_per_unit
+              FROM product_wholesale_tiers WHERE product_id IN (${placeholders}) ORDER BY min_quantity ASC`,
         params: productIds
       })
     ]);
@@ -762,12 +796,34 @@ class DeltaWriteServiceClass {
       colorsMap.get(color.product_id)!.push(color);
     }
 
-    // إرفاق الألوان بالمنتجات
+    // ⚡ تجميع مستويات أسعار الجملة حسب product_id
+    const wholesaleTiersMap = new Map<string, any[]>();
+    for (const tier of allWholesaleTiers) {
+      if (!wholesaleTiersMap.has(tier.product_id)) {
+        wholesaleTiersMap.set(tier.product_id, []);
+      }
+      wholesaleTiersMap.get(tier.product_id)!.push({
+        id: tier.id,
+        min_quantity: tier.min_quantity,
+        price_per_unit: tier.price_per_unit,
+      });
+    }
+
+    // إرفاق الألوان ومستويات الأسعار بالمنتجات
     for (const product of products) {
       const colors = colorsMap.get(product.id) || [];
       product.colors = colors;
       product.product_colors = colors;
       product.variants = colors;
+
+      // ⚡ إرفاق مستويات أسعار الجملة
+      const tiers = wholesaleTiersMap.get(product.id) || [];
+      product.wholesale_tiers = tiers;
+
+      // Debug: تسجيل المنتجات التي لديها مستويات أسعار
+      if (tiers.length > 0) {
+        console.log(`[DeltaWriteService] 💰 Product ${product.name} has ${tiers.length} wholesale tiers`);
+      }
     }
   }
 
@@ -928,10 +984,17 @@ class DeltaWriteServiceClass {
   ): Promise<{ product: any; color?: any; size?: any } | null> {
     if (!barcode?.trim()) return null;
 
-    // ⚡ البحث في المنتج الرئيسي مع الصورة المحلية
+    // ⚡ v3.0: البحث في المنتج الرئيسي مع الصورة المحلية - columns محددة
     const product = await powerSyncService.queryOne<any>({
       sql: `
-        SELECT p.*, lic.base64_data as thumbnail_base64
+        SELECT
+          p.id, p.name, p.sku, p.barcode, p.price, p.purchase_price, p.compare_at_price,
+          p.stock_quantity, p.category_id, p.thumbnail_image, p.images, p.has_variants, p.use_sizes,
+          p.sell_by_weight, p.sell_by_meter, p.sell_by_box,
+          p.available_weight, p.available_length, p.available_boxes,
+          p.weight_unit, p.price_per_weight_unit, p.price_per_meter, p.box_price, p.units_per_box,
+          p.is_active, p.organization_id,
+          lic.base64_data as thumbnail_base64
         FROM products p
         LEFT JOIN local_image_cache lic ON lic.product_id = p.id
         WHERE p.organization_id = ? AND p.barcode = ?
@@ -945,10 +1008,10 @@ class DeltaWriteServiceClass {
       return { product };
     }
 
-    // البحث في الألوان
+    // ⚡ v3.0: البحث في الألوان - columns محددة
     const colorResult = await powerSyncService.queryOne<any>({
       sql: `
-        SELECT pc.*, p.* as product_data
+        SELECT pc.id, pc.product_id, pc.name, pc.color_code, pc.quantity, pc.barcode, pc.price, pc.purchase_price
         FROM product_colors pc
         INNER JOIN products p ON pc.product_id = p.id
         WHERE p.organization_id = ? AND pc.barcode = ?
@@ -958,10 +1021,17 @@ class DeltaWriteServiceClass {
     });
 
     if (colorResult) {
-      // ⚡ جلب المنتج مع الصورة المحلية
+      // ⚡ v3.0: جلب المنتج مع الصورة المحلية - columns محددة
       const productData = await powerSyncService.queryOne<any>({
         sql: `
-          SELECT p.*, lic.base64_data as thumbnail_base64
+          SELECT p.id, p.name, p.sku, p.barcode, p.price, p.purchase_price, p.compare_at_price,
+                 p.stock_quantity, p.min_stock_level, p.category_id, p.subcategory_id,
+                 p.description, p.thumbnail_image, p.images, p.has_variants, p.use_sizes,
+                 p.sell_by_weight, p.sell_by_meter, p.sell_by_box,
+                 p.available_weight, p.available_length, p.available_boxes,
+                 p.weight_unit, p.price_per_weight_unit, p.price_per_meter, p.box_price, p.units_per_box,
+                 p.is_active, p.organization_id, p.created_at, p.updated_at,
+                 lic.base64_data as thumbnail_base64
           FROM products p
           LEFT JOIN local_image_cache lic ON lic.product_id = p.id
           WHERE p.id = ?
@@ -975,10 +1045,11 @@ class DeltaWriteServiceClass {
       }
     }
 
-    // البحث في المقاسات
+    // ⚡ v3.0: البحث في المقاسات - columns محددة
     const sizeResult = await powerSyncService.queryOne<any>({
       sql: `
-        SELECT ps.*, pc.product_id, pc.id as color_id
+        SELECT ps.id, ps.color_id, ps.name, ps.quantity, ps.barcode, ps.price, ps.purchase_price,
+               pc.product_id, pc.id as color_id
         FROM product_sizes ps
         INNER JOIN product_colors pc ON ps.color_id = pc.id
         INNER JOIN products p ON pc.product_id = p.id
@@ -989,10 +1060,17 @@ class DeltaWriteServiceClass {
     });
 
     if (sizeResult) {
-      // ⚡ جلب المنتج مع الصورة المحلية
+      // ⚡ v3.0: جلب المنتج مع الصورة المحلية - columns محددة
       const productData = await powerSyncService.queryOne<any>({
         sql: `
-          SELECT p.*, lic.base64_data as thumbnail_base64
+          SELECT p.id, p.name, p.sku, p.barcode, p.price, p.purchase_price, p.compare_at_price,
+                 p.stock_quantity, p.min_stock_level, p.category_id, p.subcategory_id,
+                 p.description, p.thumbnail_image, p.images, p.has_variants, p.use_sizes,
+                 p.sell_by_weight, p.sell_by_meter, p.sell_by_box,
+                 p.available_weight, p.available_length, p.available_boxes,
+                 p.weight_unit, p.price_per_weight_unit, p.price_per_meter, p.box_price, p.units_per_box,
+                 p.is_active, p.organization_id, p.created_at, p.updated_at,
+                 lic.base64_data as thumbnail_base64
           FROM products p
           LEFT JOIN local_image_cache lic ON lic.product_id = p.id
           WHERE p.id = ?

@@ -253,25 +253,50 @@ export function usePrinter() {
     try {
       setIsPrinting(true);
 
+      // تحويل pageSize للتنسيق الصحيح
+      let pageSize: string | { width: number; height: number } = options?.pageSize || 'A4';
+
+      // إذا كان string مثل '58mm' نحوله لـ object
+      if (typeof pageSize === 'string' && pageSize.endsWith('mm')) {
+        const widthMm = parseInt(pageSize.replace('mm', ''), 10);
+        pageSize = {
+          width: widthMm * 1000, // microns
+          height: 297000 // A4 height in microns
+        };
+      } else if (pageSize === 'A4') {
+        pageSize = {
+          width: 210000, // 210mm in microns
+          height: 297000 // 297mm in microns
+        };
+      } else if (pageSize === 'A5') {
+        pageSize = {
+          width: 148000, // 148mm in microns
+          height: 210000 // 210mm in microns
+        };
+      } else if (typeof pageSize === 'string') {
+        // الإبقاء على strings أخرى مثل 'Legal', 'Letter'
+        // سيتم التعامل معها في printManager.cjs
+      }
+
       const result = await window.electronAPI.print.html({
         html,
         printerName: options?.printerName || selectedPrinter,
         silent: options?.silent ?? settings.silent_print,
-        pageSize: options?.pageSize || 'A4',
+        pageSize,
         landscape: options?.landscape || false
       });
 
       if (result.success) {
         playBeep();
-        toast.success('تمت الطباعة بنجاح');
+        console.log('[usePrinter] تمت الطباعة بنجاح');
       } else {
-        toast.error(`فشل في الطباعة: ${result.error}`);
+        console.warn('[usePrinter] فشل في الطباعة:', result.error);
       }
 
       return result;
     } catch (error) {
       const errorMsg = (error as Error).message;
-      toast.error(`خطأ في الطباعة: ${errorMsg}`);
+      console.error('[usePrinter] خطأ في الطباعة:', errorMsg);
       return { success: false, error: errorMsg };
     } finally {
       setIsPrinting(false);

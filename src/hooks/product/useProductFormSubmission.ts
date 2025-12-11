@@ -6,10 +6,11 @@ import { ProductFormValues, ProductColor, WholesaleTier } from '@/types/product'
 // افتراضيًا نستخدم الواجهة المتصلة
 import { createProduct as createProductOnline, updateProduct as updateProductOnline } from '@/lib/api/products';
 import { addCSRFTokenToFormData } from '@/utils/csrf';
-import { 
-  prepareFormSubmissionData, 
-  validateProductColors 
+import {
+  prepareFormSubmissionData,
+  validateProductColors
 } from '@/utils/product/productFormHelpers';
+import { limitChecker } from '@/lib/subscription/limitChecker';
 
 interface UseProductFormSubmissionProps {
   form: UseFormReturn<ProductFormValues>;
@@ -51,28 +52,29 @@ export const useProductFormSubmission = ({
    */
   const getReturnPath = useCallback(() => {
     const locationState = location.state as any;
-    
+
     // أولوية 1: استخدام returnTo من location.state إذا كان موجوداً
     if (locationState?.returnTo) {
       return locationState.returnTo;
     }
-    
+
     // أولوية 2: استخدام from من location.state
     const referrer = locationState?.from || document.referrer;
-    
+
     // أولوية 3: التحقق من المسار الحالي
     const currentPath = location.pathname;
-    
-    // ⚡ التحقق من المسار الحالي أو المرجع
-    // إذا كان المستخدم في POS layout أو جاء منه
-    if (
+
+    // ⚡ التحقق المحسّن: إذا كان المستخدم في أي صفحة من product-operations (بما في ذلك /new و /edit)
+    // أو في أي صفحة POS، يتم العودة لصفحة المنتجات في product-operations
+    const isPOSContext =
+      currentPath.includes('/product-operations') ||
       currentPath.includes('/pos-') ||
       currentPath.includes('/pos-advanced') ||
-      currentPath.includes('/product-operations') ||
+      referrer.includes('/product-operations') ||
       referrer.includes('/pos-') ||
-      referrer.includes('/pos-advanced') ||
-      referrer.includes('/product-operations')
-    ) {
+      referrer.includes('/pos-advanced');
+
+    if (isPOSContext) {
       return '/dashboard/product-operations/products';
     }
 
@@ -101,6 +103,10 @@ export const useProductFormSubmission = ({
       has_variants: data.has_variants,
       use_sizes: data.use_sizes,
     });
+
+    // 🔍 DEBUG: فحص wholesale_tiers من الـ form مباشرة
+    console.log('[ProductFormSubmission] 🔍 DEBUG - data.wholesale_tiers (from form):', (data as any).wholesale_tiers);
+    console.log('[ProductFormSubmission] 🔍 DEBUG - wholesaleTiers (from state):', wholesaleTiers);
 
     // 🔍 DEBUG: أنواع البيع المتقدمة
     console.log('[ProductFormSubmission] 📦 Advanced Selling Types:', {
@@ -138,14 +144,41 @@ export const useProductFormSubmission = ({
       return;
     }
 
+    const currentOrganizationId = data.organization_id || organizationId;
+
+    // ⚡ التحقق من حد المنتجات قبل الإنشاء (فقط عند إنشاء منتج جديد)
+    if (!isEditMode && currentOrganizationId) {
+      console.log('[ProductFormSubmission] 🔒 Checking product limit...');
+      const limitCheck = await limitChecker.canAddProduct(currentOrganizationId);
+
+      if (!limitCheck.allowed) {
+        console.log('[ProductFormSubmission] ❌ Product limit reached:', limitCheck);
+        toast.error(limitCheck.message, {
+          duration: 5000,
+          action: {
+            label: 'ترقية الخطة',
+            onClick: () => {
+              // التوجيه لصفحة الاشتراكات
+              window.location.href = '/dashboard/subscription';
+            }
+          }
+        });
+        return;
+      }
+
+      console.log('[ProductFormSubmission] ✅ Product limit check passed:', {
+        current: limitCheck.currentCount,
+        max: limitCheck.maxLimit,
+        remaining: limitCheck.remaining
+      });
+    }
+
     setIsSubmitting(true);
     const loadingToast = toast.loading(
       isEditMode ? 'جاري تحديث المنتج...' : 'جاري إنشاء المنتج...'
     );
 
     try {
-      const currentOrganizationId = data.organization_id || organizationId;
-
       // Validate product colors if using variants
       if (data.has_variants && productColors.length > 0) {
         const colorValidation = validateProductColors(productColors, data.has_variants);
@@ -161,12 +194,20 @@ export const useProductFormSubmission = ({
 
       let submissionData;
       try {
+        // ✅ استخدام wholesale_tiers من الـ form مباشرة إذا كانت موجودة
+        // هذا يضمن أن البيانات المدخلة في useFieldArray يتم إرسالها بشكل صحيح
+        const effectiveWholesaleTiers = (data as any).wholesale_tiers?.length > 0
+          ? (data as any).wholesale_tiers
+          : wholesaleTiers;
+
+        console.log('[ProductFormSubmission] 🔍 Using effectiveWholesaleTiers:', effectiveWholesaleTiers);
+
         submissionData = prepareFormSubmissionData(
           data,
           currentOrganizationId!,
           additionalImages,
           productColors,
-          wholesaleTiers
+          effectiveWholesaleTiers
         );
         console.log('[ProductFormSubmission] ✅ prepareFormSubmissionData SUCCESS');
       } catch (prepareError: any) {

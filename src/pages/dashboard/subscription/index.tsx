@@ -236,16 +236,27 @@ const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ useStandaloneLayout
     const fetchUsage = async () => {
       if (!organization) return;
       try {
-        const [products, users, branches] = await Promise.all([
-          supabase.from('products').select('*', { count: 'exact', head: true }).eq('organization_id', organization.id),
-          supabase.from('organization_members').select('*', { count: 'exact', head: true }).eq('organization_id', organization.id),
-          supabase.from('branches').select('*', { count: 'exact', head: true }).eq('organization_id', organization.id)
-        ]);
+        // جلب عدد المنتجات
+        const products = await supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', organization.id);
+
+        // جلب عدد المستخدمين من جدول users (الموظفين + المدراء)
+        const users = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', organization.id)
+          .eq('is_active', true);
+
+        // عدد الفروع: حالياً نعتبر كل مؤسسة لها فرع واحد على الأقل
+        // يمكن تعديل هذا لاحقاً عند إضافة جدول الفروع
+        const branchesCount = 1;
 
         setUsageStats({
           products: products.count || 0,
           users: users.count || 0,
-          branches: branches.count || 0,
+          branches: branchesCount,
           pos: 0 // POS requires simpler logic or separate table if tracked
         });
       } catch (e) {

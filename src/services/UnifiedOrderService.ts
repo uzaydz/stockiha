@@ -299,9 +299,13 @@ class UnifiedOrderServiceClass {
     // ✅ v3.0: استخدام count() الجديد
     const total = await powerSyncService.count('orders', whereClause, params);
 
-    // ✅ v3.0: استخدام query() الجديد
+    // ⚡ v3.0: استخدام query() مع columns محددة
     const orders = await powerSyncService.query<Order>({
-      sql: `SELECT * FROM orders WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      sql: `SELECT id, organization_id, customer_id, customer_order_number, global_order_number, slug,
+                   status, payment_status, payment_method, subtotal, discount, tax, total,
+                   notes, created_at, updated_at, created_by, shipping_address, shipping_cost,
+                   wilaya, commune, delivery_type, paid_amount, remaining_amount
+            FROM orders WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       params: [...params, limit, offset]
     });
 
@@ -313,8 +317,13 @@ class UnifiedOrderServiceClass {
     const orderIds = orders.map(o => o.id);
     const placeholders = orderIds.map(() => '?').join(',');
 
+    // ⚡ v3.0: columns محددة
     const allItems = await powerSyncService.query<OrderItem>({
-      sql: `SELECT * FROM order_items WHERE order_id IN (${placeholders}) ORDER BY created_at ASC`,
+      sql: `SELECT id, order_id, product_id, product_name, quantity, unit_price, total_price,
+                   notes, created_at, color_id, size_id, color_name, size_name,
+                   selling_unit_type, weight_sold, meters_sold, boxes_sold,
+                   purchase_price, sku, barcode
+            FROM order_items WHERE order_id IN (${placeholders}) ORDER BY created_at ASC`,
       params: orderIds
     });
 
@@ -422,9 +431,13 @@ class UnifiedOrderServiceClass {
    * ⚡ جلب طلب واحد مع التفاصيل
    */
   async getOrder(orderId: string): Promise<OrderWithItems | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const order = await powerSyncService.queryOne<Order>({
-      sql: 'SELECT * FROM orders WHERE id = ?',
+      sql: `SELECT id, organization_id, customer_id, customer_order_number, global_order_number, slug,
+                   status, payment_status, payment_method, subtotal, discount, tax, total,
+                   notes, created_at, updated_at, created_by, shipping_address, shipping_cost,
+                   wilaya, commune, delivery_type, paid_amount, remaining_amount
+            FROM orders WHERE id = ?`,
       params: [orderId]
     });
 
@@ -451,9 +464,13 @@ class UnifiedOrderServiceClass {
    * ⚡ جلب عناصر طلب
    */
   async getOrderItems(orderId: string): Promise<OrderItem[]> {
-    // ✅ v3.0: استخدام query() الجديد
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<OrderItem>({
-      sql: 'SELECT * FROM order_items WHERE order_id = ? ORDER BY created_at ASC',
+      sql: `SELECT id, order_id, product_id, product_name, quantity, unit_price, total_price,
+                   notes, created_at, color_id, size_id, color_name, size_name,
+                   selling_unit_type, weight_sold, meters_sold, boxes_sold,
+                   purchase_price, sku, barcode
+            FROM order_items WHERE order_id = ? ORDER BY created_at ASC`,
       params: [orderId]
     });
   }
@@ -467,13 +484,16 @@ class UnifiedOrderServiceClass {
     const orgId = this.getOrgId();
     const searchPattern = `%${query.trim()}%`;
 
-    // ✅ v3.0: استخدام query() الجديد
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<Order>({
-      sql: `SELECT * FROM orders
-       WHERE organization_id = ?
-       AND (customer_order_number LIKE ? OR slug LIKE ? OR global_order_number LIKE ?)
-       ORDER BY created_at DESC
-       LIMIT ?`,
+      sql: `SELECT id, organization_id, customer_id, customer_order_number, global_order_number, slug,
+                   status, payment_status, payment_method, subtotal, discount, tax, total,
+                   notes, created_at, updated_at, shipping_cost, wilaya, commune, delivery_type
+            FROM orders
+            WHERE organization_id = ?
+            AND (customer_order_number LIKE ? OR slug LIKE ? OR global_order_number LIKE ?)
+            ORDER BY created_at DESC
+            LIMIT ?`,
       params: [orgId, searchPattern, searchPattern, searchPattern, limit]
     });
   }
@@ -507,12 +527,16 @@ class UnifiedOrderServiceClass {
       params.push(searchPattern, searchPattern, searchPattern);
     }
 
-    // ✅ v3.0: استخدام query() الجديد
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<Order>({
-      sql: `SELECT * FROM orders
-       WHERE ${whereClause}
-       ORDER BY created_at DESC
-       LIMIT ?`,
+      sql: `SELECT id, organization_id, customer_id, customer_order_number, global_order_number, slug,
+                   status, payment_status, payment_method, subtotal, discount, tax, total,
+                   notes, created_at, updated_at, shipping_cost, wilaya, commune, delivery_type,
+                   is_online, paid_amount, remaining_amount
+            FROM orders
+            WHERE ${whereClause}
+            ORDER BY created_at DESC
+            LIMIT ?`,
       params: [...params, limit]
     });
   }
@@ -747,9 +771,12 @@ class UnifiedOrderServiceClass {
    * ⚡ تحديث حالة الطلب
    */
   async updateOrderStatus(orderId: string, status: OrderStatus): Promise<Order | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<Order>({
-      sql: 'SELECT * FROM orders WHERE id = ?',
+      sql: `SELECT id, organization_id, customer_id, customer_order_number, global_order_number, slug,
+                   status, payment_status, payment_method, subtotal, discount, tax, total,
+                   notes, created_at, updated_at, completed_at
+            FROM orders WHERE id = ?`,
       params: [orderId]
     });
 
@@ -781,9 +808,11 @@ class UnifiedOrderServiceClass {
     amountPaid: number,
     paymentMethod?: PaymentMethod
   ): Promise<Order | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<Order>({
-      sql: 'SELECT * FROM orders WHERE id = ?',
+      sql: `SELECT id, organization_id, customer_id, total, amount_paid, remaining_amount,
+                   payment_status, payment_method, status, created_at, updated_at
+            FROM orders WHERE id = ?`,
       params: [orderId]
     });
 

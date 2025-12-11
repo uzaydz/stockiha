@@ -139,9 +139,9 @@ const BusinessProfileSettings: React.FC = () => {
                     {typeInfo.description}
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {typeInfo.features.slice(0, 3).map((feature, index) => (
+                    {typeInfo.features.slice(0, 3).map((feature) => (
                       <Badge
-                        key={index}
+                        key={feature}
                         variant="secondary"
                         className="text-xs"
                       >

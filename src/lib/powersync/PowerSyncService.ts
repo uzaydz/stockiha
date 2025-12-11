@@ -824,14 +824,16 @@ export class PowerSyncService {
 
   // ⚡ تأخير تسجيل الانقطاع لتجنب التذبذب السريع
   private disconnectLogTimer: NodeJS.Timeout | null = null;
+  private _offlineDebounceTimer: NodeJS.Timeout | null = null; // ⚡ v4.6: لتجاهل التذبذب السريع
   private readonly DISCONNECT_LOG_DELAY = 2000; // ننتظر 2 ثانية قبل تسجيل الانقطاع
 
-  // ⚡ v4.3: منع تكرار الـ logs
+  // ⚡ v4.5: منع تكرار الـ logs بشكل صارم
   private lastStatusChangeLog = 0;
-  private readonly STATUS_CHANGE_LOG_INTERVAL = 10000; // 10 ثوانٍ بين كل log
+  private readonly STATUS_CHANGE_LOG_INTERVAL = 30000; // 30 ثانية بين كل log (زيادة من 10)
   private hasLoggedFirstSync = false;
   private lastDebugCheckTime = 0;
-  private readonly DEBUG_CHECK_INTERVAL = 30000; // 30 ثانية بين كل debug check
+  private readonly DEBUG_CHECK_INTERVAL = 60000; // 60 ثانية بين كل debug check (زيادة من 30)
+  private lastLoggedStatus: { connected: boolean; hasSynced: boolean } | null = null;
 
   /**
    * 📊 Setup status listener
@@ -851,19 +853,47 @@ export class PowerSyncService {
       statusChanged: (status) => {
         const now = Date.now();
 
-        // ⚡ v4.3: تقليل الـ logs المتكررة - فقط كل 10 ثوانٍ أو عند تغيير فعلي
-        const shouldLogStatusChange = (now - this.lastStatusChangeLog > this.STATUS_CHANGE_LOG_INTERVAL) ||
-          (status.connected !== this.lastStatusLog.connected);
+        // ⚡ v4.5: تجاهل الـ events المتكررة تماماً
+        const currentStatus = { connected: status.connected, hasSynced: status.hasSynced };
+        const isSameStatus = this.lastLoggedStatus &&
+          this.lastLoggedStatus.connected === currentStatus.connected &&
+          this.lastLoggedStatus.hasSynced === currentStatus.hasSynced;
 
-        if (shouldLogStatusChange) {
-          this.lastStatusChangeLog = now;
-          // فقط log عند التغييرات المهمة
-          if (status.connected !== this.lastStatusLog.connected) {
-            console.log('[PowerSync] 🔍 Status changed:', {
-              connected: status.connected,
-              hasSynced: status.hasSynced,
-              lastSyncedAt: status.lastSyncedAt,
-            });
+        // ⚡ v4.6: تجاهل التذبذب السريع (debounce) - انتظار 500ms قبل تسجيل OFFLINE
+        const connectionChanged = this.lastLoggedStatus?.connected !== status.connected;
+
+        if (connectionChanged) {
+          // إذا انتقلنا من ONLINE إلى OFFLINE، ننتظر 500ms للتأكد
+          if (this.lastLoggedStatus?.connected === true && status.connected === false) {
+            // تأجيل تسجيل OFFLINE
+            if (!this._offlineDebounceTimer) {
+              this._offlineDebounceTimer = setTimeout(() => {
+                this._offlineDebounceTimer = null;
+                // تحقق مرة أخرى بعد التأخير
+                if (this.db && !this.db.connected) {
+                  this.lastStatusChangeLog = Date.now();
+                  this.lastLoggedStatus = { connected: false, hasSynced: status.hasSynced };
+                  console.log('[PowerSync] 🔍 Connection: 🔴 OFFLINE');
+                }
+              }, 500);
+            }
+          } else if (status.connected) {
+            // إذا عدنا ONLINE، ألغِ timer الـ OFFLINE وسجّل فوراً
+            if (this._offlineDebounceTimer) {
+              clearTimeout(this._offlineDebounceTimer);
+              this._offlineDebounceTimer = null;
+            }
+            // فقط سجّل إذا كنا offline فعلاً سابقاً
+            if (this.lastLoggedStatus?.connected === false) {
+              this.lastStatusChangeLog = now;
+              this.lastLoggedStatus = currentStatus;
+              console.log('[PowerSync] 🔍 Connection: 🟢 ONLINE');
+            } else if (this.lastLoggedStatus === undefined) {
+              // أول مرة
+              this.lastStatusChangeLog = now;
+              this.lastLoggedStatus = currentStatus;
+              console.log('[PowerSync] 🔍 Connection: 🟢 ONLINE');
+            }
           }
         }
 
@@ -871,43 +901,26 @@ export class PowerSyncService {
         if (status.hasSynced) {
           this.localLastSyncedAt = status.lastSyncedAt || new Date();
 
-          // ⚡ v4.3: تسجيل Sync confirmed مرة واحدة فقط، أو كل 30 ثانية
+          // ⚡ v4.5: تسجيل Sync confirmed مرة واحدة فقط في حياة الـ instance
           if (!this.hasLoggedFirstSync) {
             this.hasLoggedFirstSync = true;
-            console.log('[PowerSync] ✅ Sync confirmed! lastSyncedAt:', this.localLastSyncedAt);
+            console.log('[PowerSync] ✅ First sync confirmed!');
           }
 
-          // ⚡ v4.3: فحص البيانات مرة واحدة فقط كل 30 ثانية
-          if (now - this.lastDebugCheckTime > this.DEBUG_CHECK_INTERVAL) {
+          // ⚡ v4.5: فحص البيانات مرة واحدة فقط كل 60 ثانية (وليس عند كل status change)
+          if (!isSameStatus && (now - this.lastDebugCheckTime > this.DEBUG_CHECK_INTERVAL)) {
             this.lastDebugCheckTime = now;
             this.debugCheckDataAfterSync();
           }
         }
 
 
-        // ⚡ إذا عاد الاتصال، نلغي أي تسجيل انقطاع معلق
+        // ⚡ v4.5: إدارة timers فقط (بدون logs إضافية - تم التسجيل أعلاه)
         if (status.connected) {
           if (this.disconnectLogTimer) {
             clearTimeout(this.disconnectLogTimer);
             this.disconnectLogTimer = null;
           }
-
-          // ⚡ نسجل الاتصال فقط إذا:
-          // 1. لم نكن متصلين من قبل (أول اتصال)
-          // 2. أو سجلنا انقطاعاً سابقاً (إعادة اتصال حقيقية)
-          // 3. أو مر وقت كافٍ منذ آخر log
-          const shouldLog = !this.lastStatusLog.connected ||
-            this.lastStatusLog.loggedDisconnect ||
-            (now - this.lastStatusLog.time > this.STATUS_LOG_DEBOUNCE);
-
-          if (shouldLog) {
-            console.log('[PowerSync] 🟢 Status:', {
-              connected: true,
-              hasSynced: status.hasSynced,
-              lastSyncedAt: status.lastSyncedAt || this.localLastSyncedAt,
-            });
-          }
-
           this.lastStatusLog = { connected: true, time: now, loggedDisconnect: false };
           this.reconnectAttempts = 0;
           if (this.reconnectTimer) {
@@ -919,17 +932,9 @@ export class PowerSyncService {
           if (!this.disconnectLogTimer && this.lastStatusLog.connected) {
             this.disconnectLogTimer = setTimeout(() => {
               this.disconnectLogTimer = null;
-              // فقط نسجل إذا لا زلنا غير متصلين
               if (this.db && !this.db.connected) {
-                // ⚡ تحقق من الاتصال بالإنترنت قبل التسجيل
                 const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-                if (isOnline) {
-                  console.log('[PowerSync] 🔴 Connection lost, will reconnect...');
-                } else {
-                  console.log('[PowerSync] 📴 Offline mode active');
-                }
                 this.lastStatusLog = { connected: false, time: Date.now(), loggedDisconnect: true };
-                // ⚡ فقط نحاول إعادة الاتصال إذا كنا متصلين بالإنترنت
                 if (isOnline) {
                   this.scheduleReconnect();
                 }
@@ -1460,6 +1465,11 @@ export class PowerSyncService {
       clearTimeout(this.disconnectLogTimer);
       this.disconnectLogTimer = null;
     }
+    // ⚡ v4.6: Cleanup offline debounce timer
+    if (this._offlineDebounceTimer) {
+      clearTimeout(this._offlineDebounceTimer);
+      this._offlineDebounceTimer = null;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1496,10 +1506,11 @@ export class PowerSyncService {
 
   /**
    * 📊 Get sync status
+   * 🔧 Fix: تحقق من TTL قبل استدعاء الدالة لتقليل الـ overhead
    */
   get syncStatus(): SyncStatus {
-    // تحديث العدّاد بشكل غير متزامن دون حجب getter
-    if (this.db) {
+    // تحديث العدّاد بشكل غير متزامن فقط إذا انتهت صلاحية الـ cache
+    if (this.db && (Date.now() - this.pendingChangesCacheTime >= this.PENDING_CACHE_TTL)) {
       void this.updatePendingChangesCount();
     }
 

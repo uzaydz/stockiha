@@ -32,6 +32,8 @@ import { Label } from '@/components/ui/label';
 import { FormDescription } from '@/components/ui/form';
 import { createCleanPrintWindow, printSeparateBarcodes } from '@/utils/printUtils';
 import { useTenant } from '@/context/TenantContext';
+// ⚡ نظام الطباعة الموحد
+import { usePrinter } from '@/hooks/usePrinter';
 
 // إضافة خيارات الطباعة للألوان والمقاسات
 export type ColorPrintOption = 'default' | 'selected' | 'all';
@@ -83,8 +85,8 @@ interface SizeWithDetails {
   productName: string;
 }
 
-const BulkBarcodePrinter = ({ 
-  products, 
+const BulkBarcodePrinter = ({
+  products,
   isButtonVisible = true,
   defaultSelectedProducts = [],
   title = "طباعة الباركود للمنتجات",
@@ -93,6 +95,9 @@ const BulkBarcodePrinter = ({
   const { currentOrganization } = useTenant();
   const [open, setOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>(defaultSelectedProducts);
+
+  // ⚡ نظام الطباعة الموحد
+  const { printHtml, printBarcodes, isElectron: isElectronPrint, isPrinting: isElectronPrinting } = usePrinter();
   
   // إنشاء الإعدادات الافتراضية مع اسم المتجر
   const getDefaultSettings = (): ExtendedBarcodeSettings => ({
@@ -802,16 +807,53 @@ const BulkBarcodePrinter = ({
         </style>
       `;
       
-      // استخدام الطباعة المحسّنة من printUtils
+      // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
+      if (isElectronPrint) {
+        try {
+          console.log('[BarcodePrint] محاولة الطباعة المباشرة عبر Electron...');
+
+          // تغليف HTML للطباعة
+          const fullHtml = `
+            <!DOCTYPE html>
+            <html dir="rtl" lang="ar">
+              <head>
+                <meta charset="UTF-8">
+                <title>طباعة الباركود</title>
+              </head>
+              <body style="margin: 0; padding: 0; background: white;">
+                ${printContent}
+              </body>
+            </html>
+          `;
+
+          const result = await printHtml(fullHtml, {
+            silent: true,
+            pageSize: pageSize === 'A4' ? 'A4' : pageSize === 'A5' ? 'A5' : '58mm',
+            landscape: settings.orientation === 'landscape'
+          });
+
+          if (result.success) {
+            console.log('[BarcodePrint] ✅ تمت الطباعة المباشرة بنجاح');
+            toast.success(`تم طباعة ${successfulBarcodes} باركود بنجاح`);
+            return;
+          } else {
+            console.warn('[BarcodePrint] فشلت الطباعة المباشرة:', result.error);
+          }
+        } catch (err) {
+          console.warn('[BarcodePrint] خطأ في الطباعة المباشرة، التراجع إلى window.print:', err);
+        }
+      }
+
+      // ⚡ استخدام الطباعة العادية كـ fallback
       const printWindow = createCleanPrintWindow(printContent, 'طباعة الباركود للمنتجات');
-      
+
       if (!printWindow) {
         toast.error("تم منع فتح نافذة الطباعة من قبل المتصفح");
         return;
       }
-      
+
       // عرض رسالة نجاح
-      toast.success(`تم إنشاء ${selectedProducts.length * settings.copiesPerProduct} باركود جاهز للطباعة`);
+      toast.success(`تم إنشاء ${successfulBarcodes} باركود جاهز للطباعة`);
     } catch (error) {
       toast.error('حدث خطأ أثناء إنشاء الباركود');
     }

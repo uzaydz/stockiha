@@ -270,32 +270,45 @@ class UnifiedProductServiceClass {
    * ⚡ جلب منتج واحد مع التفاصيل
    */
   async getProduct(productId: string): Promise<ProductWithDetails | null> {
+    // ⚡ v3.0: columns محددة
     const product = await powerSyncService.queryOne<Product>({
-      sql: 'SELECT * FROM products WHERE id = ?',
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   description, thumbnail_image, images, has_variants, use_sizes,
+                   sell_by_weight, sell_by_meter, sell_by_box,
+                   available_weight, available_length, available_boxes,
+                   weight_unit, price_per_weight_unit, price_per_meter, box_price, units_per_box,
+                   is_active, organization_id, created_at, updated_at
+            FROM products WHERE id = ?`,
       params: [productId]
     });
 
     if (!product) return null;
 
-    // جلب الألوان والمقاسات بالتوازي
+    // ⚡ v3.0: جلب الألوان والمقاسات بالتوازي - columns محددة
     const [colors, sizes, category, subcategory] = await Promise.all([
       powerSyncService.query<ProductColor>({
-        sql: 'SELECT * FROM product_colors WHERE product_id = ? ORDER BY is_default DESC, name ASC',
+        sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price,
+                     image_url, is_default, organization_id
+              FROM product_colors WHERE product_id = ? ORDER BY is_default DESC, name ASC`,
         params: [productId]
       }),
       powerSyncService.query<ProductSize>({
-        sql: 'SELECT * FROM product_sizes WHERE product_id = ? ORDER BY size_name ASC',
+        sql: `SELECT id, product_id, color_id, size_name, quantity, barcode, price, purchase_price, organization_id
+              FROM product_sizes WHERE product_id = ? ORDER BY size_name ASC`,
         params: [productId]
       }),
       product.category_id
         ? powerSyncService.queryOne<ProductCategory>({
-            sql: 'SELECT * FROM product_categories WHERE id = ?',
+            sql: `SELECT id, name, description, parent_id, image_url, display_order, is_active, organization_id
+                  FROM product_categories WHERE id = ?`,
             params: [product.category_id]
           })
         : null,
       product.subcategory_id
         ? powerSyncService.queryOne<ProductSubcategory>({
-            sql: 'SELECT * FROM product_subcategories WHERE id = ?',
+            sql: `SELECT id, name, category_id, description, image_url, display_order, is_active, organization_id
+                  FROM product_subcategories WHERE id = ?`,
             params: [product.subcategory_id]
           })
         : null
@@ -316,35 +329,49 @@ class UnifiedProductServiceClass {
   async getProductByBarcode(barcode: string): Promise<ProductWithDetails | null> {
     const orgId = this.getOrgId();
 
-    // بحث في المنتجات
+    // ⚡ v3.0: بحث في المنتجات - columns محددة
     let product = await powerSyncService.queryOne<Product>({
-      sql: 'SELECT * FROM products WHERE organization_id = ? AND barcode = ?',
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   description, thumbnail_image, has_variants, use_sizes,
+                   is_active, organization_id, created_at, updated_at
+            FROM products WHERE organization_id = ? AND barcode = ?`,
       params: [orgId, barcode]
     });
 
-    // بحث في الألوان إذا لم يوجد
+    // ⚡ v3.0: بحث في الألوان إذا لم يوجد - columns محددة
     if (!product) {
       const color = await powerSyncService.queryOne<ProductColor>({
-        sql: 'SELECT * FROM product_colors WHERE organization_id = ? AND barcode = ?',
+        sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price
+              FROM product_colors WHERE organization_id = ? AND barcode = ?`,
         params: [orgId, barcode]
       });
       if (color) {
         product = await powerSyncService.queryOne<Product>({
-          sql: 'SELECT * FROM products WHERE id = ?',
+          sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                       stock_quantity, min_stock_level, category_id, subcategory_id,
+                       description, thumbnail_image, has_variants, use_sizes,
+                       is_active, organization_id, created_at, updated_at
+                FROM products WHERE id = ?`,
           params: [color.product_id]
         });
       }
     }
 
-    // بحث في المقاسات إذا لم يوجد
+    // ⚡ v3.0: بحث في المقاسات إذا لم يوجد - columns محددة
     if (!product) {
       const size = await powerSyncService.queryOne<ProductSize>({
-        sql: 'SELECT * FROM product_sizes WHERE organization_id = ? AND barcode = ?',
+        sql: `SELECT id, product_id, color_id, size_name, quantity, barcode, price, purchase_price
+              FROM product_sizes WHERE organization_id = ? AND barcode = ?`,
         params: [orgId, barcode]
       });
       if (size) {
         product = await powerSyncService.queryOne<Product>({
-          sql: 'SELECT * FROM products WHERE id = ?',
+          sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                       stock_quantity, min_stock_level, category_id, subcategory_id,
+                       description, thumbnail_image, has_variants, use_sizes,
+                       is_active, organization_id, created_at, updated_at
+                FROM products WHERE id = ?`,
           params: [size.product_id]
         });
       }
@@ -364,13 +391,17 @@ class UnifiedProductServiceClass {
     const orgId = this.getOrgId();
     const searchPattern = `%${query.trim()}%`;
 
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<Product>({
-      sql: `SELECT * FROM products
-       WHERE organization_id = ?
-       AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ? OR description LIKE ?)
-       AND is_active = 1
-       ORDER BY name ASC
-       LIMIT ?`,
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   thumbnail_image, has_variants, use_sizes, is_active, organization_id
+            FROM products
+            WHERE organization_id = ?
+            AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ? OR description LIKE ?)
+            AND is_active = 1
+            ORDER BY name ASC
+            LIMIT ?`,
       params: [orgId, searchPattern, searchPattern, searchPattern, searchPattern, limit]
     });
   }
@@ -387,8 +418,10 @@ class UnifiedProductServiceClass {
    */
   async getCategories(): Promise<ProductCategory[]> {
     const orgId = this.getOrgId();
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<ProductCategory>({
-      sql: 'SELECT * FROM product_categories WHERE organization_id = ? AND is_active = 1 ORDER BY name ASC',
+      sql: `SELECT id, name, description, parent_id, image_url, display_order, is_active, organization_id, created_at
+            FROM product_categories WHERE organization_id = ? AND is_active = 1 ORDER BY name ASC`,
       params: [orgId]
     });
   }
@@ -399,15 +432,18 @@ class UnifiedProductServiceClass {
   async getSubcategories(categoryId?: string): Promise<ProductSubcategory[]> {
     const orgId = this.getOrgId();
 
+    // ⚡ v3.0: columns محددة
     if (categoryId) {
       return powerSyncService.query<ProductSubcategory>({
-        sql: 'SELECT * FROM product_subcategories WHERE organization_id = ? AND category_id = ? AND is_active = 1 ORDER BY name ASC',
+        sql: `SELECT id, name, category_id, description, image_url, display_order, is_active, organization_id
+              FROM product_subcategories WHERE organization_id = ? AND category_id = ? AND is_active = 1 ORDER BY name ASC`,
         params: [orgId, categoryId]
       });
     }
 
     return powerSyncService.query<ProductSubcategory>({
-      sql: 'SELECT * FROM product_subcategories WHERE organization_id = ? AND is_active = 1 ORDER BY name ASC',
+      sql: `SELECT id, name, category_id, description, image_url, display_order, is_active, organization_id
+            FROM product_subcategories WHERE organization_id = ? AND is_active = 1 ORDER BY name ASC`,
       params: [orgId]
     });
   }
@@ -560,8 +596,13 @@ class UnifiedProductServiceClass {
     productId: string,
     updates: Partial<Omit<Product, 'id' | 'organization_id' | 'created_at'>>
   ): Promise<Product | null> {
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<Product>({
-      sql: 'SELECT * FROM products WHERE id = ?',
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   description, thumbnail_image, images, has_variants, use_sizes,
+                   is_active, organization_id, created_at, updated_at
+            FROM products WHERE id = ?`,
       params: [productId]
     });
 
@@ -722,8 +763,11 @@ class UnifiedProductServiceClass {
     colorId: string,
     updates: Partial<Omit<ProductColor, 'id' | 'organization_id' | 'product_id' | 'created_at'>>
   ): Promise<ProductColor | null> {
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<ProductColor>({
-      sql: 'SELECT * FROM product_colors WHERE id = ?',
+      sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price,
+                   image_url, is_default, organization_id, created_at, updated_at
+            FROM product_colors WHERE id = ?`,
       params: [colorId]
     });
 
@@ -749,8 +793,11 @@ class UnifiedProductServiceClass {
     sizeId: string,
     updates: Partial<Omit<ProductSize, 'id' | 'organization_id' | 'product_id' | 'created_at'>>
   ): Promise<ProductSize | null> {
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<ProductSize>({
-      sql: 'SELECT * FROM product_sizes WHERE id = ?',
+      sql: `SELECT id, product_id, color_id, size_name, quantity, barcode, price, purchase_price,
+                   organization_id, created_at, updated_at
+            FROM product_sizes WHERE id = ?`,
       params: [sizeId]
     });
 
@@ -893,9 +940,12 @@ class UnifiedProductServiceClass {
 
     const products: Array<{ product: Product; totalSold: number }> = [];
 
+    // ⚡ v3.0: columns محددة
     for (const result of results) {
       const product = await powerSyncService.queryOne<Product>({
-        sql: 'SELECT * FROM products WHERE id = ?',
+        sql: `SELECT id, name, sku, barcode, price, purchase_price, stock_quantity,
+                     thumbnail_image, category_id, is_active, organization_id
+              FROM products WHERE id = ?`,
         params: [result.product_id]
       });
       if (product) {
@@ -912,13 +962,16 @@ class UnifiedProductServiceClass {
   async getLowStockProducts(limit: number = 20): Promise<Product[]> {
     const orgId = this.getOrgId();
 
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<Product>({
-      sql: `SELECT * FROM products
-       WHERE organization_id = ?
-       AND is_active = 1
-       AND stock_quantity <= COALESCE(min_stock_level, 5)
-       ORDER BY stock_quantity ASC
-       LIMIT ?`,
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, stock_quantity,
+                   min_stock_level, thumbnail_image, category_id, is_active, organization_id
+            FROM products
+            WHERE organization_id = ?
+            AND is_active = 1
+            AND stock_quantity <= COALESCE(min_stock_level, 5)
+            ORDER BY stock_quantity ASC
+            LIMIT ?`,
       params: [orgId, limit]
     });
   }
@@ -937,13 +990,16 @@ class UnifiedProductServiceClass {
 
     const barcodeTrimmed = barcode.trim();
 
-    // 1. البحث في المنتجات الرئيسية
+    // ⚡ v3.0: البحث في المنتجات الرئيسية - columns محددة
     const product = await powerSyncService.queryOne<Product>({
-      sql: `SELECT * FROM products
-       WHERE organization_id = ?
-       AND barcode = ?
-       AND is_active = 1
-       LIMIT 1`,
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   thumbnail_image, has_variants, use_sizes, is_active, organization_id
+            FROM products
+            WHERE organization_id = ?
+            AND barcode = ?
+            AND is_active = 1
+            LIMIT 1`,
       params: [orgId, barcodeTrimmed]
     });
 
@@ -951,40 +1007,47 @@ class UnifiedProductServiceClass {
       return { product, foundIn: 'product' };
     }
 
-    // 2. البحث في الألوان
+    // ⚡ v3.0: البحث في الألوان - columns محددة
     const color = await powerSyncService.queryOne<ProductColor>({
-      sql: `SELECT * FROM product_colors
-       WHERE organization_id = ?
-       AND barcode = ?
-       LIMIT 1`,
+      sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price
+            FROM product_colors
+            WHERE organization_id = ?
+            AND barcode = ?
+            LIMIT 1`,
       params: [orgId, barcodeTrimmed]
     });
 
     if (color) {
       const productData = await powerSyncService.queryOne<Product>({
-        sql: 'SELECT * FROM products WHERE id = ?',
+        sql: `SELECT id, name, sku, barcode, price, purchase_price, stock_quantity,
+                     thumbnail_image, category_id, is_active, organization_id
+              FROM products WHERE id = ?`,
         params: [color.product_id]
       });
       return { product: productData || undefined, color, foundIn: 'color' };
     }
 
-    // 3. البحث في المقاسات
+    // ⚡ v3.0: البحث في المقاسات - columns محددة
     const size = await powerSyncService.queryOne<ProductSize>({
-      sql: `SELECT * FROM product_sizes
-       WHERE organization_id = ?
-       AND barcode = ?
-       LIMIT 1`,
+      sql: `SELECT id, product_id, color_id, size_name, quantity, barcode, price, purchase_price
+            FROM product_sizes
+            WHERE organization_id = ?
+            AND barcode = ?
+            LIMIT 1`,
       params: [orgId, barcodeTrimmed]
     });
 
     if (size) {
       const productData = await powerSyncService.queryOne<Product>({
-        sql: 'SELECT * FROM products WHERE id = ?',
+        sql: `SELECT id, name, sku, barcode, price, purchase_price, stock_quantity,
+                     thumbnail_image, category_id, is_active, organization_id
+              FROM products WHERE id = ?`,
         params: [size.product_id]
       });
       const colorData = size.color_id
         ? await powerSyncService.queryOne<ProductColor>({
-            sql: 'SELECT * FROM product_colors WHERE id = ?',
+            sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price
+                  FROM product_colors WHERE id = ?`,
             params: [size.color_id]
           })
         : undefined;

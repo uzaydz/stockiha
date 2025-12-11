@@ -206,9 +206,12 @@ class UnifiedCustomerServiceClass {
    * ⚡ جلب عميل واحد مع التفاصيل
    */
   async getCustomer(customerId: string): Promise<CustomerWithStats | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const customer = await powerSyncService.queryOne<Customer>({
-      sql: 'SELECT * FROM customers WHERE id = ?',
+      sql: `SELECT id, name, phone, email, address, city, wilaya,
+                   total_purchases, total_debt, is_active, organization_id,
+                   created_at, updated_at, customer_type, notes
+            FROM customers WHERE id = ?`,
       params: [customerId]
     });
 
@@ -265,13 +268,16 @@ class UnifiedCustomerServiceClass {
     const orgId = this.getOrgId();
     const searchPattern = `%${query.trim()}%`;
 
-    // ✅ v3.0: استخدام query() الجديد
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<Customer>({
-      sql: `SELECT * FROM customers
-       WHERE organization_id = ?
-       AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)
-       ORDER BY name ASC
-       LIMIT ?`,
+      sql: `SELECT id, name, phone, email, address, city, wilaya,
+                   total_purchases, total_debt, is_active, organization_id,
+                   created_at, updated_at, customer_type
+            FROM customers
+            WHERE organization_id = ?
+            AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)
+            ORDER BY name ASC
+            LIMIT ?`,
       params: [orgId, searchPattern, searchPattern, searchPattern, limit]
     });
   }
@@ -282,9 +288,12 @@ class UnifiedCustomerServiceClass {
   async getCustomerByPhone(phone: string): Promise<Customer | null> {
     const orgId = this.getOrgId();
 
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     return powerSyncService.queryOne<Customer>({
-      sql: 'SELECT * FROM customers WHERE organization_id = ? AND phone = ?',
+      sql: `SELECT id, name, phone, email, address, city, wilaya,
+                   total_purchases, total_debt, is_active, organization_id,
+                   created_at, updated_at, customer_type
+            FROM customers WHERE organization_id = ? AND phone = ?`,
       params: [orgId, phone]
     });
   }
@@ -308,9 +317,12 @@ class UnifiedCustomerServiceClass {
     const uniqueIds = [...new Set(customerIds)];
     const placeholders = uniqueIds.map(() => '?').join(',');
 
-    // استعلام واحد لجميع العملاء
+    // ⚡ v3.0: استعلام واحد لجميع العملاء - columns محددة
     const customers = await powerSyncService.query<Customer>({
-      sql: `SELECT * FROM customers WHERE id IN (${placeholders})`,
+      sql: `SELECT id, name, phone, email, address, city, wilaya,
+                   total_purchases, total_debt, is_active, organization_id,
+                   created_at, updated_at, customer_type
+            FROM customers WHERE id IN (${placeholders})`,
       params: uniqueIds
     });
 
@@ -410,9 +422,12 @@ class UnifiedCustomerServiceClass {
     customerId: string,
     updates: Partial<Omit<Customer, 'id' | 'organization_id' | 'created_at'>>
   ): Promise<Customer | null> {
-    // ✅ v3.0: استخدام queryOne() الجديد
+    // ⚡ v3.0: columns محددة
     const existing = await powerSyncService.queryOne<Customer>({
-      sql: 'SELECT * FROM customers WHERE id = ?',
+      sql: `SELECT id, name, phone, email, address, city, wilaya,
+                   total_purchases, total_debt, is_active, organization_id,
+                   created_at, updated_at, customer_type, notes
+            FROM customers WHERE id = ?`,
       params: [customerId]
     });
 
@@ -569,8 +584,12 @@ class UnifiedCustomerServiceClass {
     // ✅ v3.0: استخدام count() و query() الجديد
     const total = await powerSyncService.count('orders', 'customer_id = ?', [customerId]);
 
+    // ⚡ v3.0: columns محددة
     const orders = await powerSyncService.query<any>({
-      sql: `SELECT * FROM orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      sql: `SELECT id, organization_id, customer_id, customer_order_number, global_order_number,
+                   status, payment_status, payment_method, subtotal, discount, tax, total,
+                   notes, created_at, updated_at, paid_amount, remaining_amount
+            FROM orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       params: [customerId, limit, offset]
     });
 

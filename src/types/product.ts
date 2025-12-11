@@ -203,6 +203,10 @@ export const productSchema = z.object({
   thumbnail_image: z.string().min(1, { message: "يجب رفع صورة رئيسية للمنتج" }),
   has_variants: z.boolean().default(false),
   show_price_on_landing: z.boolean().default(true),
+  // === إعدادات العرض والنشر ===
+  show_in_store: z.boolean().default(true), // السماح بظهور المنتج في المتجر
+  allow_marketplace: z.boolean().default(false), // السماح بالعرض في السوق الشاملة (قريباً)
+  hide_stock_quantity: z.boolean().default(false), // إخفاء كمية المخزون من العملاء
   is_featured: z.boolean().default(false),
   is_new: z.boolean().default(true),
   colors: z.array(productColorSchema).optional().default([]),
@@ -420,6 +424,10 @@ export interface ProductWithVariants {
   subcategory?: string | null;
   has_variants: boolean;
   show_price_on_landing: boolean;
+  // إعدادات العرض والنشر
+  show_in_store?: boolean;
+  allow_marketplace?: boolean;
+  hide_stock_quantity?: boolean;
   colors?: ProductColor[];
   additional_images?: string[];
   wholesale_tiers?: WholesaleTier[];

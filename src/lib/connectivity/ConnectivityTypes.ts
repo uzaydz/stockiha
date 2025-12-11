@@ -4,11 +4,11 @@
  * Types and interfaces for the enhanced connectivity detection system
  */
 
-// Connection quality levels (5 levels for better granularity)
-export type ConnectionQuality = 'excellent' | 'good' | 'fair' | 'poor' | 'offline';
+// Connection quality levels (6 levels for better granularity)
+export type ConnectionQuality = 'excellent' | 'good' | 'fair' | 'poor' | 'unstable' | 'offline';
 
 // Source of the connectivity detection
-export type ConnectivitySource = 'navigator' | 'ping' | 'electron' | 'network-info' | 'health-check';
+export type ConnectivitySource = 'navigator' | 'ping' | 'electron' | 'network-info' | 'health-check' | 'passive-activity';
 
 // Network effective type from Network Information API
 export type EffectiveConnectionType = '4g' | '3g' | '2g' | 'slow-2g' | null;
@@ -143,6 +143,9 @@ export interface ConnectivityConfig {
   // URLs to ping for connectivity check
   pingEndpoints: string[];
 
+  // Time in ms to wait between verifying different endpoints
+  pingFailoverInterval: number;
+
   // Timeout for ping requests (ms)
   pingTimeout: number;
 
@@ -171,8 +174,8 @@ export interface ConnectivityConfig {
   // Latency threshold for "poor" quality (ms)
   poorLatencyThreshold: number;
 
-  // Number of failures before considering offline
-  maxConsecutiveFailures: number;
+  // Number of failures before considering offline (The Algeria Shield)
+  failureThreshold: number;
 
   // === Backoff Configuration ===
 
@@ -192,6 +195,9 @@ export interface ConnectivityConfig {
 
   // Enable Electron net module integration
   useElectronNet: boolean;
+
+  // Enable passive monitoring (listen to fetch success)
+  passiveMonitoringEnabled: boolean;
 }
 
 /**
@@ -205,6 +211,7 @@ export const DEFAULT_CONNECTIVITY_CONFIG: ConnectivityConfig = {
     'https://captive.apple.com/hotspot-detect.html',
     'https://www.cloudflare.com/favicon.ico',
   ],
+  pingFailoverInterval: 500, // Wait 500ms before trying next endpoint
   pingTimeout: 3000,
   pingIntervalOnline: 30000,    // 30 seconds when online
   pingIntervalOffline: 5000,    // 5 seconds when offline (user choice)
@@ -216,7 +223,7 @@ export const DEFAULT_CONNECTIVITY_CONFIG: ConnectivityConfig = {
   // Quality thresholds
   degradedLatencyThreshold: 1200,  // 1.2 seconds
   poorLatencyThreshold: 3000,      // 3 seconds
-  maxConsecutiveFailures: 3,
+  failureThreshold: 3,             // Require 3 consecutive failures before offline
 
   // Backoff configuration
   minBackoffInterval: 5000,
@@ -226,6 +233,7 @@ export const DEFAULT_CONNECTIVITY_CONFIG: ConnectivityConfig = {
   useCaptivePortalDetection: true,  // User enabled
   useNetworkInfoAPI: true,
   useElectronNet: true,
+  passiveMonitoringEnabled: true,
 };
 
 /**

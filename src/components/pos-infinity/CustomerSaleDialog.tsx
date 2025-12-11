@@ -58,6 +58,8 @@ interface CustomerSaleDialogProps {
   onSelectCustomer: (customerId: string | undefined, customerName: string | undefined) => void;
   onChangeSaleMode: (mode: SaleMode) => void;
   onCreateCustomer?: () => void;
+  // ✅ callback بعد التأكيد للمتابعة للدفع
+  onConfirmAndProceed?: () => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -117,7 +119,8 @@ const CustomerSaleDialog: React.FC<CustomerSaleDialogProps> = ({
   saleMode,
   onSelectCustomer,
   onChangeSaleMode,
-  onCreateCustomer
+  onCreateCustomer,
+  onConfirmAndProceed
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [localSelectedId, setLocalSelectedId] = useState<string | undefined>(selectedCustomerId);
@@ -165,6 +168,12 @@ const CustomerSaleDialog: React.FC<CustomerSaleDialogProps> = ({
     onSelectCustomer(localSelectedId, localSelectedName);
     onChangeSaleMode(localSaleMode);
     onOpenChange(false);
+    // ✅ المتابعة للدفع بعد التأكيد - مع تأخير بسيط لتجنب مشاكل re-render
+    if (onConfirmAndProceed) {
+      setTimeout(() => {
+        onConfirmAndProceed();
+      }, 100);
+    }
   };
 
   const currentModeConfig = SALE_MODES[localSaleMode];

@@ -89,13 +89,21 @@ export const useRealTimeDataSync = () => {
       }
 
       // مسح Global Request Deduplicator
+      // 🔧 Fix: استخدام طريقة آمنة للحذف مع التحقق من قابلية التعديل
       const deduplicator = (window as any).globalRequestDeduplicator;
-      if (deduplicator) {
-        Object.keys(deduplicator).forEach(key => {
-          if (key.includes(entity)) {
-            delete deduplicator[key];
+      if (deduplicator && typeof deduplicator === 'object') {
+        try {
+          const keysToDelete = Object.keys(deduplicator).filter(key => key.includes(entity));
+          for (const key of keysToDelete) {
+            // التحقق من أن الخاصية قابلة للحذف
+            const descriptor = Object.getOwnPropertyDescriptor(deduplicator, key);
+            if (descriptor?.configurable !== false) {
+              delete deduplicator[key];
+            }
           }
-        });
+        } catch {
+          // تجاهل الأخطاء في حالة الـ frozen objects
+        }
       }
     }
   }, []);

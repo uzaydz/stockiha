@@ -1335,27 +1335,29 @@ export function NavbarSyncIndicator({ className }: NavbarSyncIndicatorProps) {
     isOnline: isActuallyOnline,
   });
 
-  // ⚡ المزامنة اليدوية
+  // ⚡ المزامنة اليدوية - فقط عند الضغط على زر "مزامنة الآن"
   const handleSync = useCallback(async () => {
     if (!isActuallyOnline || isSyncing) return;
 
     setIsSyncing(true);
     try {
       await powerSyncService.forceSync();
-      await refresh();
+      // لا نستدعي refresh() لأن الإحصائيات تتحدث تلقائياً
     } catch (err) {
       console.error('[NavbarSync] Sync error:', err);
     } finally {
       setIsSyncing(false);
     }
-  }, [isActuallyOnline, isSyncing, refresh]);
+  }, [isActuallyOnline, isSyncing]);
 
-  // ⚡ تحديث عند فتح القائمة
+  // ⚡ تحديث عند فتح القائمة - فقط إحصائيات بدون forceSync
+  // لأن forceSync يغلق ويعيد فتح WebSocket وهذا غير ضروري
   useEffect(() => {
     if (isOpen) {
-      refresh();
+      // لا نستدعي refresh() لأنه يستدعي forceSync()
+      // الإحصائيات تتحدث تلقائياً من خلال powerSyncStatus
     }
-  }, [isOpen, refresh]);
+  }, [isOpen]);
 
   // ⚡ حساب الإحصائيات
   const { totalPending, statusLabel, statusIcon, statusColor, hasErrors } = useMemo(() => {

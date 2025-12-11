@@ -546,6 +546,131 @@ const electronAPI = {
   },
 
   // ========================================================================
+  // Print Management (POS Receipts, Barcodes, HTML)
+  // ========================================================================
+  print: {
+    /**
+     * جلب قائمة الطابعات المتاحة
+     * @returns {Promise<{success: boolean, printers?: Array, error?: string}>}
+     */
+    getPrinters: async () => {
+      try {
+        const printers = await ipcRenderer.invoke('print:get-printers');
+        return { success: true, printers: printers || [] };
+      } catch (error) {
+        console.error('[Preload] getPrinters error:', error);
+        return { success: false, error: error.message, printers: [] };
+      }
+    },
+
+    /**
+     * طباعة إيصال POS
+     * @param {Object} options - خيارات الطباعة
+     * @param {Array} options.data - بيانات الإيصال
+     * @param {string} options.printerName - اسم الطابعة
+     * @param {string} options.pageSize - حجم الورق (مثل '80mm')
+     * @param {number} options.copies - عدد النسخ
+     * @param {boolean} options.silent - طباعة صامتة
+     * @param {string} options.margin - الهوامش
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    receipt: async (options) => {
+      if (!options || typeof options !== 'object') {
+        return { success: false, error: 'Invalid print options' };
+      }
+      if (!options.data || !Array.isArray(options.data)) {
+        return { success: false, error: 'Receipt data must be an array' };
+      }
+      try {
+        return await ipcRenderer.invoke('print:receipt', options);
+      } catch (error) {
+        console.error('[Preload] receipt print error:', error);
+        return { success: false, error: error.message };
+      }
+    },
+
+    /**
+     * طباعة HTML (فواتير/تقارير)
+     * @param {Object} options - خيارات الطباعة
+     * @param {string} options.html - محتوى HTML
+     * @param {string} options.printerName - اسم الطابعة
+     * @param {boolean} options.silent - طباعة صامتة
+     * @param {string} options.pageSize - حجم الورق (مثل 'A4')
+     * @param {boolean} options.landscape - اتجاه الصفحة
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    html: async (options) => {
+      if (!options || typeof options !== 'object') {
+        return { success: false, error: 'Invalid print options' };
+      }
+      if (!options.html || typeof options.html !== 'string') {
+        return { success: false, error: 'HTML content is required' };
+      }
+      try {
+        return await ipcRenderer.invoke('print:html', options);
+      } catch (error) {
+        console.error('[Preload] html print error:', error);
+        return { success: false, error: error.message };
+      }
+    },
+
+    /**
+     * طباعة باركود
+     * @param {Object} options - خيارات الطباعة
+     * @param {Array} options.barcodes - قائمة الباركودات
+     * @param {string} options.printerName - اسم الطابعة
+     * @param {boolean} options.silent - طباعة صامتة
+     * @param {Object} options.labelSize - حجم الملصق
+     * @param {boolean} options.showProductName - إظهار اسم المنتج
+     * @param {boolean} options.showPrice - إظهار السعر
+     * @param {boolean} options.showStoreName - إظهار اسم المتجر
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    barcode: async (options) => {
+      if (!options || typeof options !== 'object') {
+        return { success: false, error: 'Invalid print options' };
+      }
+      if (!options.barcodes || !Array.isArray(options.barcodes)) {
+        return { success: false, error: 'Barcodes must be an array' };
+      }
+      try {
+        return await ipcRenderer.invoke('print:barcode', options);
+      } catch (error) {
+        console.error('[Preload] barcode print error:', error);
+        return { success: false, error: error.message };
+      }
+    },
+
+    /**
+     * فتح درج النقود
+     * @param {string} printerName - اسم الطابعة (اختياري)
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    openCashDrawer: async (printerName) => {
+      try {
+        return await ipcRenderer.invoke('print:open-cash-drawer', printerName || null);
+      } catch (error) {
+        console.error('[Preload] openCashDrawer error:', error);
+        return { success: false, error: error.message };
+      }
+    },
+
+    /**
+     * طباعة صفحة اختبار
+     * @param {string} printerName - اسم الطابعة (اختياري)
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    test: async (printerName) => {
+      try {
+        return await ipcRenderer.invoke('print:test', printerName || null);
+      } catch (error) {
+        console.error('[Preload] test print error:', error);
+        return { success: false, error: error.message };
+      }
+    },
+  },
+
+  // ========================================================================
   // Utility Functions
   // ========================================================================
   utils: {

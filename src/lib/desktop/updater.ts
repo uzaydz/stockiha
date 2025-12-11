@@ -81,6 +81,7 @@ export async function downloadUpdate(): Promise<void> {
 
 /**
  * Quit and install the downloaded update
+ * ملاحظة: لا ننتظر النتيجة لأن التطبيق سيغلق فوراً
  */
 export async function quitAndInstall(): Promise<void> {
   const api = getUpdaterApi();
@@ -89,7 +90,10 @@ export async function quitAndInstall(): Promise<void> {
     return;
   }
 
-  await api.quitAndInstall();
+  // لا ننتظر النتيجة لأن quitAndInstall سيغلق التطبيق فوراً
+  api.quitAndInstall().catch(() => {
+    // تجاهل الأخطاء لأن التطبيق سيغلق
+  });
 }
 
 /**

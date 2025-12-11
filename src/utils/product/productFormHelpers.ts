@@ -159,6 +159,10 @@ export const prepareFormSubmissionData = (
   const colorsToSubmit = productColors.map(cleanProductColorData);
   const wholesaleTiersToSubmit = wholesaleTiers.map(cleanWholesaleTierData);
 
+  // 🔍 DEBUG: فحص مستويات الجملة
+  console.log('[prepareFormSubmissionData] 🔍 DEBUG - wholesaleTiers input:', wholesaleTiers);
+  console.log('[prepareFormSubmissionData] 🔍 DEBUG - wholesaleTiersToSubmit:', wholesaleTiersToSubmit);
+
   // Debug: فحص الصور قبل الإرسال
 
   // Debug: فحص بيانات slug
@@ -192,6 +196,10 @@ export const prepareFormSubmissionData = (
     is_new: data.is_new === undefined ? true : data.is_new,
     has_variants: data.has_variants || false,
     show_price_on_landing: data.show_price_on_landing === undefined ? true : data.show_price_on_landing,
+    // إعدادات العرض والنشر
+    show_in_store: data.show_in_store === undefined ? true : data.show_in_store,
+    allow_marketplace: data.allow_marketplace || false,
+    hide_stock_quantity: data.hide_stock_quantity || false,
     allow_retail: data.allow_retail === undefined ? true : data.allow_retail,
     allow_wholesale: data.allow_wholesale || false,
     allow_partial_wholesale: data.allow_partial_wholesale || false,

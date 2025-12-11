@@ -274,12 +274,19 @@ export function useSyncStats({
     };
   }, [countsError]);
 
-  // دالة التحديث
+  // دالة التحديث - خفيفة بدون forceSync
+  // forceSync يُستخدم فقط عند الضغط على زر "مزامنة الآن"
   const refresh = useCallback(async () => {
+    // لا شيء - الإحصائيات تتحدث تلقائياً من خلال status listener
+    // استخدم forceRefresh() إذا كنت تريد forceSync
+  }, []);
+
+  // دالة التحديث الكامل (forceSync) - تُستخدم فقط عند الحاجة
+  const forceRefresh = useCallback(async () => {
     try {
       await powerSyncService.forceSync();
     } catch (err) {
-      console.warn('[useSyncStats] refresh sync failed:', err);
+      console.warn('[useSyncStats] forceSync failed:', err);
     }
   }, []);
 
@@ -323,6 +330,7 @@ export function useSyncStats({
     isInitialized: !!countsData && countsData.length > 0,
     error,
     refresh,
+    forceRefresh, // ⚡ دالة forceSync للاستخدام عند الضغط على زر "مزامنة الآن"
     getDiagnostics
   };
 }

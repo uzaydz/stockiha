@@ -597,6 +597,13 @@ export const DashboardRoutes = () => (
               </ConditionalRoute>
             } />
 
+            {/* مركز إدارة الموارد البشرية - صفحة قريباً */}
+            <Route path="hr-operations/:tab?" element={
+              <Suspense fallback={<PageLoader message="جاري تحميل الموارد البشرية..." />}>
+                <LazyRoutes.HRComingSoonPage />
+              </Suspense>
+            } />
+
             {/* مركز دورات ستوكيها */}
             <Route path="courses-operations/:tab?" element={
               <Suspense fallback={<PageLoader message="جاري تحميل مركز الدورات..." />}>

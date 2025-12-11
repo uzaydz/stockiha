@@ -40,6 +40,7 @@ class EnhancedConnectivityService {
   // Timers
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+  private electronCheckTimer: ReturnType<typeof setInterval> | null = null;
 
   // State tracking
   private started = false;
@@ -60,7 +61,20 @@ class EnhancedConnectivityService {
       this.config.pingIntervalOnline = 15000; // 15s in dev
       this.config.healthCheckInterval = 30000; // 30s in dev
     }
+
+    // ⚡ Optimize: Use longer intervals in production for battery/performance
+    // Based on best practices from https://www.freecodecamp.org/news/how-to-check-internet-connection-status-with-javascript/
+    // "Checking every 30 seconds may be enough for your actual needs"
+    if (!this.IS_DEV) {
+      this.config.pingIntervalOnline = 30000; // 30s when online (was faster)
+      this.config.pingIntervalOffline = 5000; // 5s when offline (aggressive retry)
+      this.config.healthCheckInterval = 60000; // 1 min deep check
+    }
   }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PUBLIC API
+  // ═══════════════════════════════════════════════════════════════════════
 
   // ═══════════════════════════════════════════════════════════════════════
   // PUBLIC API
@@ -73,7 +87,7 @@ class EnhancedConnectivityService {
     if (this.started) return;
     this.started = true;
 
-    console.log('[ConnectivityService] Starting enhanced connectivity service v2.0');
+    console.log('[ConnectivityService] Starting enhanced connectivity service v2.1 (Algeria Shield)');
 
     // 1. Setup browser event listeners
     if (typeof window !== 'undefined') {
@@ -106,6 +120,7 @@ class EnhancedConnectivityService {
       pingIntervalOnline: this.config.pingIntervalOnline,
       pingIntervalOffline: this.config.pingIntervalOffline,
       healthCheckInterval: this.config.healthCheckInterval,
+      failureThreshold: this.config.failureThreshold,
     });
   }
 
@@ -119,6 +134,7 @@ class EnhancedConnectivityService {
     }
 
     this.stopTimers();
+    this.stopElectronListener();
     this.started = false;
     console.log('[ConnectivityService] Stopped');
   }
@@ -178,6 +194,142 @@ class EnhancedConnectivityService {
   }
 
   /**
+   * ⚡ Quick connectivity check before critical operations
+   * Best practice: Always check immediately before making critical requests
+   * See: https://www.freecodecamp.org/news/how-to-check-internet-connection-status-with-javascript/
+   *
+   * @returns true if online, false if offline
+   */
+  async quickCheck(): Promise<boolean> {
+    // Layer 1: Fast browser check first
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return false;
+    }
+
+    // Layer 2: Check Electron net.isOnline if available (most reliable in desktop)
+    if (typeof window !== 'undefined') {
+      const electronAPI = (window as any).electronAPI;
+      if (electronAPI?.network?.isOnlineSystem) {
+        try {
+          const electronOnline = await electronAPI.network.isOnlineSystem();
+          if (electronOnline === false) {
+            return false;
+          }
+        } catch {
+          // Ignore Electron API errors
+        }
+      }
+    }
+
+    // Layer 3: If we have a recent verified online timestamp (< 10 seconds), trust it
+    if (this.state.lastVerifiedOnline && Date.now() - this.state.lastVerifiedOnline < 10000) {
+      return true;
+    }
+
+    // Layer 4: Quick ping to verify
+    const pingResult = await multiEndpointPing.quickCheck();
+
+    if (pingResult) {
+      this.state.lastVerifiedOnline = Date.now();
+      this.state.healthCheck.consecutiveFailures = 0;
+    }
+
+    return pingResult;
+  }
+
+  /**
+   * ⚡ Check if we should attempt online operation
+   * Returns immediately based on cached state (no network request)
+   * Use quickCheck() before critical operations for accuracy
+   */
+  shouldAttemptOnline(): boolean {
+    // If navigator says offline, don't attempt
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return false;
+    }
+
+    // If we're marked as offline with high confidence
+    if (!this.state.isOnline && this.state.healthCheck.consecutiveFailures >= this.config.failureThreshold) {
+      return false;
+    }
+
+    // Otherwise, attempt online (optimistic)
+    return true;
+  }
+
+  /**
+   * Report a successful network request from the application.
+   * "The Passive Monitor" - Reality overrides tests.
+   */
+  reportSuccessfulRequest(): void {
+    if (!this.config.passiveMonitoringEnabled) return;
+
+    // If we were offline or unstable, this confirms we are back!
+    if (!this.state.isOnline || this.state.quality === 'unstable' || this.state.quality === 'offline') {
+      console.log('[ConnectivityService] 🟢 Passive monitor confirmed connectivity (Traffic detected)');
+
+      this.updateState({
+        isOnline: true,
+        quality: this.state.quality === 'offline' ? 'good' : this.state.quality === 'unstable' ? 'good' : this.state.quality,
+        source: 'passive-activity',
+        healthCheck: {
+          ...this.state.healthCheck,
+          lastSuccess: Date.now(),
+          consecutiveFailures: 0,
+          consecutiveSuccesses: this.state.healthCheck.consecutiveSuccesses + 1,
+        },
+        lastVerifiedOnline: Date.now(),
+      });
+
+      // Reset timers to "online" mode if we were effectively offline
+      this.adjustTimers();
+    } else {
+      // Just update timestamps to keep session alive
+      this.state.healthCheck.lastSuccess = Date.now();
+      this.state.healthCheck.consecutiveFailures = 0;
+      this.state.lastVerifiedOnline = Date.now();
+    }
+  }
+
+  /**
+   * ⚡ Report WebSocket connection status (from PowerSync)
+   * This is the most reliable indicator when sync is active
+   */
+  reportWebSocketStatus(connected: boolean): void {
+    if (connected) {
+      // WebSocket connected = definitely online
+      if (!this.state.isOnline || this.state.quality !== 'good') {
+        console.log('[ConnectivityService] 🟢 WebSocket connected - confirmed online');
+        this.updateState({
+          isOnline: true,
+          quality: 'good',
+          source: 'websocket',
+          healthCheck: {
+            ...this.state.healthCheck,
+            lastSuccess: Date.now(),
+            consecutiveFailures: 0,
+            consecutiveSuccesses: this.state.healthCheck.consecutiveSuccesses + 1,
+          },
+          lastVerifiedOnline: Date.now(),
+        });
+        this.adjustTimers();
+      } else {
+        // Just update timestamp
+        this.state.lastVerifiedOnline = Date.now();
+        this.state.healthCheck.lastSuccess = Date.now();
+      }
+    } else {
+      // WebSocket disconnected - don't immediately mark offline
+      // The shield logic will handle it through ping failures
+      // But we can mark as unstable if we were good
+      if (this.state.quality === 'good') {
+        // Don't change immediately - let ping verification handle it
+        // This prevents false positives from temporary WebSocket hiccups
+      }
+    }
+  }
+
+  /**
    * Sync with external connection state (backward compatibility)
    */
   syncWithConnectionState(connectionState: any): void {
@@ -207,7 +359,8 @@ class EnhancedConnectivityService {
 
   private handleOfflineEvent = (): void => {
     console.log('[ConnectivityService] Browser offline event received');
-    // Offline event is more trustworthy
+    // Offline event is more trustworthy for local interface, but we still apply buffer if it is just a blip?
+    // No, navigator.onLine Usually means interface down. We accept it.
     this.updateState({
       isOnline: false,
       quality: 'offline',
@@ -224,7 +377,8 @@ class EnhancedConnectivityService {
   };
 
   private handleNetworkQualityChange = (info: NetworkInfo): void => {
-    console.log('[ConnectivityService] Network quality changed:', info.effectiveType);
+    // ⚡ v2.0: تقليل logs - فقط للتغييرات الهامة
+    // console.log('[ConnectivityService] Network quality changed:', info.effectiveType);
 
     // Update network info
     this.updateState({
@@ -242,7 +396,7 @@ class EnhancedConnectivityService {
       console.warn('[ConnectivityService] Captive portal detected!');
       this.updateState({
         isOnline: false,
-        quality: 'offline',
+        quality: 'offline', // Captive portal is effectively offline
         source: 'ping',
         captivePortal: {
           detected: true,
@@ -271,31 +425,36 @@ class EnhancedConnectivityService {
 
   /**
    * Run full connectivity check (all layers)
+   * ⚡ v2.0: تقليل الـ logs - فقط عند التغييرات المهمة
    */
   private async runFullCheck(): Promise<void> {
-    console.log('[ConnectivityService] Running full connectivity check');
-
     // Layer 1: Check navigator.onLine first
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      console.log('[ConnectivityService] navigator.onLine reports offline');
-      this.updateState({
-        isOnline: false,
-        quality: 'offline',
-        source: 'navigator',
-      });
+      // console.log('[ConnectivityService] navigator.onLine reports offline');
+      // No need to update state if already offline
+      if (this.state.isOnline) {
+        this.updateState({
+          isOnline: false,
+          quality: 'offline',
+          source: 'navigator',
+        });
+      }
       return;
     }
 
     // Layer 2: Get Network Information API data
     const networkInfo = networkQualityService.getInfo();
-    const networkQuality = networkQualityService.estimateQuality();
 
-    // Layer 3: Quick ping verification
+    // Layer 3: Multi-endpoint ping verification (Smart Failover)
     const pingResult = await multiEndpointPing.ping();
-    console.log('[ConnectivityService] Ping result:', pingResult);
+
+    // ⚡ v2.0: فقط log عند الفشل
+    if (!pingResult.success) {
+      // console.log('[ConnectivityService] Ping failed:', pingResult.error);
+    }
 
     if (!pingResult.success) {
-      // Captive portal check
+      // Captive portal check shortcut
       if (pingResult.isCaptivePortal) {
         this.updateState({
           isOnline: false,
@@ -311,36 +470,54 @@ class EnhancedConnectivityService {
             lastFailure: Date.now(),
             consecutiveFailures: this.state.healthCheck.consecutiveFailures + 1,
             consecutiveSuccesses: 0,
-          },
+          }
         });
         return;
       }
 
-      // Ping failed - likely offline
+      // Ping failed!
+      // "The Algeria Shield" Logic:
+      // Don't switch to OFFLINE unless failures exceed threshold.
+      const newFailures = this.state.healthCheck.consecutiveFailures + 1;
+      const isActuallyOffline = newFailures >= this.config.failureThreshold;
+
+      // Determine new quality
+      let newQuality: ConnectionQuality = 'offline';
+      if (!isActuallyOffline) {
+        // We are still "Online" but Unstable
+        newQuality = 'unstable';
+        console.warn(`[ConnectivityService] ⚠️ Ping failed (${newFailures}/${this.config.failureThreshold}). Marked UNSTABLE. Keeping ONLINE.`);
+      } else {
+        console.error(`[ConnectivityService] 🔴 Ping failed (${newFailures}/${this.config.failureThreshold}). Threshold reached. Switching to OFFLINE.`);
+      }
+
       this.updateState({
-        isOnline: false,
-        quality: 'offline',
+        isOnline: !isActuallyOffline,
+        quality: newQuality,
         source: 'ping',
         networkInfo,
         healthCheck: {
           ...this.state.healthCheck,
           lastFailure: Date.now(),
-          consecutiveFailures: this.state.healthCheck.consecutiveFailures + 1,
+          consecutiveFailures: newFailures,
           consecutiveSuccesses: 0,
         },
       });
       return;
     }
 
-    // Layer 4: Deep health check (Supabase)
-    const healthResult = await this.runHealthCheck();
+    // Layer 4: Deep health check (Supabase) - Optional or periodic
+    // For full check, we can skip if ping was very fast and robust?
+    // Let's keep it but handle failures with same shield logic?
+    // For now, if ping succeeds, we are technically Good.
+    // If we want to check Supabase specifically, we can.
 
-    // Record latency if available
+    // Let's stick to simple efficient check. If Ping worked, we are ONLINE.
+    // We can update metrics.
+
+    // Record latency
     if (pingResult.latency !== null) {
       this.pushLatencySample(pingResult.latency);
-    }
-    if (healthResult.latency > 0) {
-      this.pushLatencySample(healthResult.latency);
     }
 
     // Calculate quality
@@ -352,17 +529,17 @@ class EnhancedConnectivityService {
       this.config
     );
 
-    // Update state with success
+    // Update state with success (RESET FAILURES)
     this.updateState({
       isOnline: true,
       quality,
-      source: healthResult.success ? 'health-check' : 'ping',
+      source: 'ping',
       networkInfo,
       healthCheck: {
         lastSuccess: Date.now(),
         lastFailure: this.state.healthCheck.lastFailure,
         consecutiveSuccesses: this.state.healthCheck.consecutiveSuccesses + 1,
-        consecutiveFailures: 0,
+        consecutiveFailures: 0, // Reset failures on success!
         averageLatency: avgLatency,
         lastLatency: pingResult.latency,
       },
@@ -373,39 +550,56 @@ class EnhancedConnectivityService {
       },
       lastVerifiedOnline: Date.now(),
     });
-
-    console.log(`[ConnectivityService] Check complete: ONLINE, quality=${quality}, latency=${avgLatency}ms`);
   }
 
   /**
    * Quick verification (ping only)
+   * ⚡ v2.0: تقليل الـ logs
    */
   private async verifyConnectivity(trigger: string): Promise<void> {
-    console.log(`[ConnectivityService] Verifying connectivity (trigger: ${trigger})`);
+    if (trigger !== 'timer') {
+      console.log(`[ConnectivityService] Verifying connectivity (trigger: ${trigger})`);
+    }
 
-    const pingResult = await multiEndpointPing.quickCheck();
+    // Uses Quick/Smart Check
+    const result = await multiEndpointPing.ping(); // Use full smart ping
 
-    if (pingResult) {
+    if (result.success) {
       // Online - update state and run full check for quality
       if (!this.state.isOnline) {
         console.log('[ConnectivityService] Connectivity restored!');
+      } else if (this.state.quality === 'unstable') {
+        console.log('[ConnectivityService] Connectivity stabilized (Unstable -> Online)');
       }
+
       this.updateState({
         isOnline: true,
+        quality: this.state.quality === 'unstable' ? 'good' : this.state.quality, // Upgrade from unstable if successful
         source: 'ping',
+        healthCheck: {
+          ...this.state.healthCheck,
+          consecutiveFailures: 0, // Reset failures
+          consecutiveSuccesses: this.state.healthCheck.consecutiveSuccesses + 1,
+        }
       });
-      // Run full check to get accurate quality
-      void this.runFullCheck();
+      // Run full check for deeper quality update? Maybe not needed every time
     } else {
-      // Offline
+      // Offline failure logic (The Shield)
+      const newFailures = this.state.healthCheck.consecutiveFailures + 1;
+      const isActuallyOffline = newFailures >= this.config.failureThreshold;
+
+      if (isActuallyOffline && this.state.isOnline) {
+        console.log(`[ConnectivityService] 🔴 Consec failures ${newFailures}. Go OFFLINE.`);
+      }
+
       this.updateState({
-        isOnline: false,
-        quality: 'offline',
+        isOnline: !isActuallyOffline,
+        quality: isActuallyOffline ? 'offline' : 'unstable',
         source: 'ping',
         healthCheck: {
           ...this.state.healthCheck,
           lastFailure: Date.now(),
-          consecutiveFailures: this.state.healthCheck.consecutiveFailures + 1,
+          consecutiveFailures: newFailures,
           consecutiveSuccesses: 0,
         },
       });
@@ -414,6 +608,7 @@ class EnhancedConnectivityService {
 
   /**
    * Deep health check to Supabase
+   * (Kept as utility but maybe not part of main loop to save requests)
    */
   private async runHealthCheck(): Promise<{ success: boolean; latency: number }> {
     const url = this.getHealthCheckUrl();
@@ -522,8 +717,15 @@ class EnhancedConnectivityService {
     }
 
     // Log quality change
-    if (prevQuality !== this.state.quality && this.state.isOnline) {
-      console.log(`[ConnectivityService] Quality changed: ${prevQuality} → ${this.state.quality}`);
+    if (prevQuality !== this.state.quality) {
+      // Ignore unstable flutters unless important
+      if (prevQuality === 'unstable' && this.state.quality === 'good') {
+        // Recovered
+      } else if (prevQuality === 'offline' && this.state.quality === 'unstable') {
+        // recovering?
+      } else if (prevQuality !== this.state.quality && this.state.isOnline) {
+        console.log(`[ConnectivityService] Quality changed: ${prevQuality} → ${this.state.quality}`);
+      }
     }
 
     // Adjust timers based on online status
@@ -557,14 +759,13 @@ class EnhancedConnectivityService {
       ? this.config.pingIntervalOnline
       : this.config.pingIntervalOffline;
 
-    console.log(`[ConnectivityService] Setting ping interval to ${pingInterval}ms (${this.state.isOnline ? 'online' : 'offline'} mode)`);
-
     // Ping timer
     this.pingTimer = setInterval(() => {
       void this.verifyConnectivity('timer');
     }, pingInterval);
 
-    // Health check timer (less frequent)
+    // Health check timer (less frequent) - maybe reduce freq if unstable?
+    // Keep it simple
     this.healthCheckTimer = setInterval(() => {
       void this.runFullCheck();
     }, this.config.healthCheckInterval);
@@ -615,7 +816,18 @@ class EnhancedConnectivityService {
 
     // Check immediately and then periodically
     void checkElectronNet();
-    setInterval(checkElectronNet, 10000); // Every 10 seconds
+    // 🔧 Fix: Save interval reference for cleanup
+    this.electronCheckTimer = setInterval(checkElectronNet, 10000); // Every 10 seconds
+  }
+
+  /**
+   * Stop Electron listener timer
+   */
+  private stopElectronListener(): void {
+    if (this.electronCheckTimer !== null) {
+      clearInterval(this.electronCheckTimer);
+      this.electronCheckTimer = null;
+    }
   }
 }
 

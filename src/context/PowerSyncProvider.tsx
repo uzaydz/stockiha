@@ -230,11 +230,12 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
   // ═══════════════════════════════════════════════════════════════════════════
   // 🎨 Loading State
   // ═══════════════════════════════════════════════════════════════════════════
-  // ⚡ v3.1: دعم الوضع أوفلاين - نحتاج فقط authReady و organizationId
-  // user قد يكون null في الوضع أوفلاين
-  const awaitingPrerequisites = !authReady || !organizationId;
+  // ⚡ v3.2: السماح بعرض صفحة تسجيل الدخول عندما لا يوجد مستخدم
+  // إذا كان authReady ولا يوجد user ولا organizationId = نعرض صفحة تسجيل الدخول
+  const isUnauthenticated = authReady && !user && !organizationId;
+  const awaitingPrerequisites = !authReady || (!organizationId && !isUnauthenticated);
 
-  if (isInitializing || awaitingPrerequisites) {
+  if (isInitializing || (awaitingPrerequisites && !isUnauthenticated)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -282,8 +283,9 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
   // ═══════════════════════════════════════════════════════════════════════════
   // ✅ Ready State - Wrap with both contexts
   // ═══════════════════════════════════════════════════════════════════════════
-  // إذا لم نحصل على قاعدة بيانات بعد، نعرض شاشة انتظار بدلاً من السماح بغياب PowerSyncContext
-  if (!db) {
+  // ⚡ v3.2: السماح بعرض صفحة تسجيل الدخول حتى بدون db
+  // إذا كان المستخدم غير مسجل، نسمح بعرض المحتوى (صفحة تسجيل الدخول)
+  if (!db && !isUnauthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -300,9 +302,18 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // ⚡ v3.2: إذا كان المستخدم غير مسجل، نعرض المحتوى بدون PowerSyncContext
+  if (isUnauthenticated) {
+    return (
+      <AppPowerSyncContext.Provider value={appContextValue}>
+        {children}
+      </AppPowerSyncContext.Provider>
+    );
+  }
+
   return (
     <AppPowerSyncContext.Provider value={appContextValue}>
-      <PowerSyncContext.Provider value={db}>
+      <PowerSyncContext.Provider value={db!}>
         {children}
       </PowerSyncContext.Provider>
     </AppPowerSyncContext.Provider>

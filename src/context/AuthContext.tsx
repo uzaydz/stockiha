@@ -93,30 +93,74 @@ const pruneAuthCaches = () => {
   }
 };
 
-// ⚡ تنظيف دوري كل 2 دقيقة - مع حفظ المرجع للتنظيف عند الحاجة
-// ⚡ v2.0: حفظ reference للـ beforeunload handler لمنع memory leaks
+// ⚡ v3.1: إدارة التنظيف الدوري المحسّنة مع منع Memory Leaks
 let authCacheCleanupInterval: ReturnType<typeof setInterval> | null = null;
 let authBeforeUnloadHandler: (() => void) | null = null;
+let isAuthCleanupInitialized = false;
 
-if (typeof window !== 'undefined') {
+/**
+ * بدء التنظيف الدوري للـ Auth Cache - محسّن لمنع Memory Leaks
+ */
+export function startAuthCacheCleanup(): void {
+  if (typeof window === 'undefined') return;
+
+  // منع التهيئة المتكررة
+  if (isAuthCleanupInitialized) return;
+  isAuthCleanupInitialized = true;
+
   // تأكد من عدم إنشاء interval مكرر
   if (!authCacheCleanupInterval) {
-    authCacheCleanupInterval = setInterval(pruneAuthCaches, 2 * 60 * 1000);
+    // ⚡ زيادة الفترة من 2 دقيقة إلى 5 دقائق لتقليل الحمل
+    authCacheCleanupInterval = setInterval(pruneAuthCaches, 5 * 60 * 1000);
   }
 
-  // ⚡ تنظيف عند إغلاق الصفحة لمنع تسرب الذاكرة
-  // ⚡ v2.0: حفظ reference للإزالة لاحقاً إذا لزم الأمر
+  // إضافة beforeunload handler مرة واحدة فقط
   if (!authBeforeUnloadHandler) {
     authBeforeUnloadHandler = () => {
-      if (authCacheCleanupInterval) {
-        clearInterval(authCacheCleanupInterval);
-        authCacheCleanupInterval = null;
-      }
-      sessionCache.clear();
-      userCache.clear();
+      stopAuthCacheCleanup();
     };
     window.addEventListener('beforeunload', authBeforeUnloadHandler);
   }
+
+  // ⚡ إضافة pagehide للتنظيف في Safari/iOS
+  window.addEventListener('pagehide', () => {
+    stopAuthCacheCleanup();
+  });
+
+  // ⚡ إضافة visibilitychange للتنظيف عند إخفاء الصفحة
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // تنظيف خفيف عند إخفاء الصفحة
+      pruneAuthCaches();
+    }
+  });
+}
+
+/**
+ * إيقاف التنظيف الدوري وإزالة الـ listeners
+ */
+export function stopAuthCacheCleanup(): void {
+  if (authCacheCleanupInterval) {
+    clearInterval(authCacheCleanupInterval);
+    authCacheCleanupInterval = null;
+  }
+
+  if (authBeforeUnloadHandler && typeof window !== 'undefined') {
+    window.removeEventListener('beforeunload', authBeforeUnloadHandler);
+    authBeforeUnloadHandler = null;
+  }
+
+  // ⚡ تنظيف الـ caches
+  sessionCache.clear();
+  userCache.clear();
+
+  isAuthCleanupInitialized = false;
+}
+
+// بدء التنظيف تلقائياً مع تأخير بسيط لتجنب التضارب
+if (typeof window !== 'undefined') {
+  // ⚡ تأخير البدء لتجنب التضارب مع تهيئة التطبيق
+  setTimeout(startAuthCacheCleanup, 1000);
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -1,5 +1,14 @@
-// إعدادات الصلاحيات الشاملة للنظام
+/**
+ * إعدادات الصلاحيات الشاملة للنظام
+ * تم تحديثه: 2025-12-10
+ */
 import { EmployeePermissions } from '@/types/employee';
+import {
+  Permission,
+  PERMISSION_DISPLAY_NAMES,
+  PERMISSION_HIERARCHY,
+  getPermissionDisplayName as getPermDisplayName
+} from '@/types/permissions';
 
 // تجميع الصلاحيات حسب الفئات
 export const PERMISSION_GROUPS = {
@@ -121,35 +130,22 @@ export const DEFAULT_ADMIN_PERMISSIONS: Partial<EmployeePermissions> = {
 };
 
 // وظائف مساعدة
-export const getPermissionDisplayName = (permission: keyof EmployeePermissions): string => {
+export const getPermissionDisplayName = (permission: keyof EmployeePermissions | string): string => {
+  // استخدام الدالة من types/permissions.ts أولاً
+  const fromNewSystem = getPermDisplayName(permission);
+  if (fromNewSystem !== permission) {
+    return fromNewSystem;
+  }
+
   // البحث في جميع المجموعات
   for (const group of Object.values(PERMISSION_GROUPS)) {
     if (permission in group) {
       return group[permission as keyof typeof group];
     }
   }
-  
-  // إرجاع الاسم الافتراضي إذا لم يتم العثور عليه
-  const defaultNames: Record<string, string> = {
-    accessPOS: 'الوصول لنقطة البيع',
-    processPayments: 'معالجة المدفوعات',
-    viewProducts: 'عرض المنتجات',
-    addProducts: 'إضافة منتجات',
-    editProducts: 'تعديل المنتجات',
-    deleteProducts: 'حذف المنتجات',
-    viewInventory: 'عرض المخزون',
-    manageInventory: 'إدارة المخزون',
-    manageProductCategories: 'إدارة فئات المنتجات',
-    viewOrders: 'عرض الطلبات',
-    viewPOSOrders: 'عرض طلبات نقطة البيع',
-    updateOrderStatus: 'تحديث حالة الطلب',
-    cancelOrders: 'إلغاء الطلبات',
-    viewCustomers: 'عرض العملاء',
-    manageCustomers: 'إدارة العملاء',
-    manageEmployees: 'إدارة الموظفين',
-  };
-  
-  return defaultNames[permission] || permission;
+
+  // إرجاع الاسم من PERMISSION_DISPLAY_NAMES
+  return PERMISSION_DISPLAY_NAMES[permission] || permission;
 };
 
 export const getPermissionsByGroup = () => {
@@ -162,11 +158,26 @@ export const getPermissionsByGroup = () => {
 
 export const isPageAccessible = (pathname: string, userPermissions: Partial<EmployeePermissions>): boolean => {
   const requiredPermissions = PAGE_PERMISSIONS[pathname];
-  
+
   if (!requiredPermissions || requiredPermissions.length === 0) {
     return true; // الصفحة متاحة للجميع إذا لم تكن هناك صلاحيات مطلوبة
   }
-  
+
   // التحقق من وجود أي صلاحية من الصلاحيات المطلوبة
-  return requiredPermissions.some(permission => userPermissions[permission] === true);
+  return requiredPermissions.some(permission => {
+    // التحقق المباشر
+    if (userPermissions[permission] === true) return true;
+
+    // التحقق من الصلاحيات الأبوية
+    for (const [parent, children] of Object.entries(PERMISSION_HIERARCHY)) {
+      if (children.includes(permission) && userPermissions[parent as keyof EmployeePermissions] === true) {
+        return true;
+      }
+    }
+
+    return false;
+  });
 };
+
+// تصدير Permission Enum للاستخدام المباشر
+export { Permission } from '@/types/permissions';

@@ -132,7 +132,10 @@ const UpdatesPage: React.FC = () => {
     if (!isElectron) return;
 
     try {
-      await window.electronAPI.updater.quitAndInstall();
+      // لا ننتظر النتيجة لأن quitAndInstall سيغلق التطبيق فوراً
+      window.electronAPI.updater.quitAndInstall().catch(() => {
+        // تجاهل الأخطاء لأن التطبيق سيغلق
+      });
     } catch (error) {
       console.error('Install error:', error);
       toast.error('فشل تثبيت التحديث');

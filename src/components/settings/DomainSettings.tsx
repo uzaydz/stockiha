@@ -632,8 +632,8 @@ const DomainSettings: React.FC = () => {
                   <AlertTitle>أخطاء التحقق</AlertTitle>
                   <AlertDescription>
                     <ul className="list-disc space-y-1 pr-4 text-sm">
-                      {delegation.verification_errors.map((error, index) => (
-                        <li key={index}>{error}</li>
+                      {delegation.verification_errors.map((error) => (
+                        <li key={error}>{error}</li>
                       ))}
                     </ul>
                   </AlertDescription>
@@ -663,8 +663,8 @@ const DomainSettings: React.FC = () => {
                     <AlertTitle>أخطاء SSL</AlertTitle>
                     <AlertDescription>
                       <ul className="list-disc space-y-1 pr-4 text-xs">
-                        {hostname.verificationErrors.map((error, index) => (
-                          <li key={index}>{error}</li>
+                        {hostname.verificationErrors.map((error) => (
+                          <li key={error}>{error}</li>
                         ))}
                       </ul>
                     </AlertDescription>

@@ -14,159 +14,159 @@ import { categoryImageService } from '@/services/CategoryImageService';
 
 // Helper functions for PowerSync compatibility
 const isPowerSyncReady = (): boolean => {
-  try {
-    const db = powerSyncService.db;
-    return !!db;
-  } catch {
-    return false;
-  }
+    try {
+        const db = powerSyncService.db;
+        return !!db;
+    } catch {
+        return false;
+    }
 };
 
 const powerSyncQuery = async (sql: string, params: any[] = []): Promise<{ success: boolean; data: any[]; error?: string }> => {
-  try {
-    // ⚡ استخدام query() بدلاً من getAll() (الـ API الجديد)
-    const results = await powerSyncService.query<any>({ sql, params });
-    return { success: true, data: results || [] };
-  } catch (error: any) {
-    console.error('[PowerSync] Query failed:', error);
-    return { success: false, data: [], error: error?.message || 'Query failed' };
-  }
+    try {
+        // ⚡ استخدام query() بدلاً من getAll() (الـ API الجديد)
+        const results = await powerSyncService.query<any>({ sql, params });
+        return { success: true, data: results || [] };
+    } catch (error: any) {
+        console.error('[PowerSync] Query failed:', error);
+        return { success: false, data: [], error: error?.message || 'Query failed' };
+    }
 };
 
 const powerSyncQueryOne = async (sql: string, params: any[] = []): Promise<{ success: boolean; data: any; error?: string }> => {
-  try {
-    if (!powerSyncService.db) {
-      return { success: false, data: null, error: 'PowerSync DB not initialized' };
+    try {
+        if (!powerSyncService.db) {
+            return { success: false, data: null, error: 'PowerSync DB not initialized' };
+        }
+        // ⚡ استخدام query بدلاً من getAll
+        const results = await powerSyncService.query({ sql, params });
+        const result = results?.[0] || null;
+        return { success: true, data: result };
+    } catch (error: any) {
+        // ⚡ تجاهل خطأ "Result set is empty" - هذا طبيعي
+        if (error?.message?.includes('Result set is empty')) {
+            return { success: true, data: null };
+        }
+        console.error('[PowerSync] QueryOne failed:', error);
+        return { success: false, data: null, error: error?.message || 'Query failed' };
     }
-    // ⚡ استخدام query بدلاً من getAll
-    const results = await powerSyncService.query({ sql, params });
-    const result = results?.[0] || null;
-    return { success: true, data: result };
-  } catch (error: any) {
-    // ⚡ تجاهل خطأ "Result set is empty" - هذا طبيعي
-    if (error?.message?.includes('Result set is empty')) {
-      return { success: true, data: null };
-    }
-    console.error('[PowerSync] QueryOne failed:', error);
-    return { success: false, data: null, error: error?.message || 'Query failed' };
-  }
 };
 
 const powerSyncExecute = async (sql: string, params: any[] = []): Promise<{ success: boolean; changes?: number; error?: string }> => {
-  try {
-    if (!powerSyncService.db) {
-      return { success: false, error: 'PowerSync DB not initialized' };
+    try {
+        if (!powerSyncService.db) {
+            return { success: false, error: 'PowerSync DB not initialized' };
+        }
+        await powerSyncService.db.execute(sql, params);
+        return { success: true, changes: 0 };
+    } catch (error: any) {
+        console.error('[PowerSync] Execute failed:', error);
+        return { success: false, error: error?.message || 'Execute failed' };
     }
-    await powerSyncService.db.execute(sql, params);
-    return { success: true, changes: 0 };
-  } catch (error: any) {
-    console.error('[PowerSync] Execute failed:', error);
-    return { success: false, error: error?.message || 'Execute failed' };
-  }
 };
 
 const powerSyncUpsert = async (table: string, data: any): Promise<{ success: boolean; changes?: number; error?: string }> => {
-  try {
-    // ⚡ استخدام transaction مع tx.execute للجداول المحلية
-    // mutate API لا يعمل مع الجداول المحلية (يعاملها كـ view)
-    const id = data.id || data.cache_key || crypto.randomUUID();
-    const dataWithId = {
-      ...data,
-      id: data.id || id,
-      updated_at: new Date().toISOString()
-    };
+    try {
+        // ⚡ استخدام transaction مع tx.execute للجداول المحلية
+        // mutate API لا يعمل مع الجداول المحلية (يعاملها كـ view)
+        const id = data.id || data.cache_key || crypto.randomUUID();
+        const dataWithId = {
+            ...data,
+            id: data.id || id,
+            updated_at: new Date().toISOString()
+        };
 
-    await powerSyncService.transaction(async (tx) => {
-      const columns = Object.keys(dataWithId);
-      const placeholders = columns.map(() => '?').join(', ');
-      const values = columns.map(col => dataWithId[col]);
+        await powerSyncService.transaction(async (tx) => {
+            const columns = Object.keys(dataWithId);
+            const placeholders = columns.map(() => '?').join(', ');
+            const values = columns.map(col => dataWithId[col]);
 
-      // استخدام INSERT OR REPLACE بدلاً من ON CONFLICT للتوافق مع الجداول المحلية
-      await tx.execute(
-        `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
-        values
-      );
-    });
+            // استخدام INSERT OR REPLACE بدلاً من ON CONFLICT للتوافق مع الجداول المحلية
+            await tx.execute(
+                `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
+                values
+            );
+        });
 
-    return { success: true, changes: 1 };
-  } catch (error: any) {
-    console.error('[PowerSync] Upsert failed:', error);
-    return { success: false, error: error?.message || 'Upsert failed' };
-  }
+        return { success: true, changes: 1 };
+    } catch (error: any) {
+        console.error('[PowerSync] Upsert failed:', error);
+        return { success: false, error: error?.message || 'Upsert failed' };
+    }
 };
 
 // Cache helpers using PowerSync
 const setAppInitCache = async (params: {
-  id: string;
-  userId?: string | null;
-  organizationId?: string | null;
-  data: any;
+    id: string;
+    userId?: string | null;
+    organizationId?: string | null;
+    data: any;
 }): Promise<{ success: boolean; changes?: number; error?: string }> => {
-  try {
-    const now = new Date().toISOString();
-    // ⚠️ PowerSync Schema uses cache_key and cache_value, not id and data
-    return await powerSyncUpsert('app_init_cache', {
-      cache_key: params.id,
-      cache_value: JSON.stringify(params.data),
-      organization_id: params.organizationId ?? null,
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-      created_at: now,
-      updated_at: now
-    });
-  } catch (error: any) {
-    return { success: false, error: error?.message || 'Failed to set cache' };
-  }
+    try {
+        const now = new Date().toISOString();
+        // ⚠️ PowerSync Schema uses cache_key and cache_value, not id and data
+        return await powerSyncUpsert('app_init_cache', {
+            cache_key: params.id,
+            cache_value: JSON.stringify(params.data),
+            organization_id: params.organizationId ?? null,
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+            created_at: now,
+            updated_at: now
+        });
+    } catch (error: any) {
+        return { success: false, error: error?.message || 'Failed to set cache' };
+    }
 };
 
 const getAppInitCacheById = async (id: string): Promise<{ success: boolean; data?: any | null; error?: string }> => {
-  try {
-    // ⚠️ PowerSync Schema uses cache_key and cache_value, not id and data
-    const res = await powerSyncQueryOne('SELECT cache_value FROM app_init_cache WHERE cache_key = ?', [id]);
-    if (!res.success) return { success: false, error: res.error };
-    const raw = res.data?.cache_value;
     try {
-      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      return { success: true, data: parsed ?? null };
-    } catch {
-      return { success: true, data: raw ?? null };
+        // ⚠️ PowerSync Schema uses cache_key and cache_value, not id and data
+        const res = await powerSyncQueryOne('SELECT cache_value FROM app_init_cache WHERE cache_key = ?', [id]);
+        if (!res.success) return { success: false, error: res.error };
+        const raw = res.data?.cache_value;
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            return { success: true, data: parsed ?? null };
+        } catch {
+            return { success: true, data: raw ?? null };
+        }
+    } catch (error: any) {
+        // Handle case where table doesn't exist or column doesn't exist
+        if (error?.message?.includes('no such table') || error?.message?.includes('no such column')) {
+            return { success: false, error: 'Cache table not available' };
+        }
+        return { success: false, error: error?.message || 'Failed to get cache' };
     }
-  } catch (error: any) {
-    // Handle case where table doesn't exist or column doesn't exist
-    if (error?.message?.includes('no such table') || error?.message?.includes('no such column')) {
-      return { success: false, error: 'Cache table not available' };
-    }
-    return { success: false, error: error?.message || 'Failed to get cache' };
-  }
 };
 
 const getLatestAppInitCacheByUserOrg = async (
-  userId?: string | null,
-  organizationId?: string | null
+    userId?: string | null,
+    organizationId?: string | null
 ): Promise<{ success: boolean; data?: any | null; error?: string }> => {
-  try {
-    // ⚠️ PowerSync Schema uses cache_key and cache_value, not id and data
-    // Also, app_init_cache doesn't have user_id column, only organization_id
-    const res = await powerSyncQueryOne(
-      `SELECT cache_value FROM app_init_cache
+    try {
+        // ⚠️ PowerSync Schema uses cache_key and cache_value, not id and data
+        // Also, app_init_cache doesn't have user_id column, only organization_id
+        const res = await powerSyncQueryOne(
+            `SELECT cache_value FROM app_init_cache
        WHERE organization_id = ?
        ORDER BY updated_at DESC LIMIT 1`,
-      [organizationId ?? null]
-    );
-    if (!res.success) return { success: false, error: res.error };
-    const raw = res.data?.cache_value;
-    try {
-      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      return { success: true, data: parsed ?? null };
-    } catch {
-      return { success: true, data: raw ?? null };
+            [organizationId ?? null]
+        );
+        if (!res.success) return { success: false, error: res.error };
+        const raw = res.data?.cache_value;
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            return { success: true, data: parsed ?? null };
+        } catch {
+            return { success: true, data: raw ?? null };
+        }
+    } catch (error: any) {
+        // Handle case where table doesn't exist or column doesn't exist
+        if (error?.message?.includes('no such table') || error?.message?.includes('no such column')) {
+            return { success: false, error: 'Cache table not available' };
+        }
+        return { success: false, error: error?.message || 'Failed to get cache' };
     }
-  } catch (error: any) {
-    // Handle case where table doesn't exist or column doesn't exist
-    if (error?.message?.includes('no such table') || error?.message?.includes('no such column')) {
-      return { success: false, error: 'Cache table not available' };
-    }
-    return { success: false, error: error?.message || 'Failed to get cache' };
-  }
 };
 
 // ============================================================================
@@ -304,8 +304,19 @@ const CACHE_DURATION = 60 * 60 * 1000; // ⚡ ساعة واحدة بدلاً م�
 
 // Offline persistent cache now stored in SQLite (app_init_cache table)
 
-const buildOfflineKey = (userId?: string, organizationId?: string) =>
-    `app-init:${userId || 'current'}:${organizationId || 'default'}`;
+const buildOfflineKey = (userId?: string, organizationId?: string) => {
+    // ⚡ Fix Cache Miss: Resolve userId from storage if missing
+    const resolvedUserId = userId ||
+        (typeof localStorage !== 'undefined' ? (localStorage.getItem('auth_user_id') || localStorage.getItem('bazaar_user_id')) : undefined) ||
+        'current';
+
+    // ⚡ Fix Cache Miss: Resolve organizationId from storage if missing
+    const resolvedOrgId = organizationId ||
+        (typeof localStorage !== 'undefined' ? (localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id')) : undefined) ||
+        'default';
+
+    return `app-init:${resolvedUserId}:${resolvedOrgId}`;
+};
 
 /**
  * مسح الـ cache
@@ -560,6 +571,64 @@ const buildAppDataFromSQLiteTables = async (
     }
 };
 
+/**
+ * ⚡ Optimistic Load: جلب البيانات الأساسية فوراً من LocalStorage
+ * هذا يحل مشكلة Waterfall Initialization
+ */
+export const getOptimisticData = (): AppInitializationData | null => {
+    try {
+        if (typeof window === 'undefined') return null;
+
+        const userId = localStorage.getItem('auth_user_id') || localStorage.getItem('bazaar_user_id');
+        const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+
+        if (!userId || !orgId) return null;
+
+        // 1. محاولة استرجاع الكاش الكامل من الذاكرة إذا وجد
+        const cached = getCachedData(userId);
+        if (cached) return cached;
+
+        // 2. بناء بيانات "هيكل عظمي" (Skeleton) من البيانات المخزنة محلياً بسرعة فائقة
+        const userName = localStorage.getItem('user_name') || localStorage.getItem('bazaar_user_name') || 'مستخدم';
+        const userEmail = localStorage.getItem('user_email') || localStorage.getItem('bazaar_user_email') || '';
+        const orgName = localStorage.getItem('organization_name') || localStorage.getItem('bazaar_organization_name') || 'المؤسسة';
+
+        // هذه البيانات تكفي لرسم الهيكل (Shell)
+        return {
+            timestamp: Date.now(),
+            user: {
+                id: userId,
+                auth_user_id: userId,
+                name: userName,
+                email: userEmail,
+                role: 'admin',
+                organization_id: orgId,
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                permissions: [] // سيتم تحميلها لاحقاً
+            },
+            organization: {
+                id: orgId,
+                name: orgName,
+                slug: orgId,
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            },
+            organization_settings: null,
+            pos_settings: null,
+            categories: [], // سيتم تحميلها لاحقاً
+            subcategories: [],
+            employees: [],
+            confirmation_agents: [],
+            expense_categories: []
+        };
+    } catch (e) {
+        return null;
+    }
+};
+
 // ============================================================================
 // الدالة الرئيسية
 // ============================================================================
@@ -599,6 +668,7 @@ export const getAppInitializationData = async (
                 // PowerSync doesn't need explicit initialization per org
 
                 // محاولة جلب البيانات المحفوظة
+                // ⚡ FIX: Use the improved key builder that auto-resolves missing IDs
                 const key = buildOfflineKey(userId, organizationId);
                 const byId = await getAppInitCacheById(key);
 
@@ -776,17 +846,17 @@ export const getAppInitializationData = async (
 
                         // 📥 مزامنة الموردين
                         if (!powerSyncService.db) {
-                          console.warn('[AppInitialization] PowerSync DB not initialized');
+                            console.warn('[AppInitialization] PowerSync DB not initialized');
                         } else {
-                          const suppliersCount = await powerSyncQuery('SELECT COUNT(*) as count FROM suppliers WHERE organization_id = ?', [initOrgId]);
-                          const hasSuppliers = (suppliersCount.data?.[0]?.count || 0) > 0;
+                            const suppliersCount = await powerSyncQuery('SELECT COUNT(*) as count FROM suppliers WHERE organization_id = ?', [initOrgId]);
+                            const hasSuppliers = (suppliersCount.data?.[0]?.count || 0) > 0;
 
-                          if (!hasSuppliers) {
-                              console.log('[AppInitialization] 📥 Syncing suppliers...');
-                              const { getSuppliers } = await import('./supplierService');
-                              await getSuppliers(initOrgId); // هذا سيحفظ محلياً تلقائياً
-                              console.log('[AppInitialization] ✅ Suppliers synced');
-                          }
+                            if (!hasSuppliers) {
+                                console.log('[AppInitialization] 📥 Syncing suppliers...');
+                                const { getSuppliers } = await import('./supplierService');
+                                await getSuppliers(initOrgId); // هذا سيحفظ محلياً تلقائياً
+                                console.log('[AppInitialization] ✅ Suppliers synced');
+                            }
                         }
 
                         // ✅ جميع البيانات تُزامن تلقائياً عبر PowerSync Sync Rules

@@ -276,8 +276,13 @@ const UpdateButton: React.FC = () => {
     if (!api?.updater) return;
 
     try {
-      await api.updater.quitAndInstall();
+      // لا ننتظر النتيجة لأن quitAndInstall سيغلق التطبيق فوراً
+      // استخدام Promise.resolve للتأكد من عدم حدوث خطأ بعد الإغلاق
+      api.updater.quitAndInstall().catch(() => {
+        // تجاهل الأخطاء لأن التطبيق سيغلق
+      });
     } catch (error) {
+      // في حالة حدوث خطأ قبل الإغلاق
       toast.error('فشل تثبيت التحديث');
     }
   };

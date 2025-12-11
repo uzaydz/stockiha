@@ -49,6 +49,7 @@ bucket_definitions:
           average_item_weight, sell_by_box, units_per_box, box_price, box_purchase_price,
           box_barcode, allow_single_unit_sale, sell_by_meter, meter_unit, price_per_meter,
           purchase_price_per_meter, min_meters_per_sale, roll_length_meters,
+          show_in_store, allow_marketplace, hide_stock_quantity,
           track_expiry, default_expiry_days, expiry_alert_days, track_serial_numbers,
           require_serial_on_sale, has_warranty, warranty_duration_months, warranty_type,
           track_batches, use_fifo, requires_prescription, active_ingredient, dosage_form,
@@ -537,6 +538,231 @@ bucket_definitions:
         FROM purchase_templates
         WHERE organization_id = bucket.org_id
 
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-1. WORK_SHIFTS - الورديات ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, name, name_ar, start_time, end_time,
+          break_duration_minutes, grace_period_minutes, overtime_rate,
+          is_active, is_default, color, created_at, updated_at
+        FROM work_shifts
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-2. EMPLOYEE_SHIFT_ASSIGNMENTS - تعيين الورديات ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, shift_id, start_date, end_date,
+          days_of_week, is_active, created_at, updated_at
+        FROM employee_shift_assignments
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-3. EMPLOYEE_ATTENDANCE - الحضور والانصراف ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, shift_id, attendance_date,
+          check_in_time, check_out_time, expected_check_in, expected_check_out,
+          late_minutes, early_leave_minutes, overtime_minutes,
+          work_duration_minutes, break_duration_minutes, status,
+          check_in_location, check_out_location, check_in_device, check_out_device,
+          check_in_photo_url, check_out_photo_url, notes, admin_notes,
+          is_manual_entry, approved_by, approved_at, created_at, updated_at
+        FROM employee_attendance
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-4. ATTENDANCE_ADJUSTMENTS - تعديلات الحضور ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, attendance_id, adjusted_by, field_changed,
+          old_value, new_value, reason, created_at
+        FROM attendance_adjustments
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-5. LEAVE_TYPES - أنواع الإجازات ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, name, name_ar, code, color, icon,
+          days_per_year, can_carry_forward, max_carry_forward_days,
+          requires_approval, requires_attachment, min_days_notice,
+          max_consecutive_days, is_paid, pay_percentage,
+          gender_restriction, min_service_months, is_active, sort_order,
+          created_at, updated_at
+        FROM leave_types
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-6. EMPLOYEE_LEAVE_BALANCES - رصيد الإجازات ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, leave_type_id, year,
+          total_days, used_days, pending_days, carried_forward_days,
+          created_at, updated_at
+        FROM employee_leave_balances
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-7. LEAVE_REQUESTS - طلبات الإجازة ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, leave_type_id, start_date, end_date,
+          total_days, is_half_day, half_day_type, status, reason, attachment_urls,
+          reviewed_by, reviewed_at, review_notes, substitute_employee_id,
+          handover_notes, cancelled_by, cancelled_at, cancellation_reason,
+          created_at, updated_at
+        FROM leave_requests
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-8. OFFICIAL_HOLIDAYS - العطلات الرسمية ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, name, name_ar, date, is_recurring,
+          is_half_day, is_active, created_at, updated_at
+        FROM official_holidays
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-9. SALARY_STRUCTURES - هيكل الرواتب ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, basic_salary, currency,
+          housing_allowance, transport_allowance, food_allowance, phone_allowance,
+          other_allowances, social_insurance, health_insurance, tax_amount,
+          other_deductions, payment_method, bank_name, bank_account_number,
+          effective_from, effective_to, is_current, hourly_rate, daily_rate,
+          created_at, updated_at
+        FROM salary_structures
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-10. PAYROLL_RECORDS - سجلات الرواتب ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, salary_structure_id,
+          pay_period_month, pay_period_year, basic_salary,
+          housing_allowance, transport_allowance, food_allowance, phone_allowance,
+          other_allowances, total_allowances, overtime_hours, overtime_amount,
+          bonus_amount, commission_amount, incentives, total_earnings,
+          absent_days, absent_deduction, late_deduction, advance_deduction,
+          loan_deduction, social_insurance, health_insurance, tax_deduction,
+          other_deductions, total_deductions, gross_salary, net_salary, status,
+          payment_date, payment_reference, payment_method, approved_by, approved_at,
+          notes, details, created_at, updated_at
+        FROM payroll_records
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-11. EMPLOYEE_LOANS - السلف والقروض ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, loan_type, principal_amount,
+          remaining_amount, monthly_deduction, total_installments, paid_installments,
+          request_date, approval_date, start_deduction_date, expected_end_date,
+          status, approved_by, rejection_reason, reason, notes,
+          created_at, updated_at
+        FROM employee_loans
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-12. LOAN_PAYMENTS - دفعات القروض ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, loan_id, payroll_id, payment_date, amount,
+          installment_number, payment_method, reference, notes, created_at
+        FROM loan_payments
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-13. PERFORMANCE_CRITERIA - معايير الأداء ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, name, name_ar, description, category,
+          weight, max_score, score_descriptions, is_active, sort_order,
+          created_at, updated_at
+        FROM performance_criteria
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-14. PERFORMANCE_REVIEW_PERIODS - فترات التقييم ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, name, name_ar, start_date, end_date,
+          review_start_date, review_end_date, status, is_active,
+          created_at, updated_at
+        FROM performance_review_periods
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-15. PERFORMANCE_REVIEWS - تقييمات الأداء ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, reviewer_id, period_id,
+          review_period_start, review_period_end, scores, total_score,
+          weighted_score, grade, strengths, areas_for_improvement, achievements,
+          goals_for_next_period, reviewer_comments, employee_comments,
+          manager_comments, recommendations, status, submitted_at,
+          acknowledged_at, finalized_at, finalized_by, created_at, updated_at
+        FROM performance_reviews
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-16. EMPLOYEE_GOALS - أهداف الموظفين ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, assigned_by, title, description,
+          category, target_type, target_value, current_value, unit, milestones,
+          start_date, due_date, completed_at, priority, weight, status,
+          achievement_percentage, final_notes, created_at, updated_at
+        FROM employee_goals
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-17. GOAL_UPDATES - تحديثات الأهداف ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, goal_id, updated_by, previous_value, new_value,
+          notes, created_at
+        FROM goal_updates
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-18. EMPLOYEE_WARNINGS - الإنذارات ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, issued_by, warning_type,
+          reason_category, title, description, incident_date, evidence_urls,
+          action_required, improvement_deadline, status, acknowledged_at,
+          employee_response, expires_at, resolved_at, resolved_by,
+          resolution_notes, created_at, updated_at
+        FROM employee_warnings
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-19. EMPLOYEE_DOCUMENTS - وثائق الموظفين ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, uploaded_by, document_type,
+          title, description, file_url, file_name, file_size, file_type,
+          issue_date, expiry_date, is_verified, verified_by, verified_at,
+          is_confidential, created_at, updated_at
+        FROM employee_documents
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # HR-20. EMPLOYEE_DAILY_STATS - إحصائيات يومية ✅ جديد v4.0
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT
+          id, organization_id, employee_id, stat_date, total_sales, total_orders,
+          cash_sales, card_sales, credit_sales, returns_amount, returns_count,
+          products_sold, customers_served, avg_transaction_value, avg_transaction_time,
+          check_in_time, check_out_time, work_hours, break_hours, overtime_hours,
+          customer_rating, supervisor_rating, created_at, updated_at
+        FROM employee_daily_stats
+        WHERE organization_id = bucket.org_id
+
   # ═══════════════════════════════════════════════════════════════════════════
   # GLOBAL_DATA BUCKET - Tables without organization_id filter
   # ═══════════════════════════════════════════════════════════════════════════
@@ -564,7 +790,7 @@ bucket_definitions:
 # ============================================================
 # SUMMARY:
 # ============================================================
-# org_data bucket: 39 tables
+# org_data bucket: 57 tables
 #   - products, product_categories, product_subcategories
 #   - product_colors, product_sizes, product_images, product_wholesale_tiers
 #   - inventory_batches, product_serial_numbers
@@ -579,44 +805,81 @@ bucket_definitions:
 #   - subscription_transactions, organization_subscriptions
 #   - users, organizations, pos_settings
 #   - activation_codes, subscription_history
-#   - supplier_purchases ✅ جديد v3.1
-#   - supplier_purchase_items ✅ جديد v3.1
-#   - purchase_landed_costs ✅ جديد v3.1
-#   - purchase_price_updates ✅ جديد v3.1
-#   - purchase_templates ✅ جديد v3.1
+#   - supplier_purchases ✅ v3.1
+#   - supplier_purchase_items ✅ v3.1
+#   - purchase_landed_costs ✅ v3.1
+#   - purchase_price_updates ✅ v3.1
+#   - purchase_templates ✅ v3.1
+#   - work_shifts ✅ جديد v4.0
+#   - employee_shift_assignments ✅ جديد v4.0
+#   - employee_attendance ✅ جديد v4.0
+#   - attendance_adjustments ✅ جديد v4.0
+#   - leave_types ✅ جديد v4.0
+#   - employee_leave_balances ✅ جديد v4.0
+#   - leave_requests ✅ جديد v4.0
+#   - official_holidays ✅ جديد v4.0
+#   - salary_structures ✅ جديد v4.0
+#   - payroll_records ✅ جديد v4.0
+#   - employee_loans ✅ جديد v4.0
+#   - loan_payments ✅ جديد v4.0
+#   - performance_criteria ✅ جديد v4.0
+#   - performance_review_periods ✅ جديد v4.0
+#   - performance_reviews ✅ جديد v4.0
+#   - employee_goals ✅ جديد v4.0
+#   - goal_updates ✅ جديد v4.0
+#   - employee_warnings ✅ جديد v4.0
+#   - employee_documents ✅ جديد v4.0
+#   - employee_daily_stats ✅ جديد v4.0
 #
 # global_data bucket: 2 tables
 #   - subscription_plans (no organization_id)
 #   - payment_methods (no organization_id)
 #
-# TOTAL: 41 tables
+# TOTAL: 59 tables
+#
+# ============================================================
+# تحديث v4.0 - نظام إدارة الموارد البشرية (2025-12-10):
+# ============================================================
+# الجداول الجديدة (20 جدول):
+#   1. work_shifts - الورديات:
+#      - تعريف أوقات العمل والاستراحات
+#      - فترة السماح للتأخير
+#      - معدل الأجر الإضافي
+#
+#   2. employee_shift_assignments - تعيين الورديات:
+#      - ربط الموظفين بالورديات
+#      - تحديد أيام العمل
+#
+#   3. employee_attendance - الحضور والانصراف:
+#      - تسجيل الدخول/الخروج
+#      - تتبع التأخير والانصراف المبكر
+#      - دعم الموقع الجغرافي
+#
+#   4. attendance_adjustments - تعديلات الحضور
+#   5. leave_types - أنواع الإجازات
+#   6. employee_leave_balances - رصيد الإجازات
+#   7. leave_requests - طلبات الإجازة
+#   8. official_holidays - العطلات الرسمية
+#   9. salary_structures - هيكل الرواتب
+#   10. payroll_records - سجلات الرواتب الشهرية
+#   11. employee_loans - السلف والقروض
+#   12. loan_payments - دفعات القروض
+#   13. performance_criteria - معايير تقييم الأداء
+#   14. performance_review_periods - فترات التقييم
+#   15. performance_reviews - تقييمات الأداء
+#   16. employee_goals - أهداف الموظفين
+#   17. goal_updates - تحديثات الأهداف
+#   18. employee_warnings - الإنذارات
+#   19. employee_documents - وثائق الموظفين
+#   20. employee_daily_stats - إحصائيات يومية
 #
 # ============================================================
 # تحديث v3.1 - نظام المشتريات الذكي (2025-12-07):
 # ============================================================
-# الجداول الجديدة:
-#   1. supplier_purchases - المشتريات الرئيسية مع دعم:
-#      - التكاليف الإضافية (Landed Costs)
-#      - وضع التوربو للإدخال السريع
-#      - تتبع الموافقات
-#      - دعم الاستيراد والعملات المتعددة
-#
-#   2. supplier_purchase_items - عناصر المشتريات مع دعم:
-#      - تحويل الوحدات (قطعة، كرتونة، متر، كيلو)
-#      - المتغيرات (الألوان والمقاسات)
-#      - التسعير الذكي
-#      - تتبع المخزون والدفعات
-#
-#   3. purchase_landed_costs - التكاليف الإضافية:
-#      - شحن، جمارك، تأمين، مناولة
-#      - توزيع حسب القيمة/الكمية/الوزن/بالتساوي
-#
-#   4. purchase_price_updates - تحديثات الأسعار:
-#      - تتبع تغيرات أسعار الشراء
-#      - اقتراحات أسعار البيع
-#      - تتبع الهوامش
-#
-#   5. purchase_templates - قوالب المشتريات:
-#      - حفظ المشتريات المتكررة
-#      - إدخال سريع
+# الجداول:
+#   1. supplier_purchases - المشتريات الرئيسية
+#   2. supplier_purchase_items - عناصر المشتريات
+#   3. purchase_landed_costs - التكاليف الإضافية
+#   4. purchase_price_updates - تحديثات الأسعار
+#   5. purchase_templates - قوالب المشتريات
 # ============================================================

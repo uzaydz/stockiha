@@ -605,8 +605,8 @@ export default function TwoFactorAuthSetup({ onStatusChange }: TwoFactorAuthSetu
             {backupCodes.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 gap-2 p-4 bg-muted rounded-lg">
-                  {backupCodes.map((code, index) => (
-                    <div key={index} className="font-mono text-sm p-2 bg-card rounded border">
+                  {backupCodes.map((code) => (
+                    <div key={code} className="font-mono text-sm p-2 bg-card rounded border">
                       {code}
                     </div>
                   ))}

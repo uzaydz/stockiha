@@ -57,9 +57,15 @@ class LocalProductSearchServiceClass {
 
     console.log(`[LocalSearch] 🔍 بحث باركود: ${cleanBarcode}`);
 
-    // 1. البحث في المنتجات الرئيسية
+    // ⚡ v3.0: البحث في المنتجات الرئيسية - columns محددة
     const product = await powerSyncService.queryOne<LocalProduct>({
-      sql: `SELECT * FROM products WHERE organization_id = ? AND barcode = ? LIMIT 1`,
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   description, thumbnail_image, has_variants, use_sizes,
+                   sell_by_weight, sell_by_meter, sell_by_box,
+                   is_active, organization_id, created_at, updated_at,
+                   wholesale_price, thumbnail_image
+            FROM products WHERE organization_id = ? AND barcode = ? LIMIT 1`,
       params: [organizationId, cleanBarcode]
     });
 
@@ -68,9 +74,10 @@ class LocalProductSearchServiceClass {
       return this.formatBarcodeResult(product, 'main_product', cleanBarcode);
     }
 
-    // 2. البحث في الألوان
+    // ⚡ v3.0: البحث في الألوان - columns محددة
     const color = await powerSyncService.queryOne<any>({
-      sql: `SELECT pc.*, p.name as product_name, p.price, p.category_id, p.id as main_product_id
+      sql: `SELECT pc.id, pc.product_id, pc.name, pc.color_code, pc.quantity, pc.barcode, pc.price, pc.purchase_price,
+                   p.name as product_name, p.price, p.category_id, p.id as main_product_id
             FROM product_colors pc
             JOIN products p ON pc.product_id = p.id
             WHERE p.organization_id = ? AND pc.barcode = ?
@@ -98,9 +105,10 @@ class LocalProductSearchServiceClass {
       };
     }
 
-    // 3. البحث في المقاسات
+    // ⚡ v3.0: البحث في المقاسات - columns محددة
     const size = await powerSyncService.queryOne<any>({
-      sql: `SELECT ps.*, pc.name as color_name, pc.color_code, pc.id as color_id,
+      sql: `SELECT ps.id, ps.color_id, ps.size_name, ps.quantity, ps.barcode, ps.price, ps.purchase_price,
+                   pc.name as color_name, pc.color_code, pc.id as color_id,
                    p.name as product_name, p.price, p.category_id, p.id as main_product_id
             FROM product_sizes ps
             JOIN product_colors pc ON ps.color_id = pc.id
@@ -229,11 +237,17 @@ class LocalProductSearchServiceClass {
       whereClause += ' AND stock_quantity <= 0';
     }
 
-    // ✅ v3.0: استخدام count() و query()
+    // ✅ v3.0: استخدام count() و query() - columns محددة
     const total = await powerSyncService.count('products', whereClause, params);
 
     const products = await powerSyncService.query<LocalProduct>({
-      sql: `SELECT * FROM products WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   description, thumbnail_image, has_variants, use_sizes,
+                   sell_by_weight, sell_by_meter, sell_by_box,
+                   is_active, organization_id, created_at, updated_at,
+                   wholesale_price, thumbnail_image
+            FROM products WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       params: [...params, limit, offset]
     });
 
@@ -255,8 +269,15 @@ class LocalProductSearchServiceClass {
         const directCount = directCountRow?.count || 0;
 
         if (directCount > 0) {
+          // ⚡ v3.0: Fallback query - columns محددة
           const directProducts = await powerSyncService.query<LocalProduct>({
-            sql: 'SELECT * FROM products WHERE organization_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                         stock_quantity, min_stock_level, category_id, subcategory_id,
+                         description, thumbnail_image, has_variants, use_sizes,
+                         sell_by_weight, sell_by_meter, sell_by_box,
+                         is_active, organization_id, created_at, updated_at,
+                         wholesale_price, thumbnail_image
+                  FROM products WHERE organization_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
             params: [organizationId, limit, offset]
           });
 
@@ -309,20 +330,22 @@ class LocalProductSearchServiceClass {
     const productIds = products.map(p => p.id);
     const placeholders = productIds.map(() => '?').join(',');
 
-    // جلب الألوان
+    // ⚡ v3.0: جلب الألوان - columns محددة
     const colors = await powerSyncService.query<LocalProductColor>({
-      sql: `SELECT * FROM product_colors WHERE product_id IN (${placeholders}) ORDER BY name`,
+      sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price
+            FROM product_colors WHERE product_id IN (${placeholders}) ORDER BY name`,
       params: productIds
     });
 
-    // جلب المقاسات
+    // ⚡ v3.0: جلب المقاسات - columns محددة
     let sizes: LocalProductSize[] = [];
     if (colors.length > 0) {
       const colorIds = colors.map(c => c.id);
       const colorPlaceholders = colorIds.map(() => '?').join(',');
 
       sizes = await powerSyncService.query<LocalProductSize>({
-        sql: `SELECT * FROM product_sizes WHERE color_id IN (${colorPlaceholders}) ORDER BY size_name`,
+        sql: `SELECT id, color_id, product_id, size_name, quantity, barcode, price, purchase_price
+              FROM product_sizes WHERE color_id IN (${colorPlaceholders}) ORDER BY size_name`,
         params: colorIds
       });
     }
@@ -387,8 +410,13 @@ class LocalProductSearchServiceClass {
 
     const term = `%${searchTerm.trim()}%`;
 
+    // ⚡ v3.0: columns محددة
     return powerSyncService.query<LocalProduct>({
-      sql: `SELECT * FROM products
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   thumbnail_image, has_variants, use_sizes,
+                   is_active, organization_id, wholesale_price, thumbnail_image
+            FROM products
             WHERE organization_id = ?
             AND (name LIKE ? OR barcode LIKE ? OR sku LIKE ?)
             ORDER BY
@@ -465,15 +493,26 @@ class LocalProductSearchServiceClass {
    * ⚡ جلب منتج كامل مع الألوان والمقاسات
    */
   async getFullProductWithVariants(productId: string): Promise<any | null> {
+    // ⚡ v3.0: columns محددة
     const product = await powerSyncService.queryOne<LocalProduct>({
-      sql: 'SELECT * FROM products WHERE id = ?',
+      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+                   stock_quantity, min_stock_level, category_id, subcategory_id,
+                   description, thumbnail_image, images, has_variants, use_sizes,
+                   sell_by_weight, sell_by_meter, sell_by_box,
+                   available_weight, available_length, available_boxes,
+                   weight_unit, price_per_weight_unit, price_per_meter, box_price, units_per_box,
+                   is_active, organization_id, created_at, updated_at,
+                   wholesale_price, thumbnail_image
+            FROM products WHERE id = ?`,
       params: [productId]
     });
 
     if (!product) return null;
 
+    // ⚡ v3.0: columns محددة
     const colors = await powerSyncService.query<LocalProductColor>({
-      sql: 'SELECT * FROM product_colors WHERE product_id = ? ORDER BY name',
+      sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price, image_url
+            FROM product_colors WHERE product_id = ? ORDER BY name`,
       params: [productId]
     });
 
@@ -481,8 +520,10 @@ class LocalProductSearchServiceClass {
       const colorIds = colors.map(c => c.id);
       const placeholders = colorIds.map(() => '?').join(',');
 
+      // ⚡ v3.0: columns محددة
       const sizes = await powerSyncService.query<LocalProductSize>({
-        sql: `SELECT * FROM product_sizes WHERE color_id IN (${placeholders}) ORDER BY size_name`,
+        sql: `SELECT id, color_id, product_id, size_name, quantity, barcode, price, purchase_price
+              FROM product_sizes WHERE color_id IN (${placeholders}) ORDER BY size_name`,
         params: colorIds
       });
 

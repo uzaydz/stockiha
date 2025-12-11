@@ -14,6 +14,7 @@ import {
   refreshAppInitializationData,
   clearAppInitializationCache,
   updateCachedData,
+  getOptimisticData, // ⚡ Import Optimistic Loader
   type AppInitializationData,
   type UserWithPermissions,
   type Organization,
@@ -42,12 +43,12 @@ interface AppInitializationContextType {
   employees: Employee[];
   confirmationAgents: ConfirmationAgent[];
   expenseCategories: ExpenseCategory[];
-  
+
   // حالة التحميل
   isLoading: boolean;
   isInitialized: boolean;
   error: Error | null;
-  
+
   // دوال التحديث
   refresh: () => Promise<void>;
   updateData: (updates: Partial<AppInitializationData>) => void;
@@ -68,10 +69,24 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
   const { user: authUser, userProfile } = useAuth();
 
   const [data, setData] = useState<AppInitializationData | null>(null);
+  // ⚡ Optimistic: Start with false if we can assume data might load instantly
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
+
+  // ⚡ OPTIMISTIC INIT: Load data immediately from LocalStorage
+  useEffect(() => {
+    if (!isInitialized) {
+      const optimisticData = getOptimisticData();
+      if (optimisticData) {
+        console.log('⚡ [AppInitialization] Optimistic Load: Shell ready');
+        setData(optimisticData);
+        // We set initialized to true to show UI, but we still fetch fresh data later
+        // We don't verify 'isInitialized' to stop fetching, checking 'data' content is better
+      }
+    }
+  }, []);
 
   /**
    * جلب البيانات من الخادم
@@ -105,9 +120,15 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
       return;
     }
 
-    // التأكد من عدم جلب البيانات مرة أخرى إذا كانت موجودة بالفعل
-    if (isInitialized && !forceRefresh) {
+    // ⚡ التحقق الذكي: إذا لدينا بيانات بالفعل (من Optimistic load)
+    // لا نعيد التحميل إلا إذا كانت البيانات "ناقصة" (هيكل عظمي) أو طلب تحديث قسري
+    const isOptimisticData = data?.categories?.length === 0 && !data?.pos_settings;
+
+    // التأكد من عدم جلب البيانات مرة أخرى إذا كانت موجودة بالفعل وكاملة
+    if (isInitialized && !forceRefresh && !isOptimisticData) {
       console.log('✅ [AppInitialization] البيانات موجودة بالفعل، تخطي الجلب');
+      // تأكد من إيقاف التحميل في كل الأحوال
+      if (isLoading) setIsLoading(false);
       return;
     }
 
@@ -133,7 +154,7 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
     } finally {
       setIsLoading(false);
     }
-  }, [authUser?.id, userProfile, isInitialized]);
+  }, [authUser?.id, userProfile, isInitialized, data]); // Added data dependency
 
   /**
    * تحديث حالة hasCheckedProfile عندما يتم تحميل userProfile
@@ -170,14 +191,14 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
    */
   const updateData = useCallback((updates: Partial<AppInitializationData>) => {
     if (!authUser?.id || !data) return;
-    
+
     console.log('🔄 [AppInitialization] تحديث البيانات المحلية');
-    
+
     const updatedData = {
       ...data,
       ...updates
     };
-    
+
     setData(updatedData);
     updateCachedData(authUser.id, updates);
   }, [authUser?.id, data]);
@@ -207,12 +228,12 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
     employees: data?.employees || [],
     confirmationAgents: data?.confirmation_agents || [],
     expenseCategories: data?.expense_categories || [],
-    
+
     // حالة التحميل
     isLoading,
     isInitialized,
     error,
-    
+
     // دوال التحديث
     refresh,
     updateData,
@@ -240,11 +261,11 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
 
 export const useAppInitialization = (): AppInitializationContextType => {
   const context = useContext(AppInitializationContext);
-  
+
   if (context === undefined) {
     throw new Error('useAppInitialization must be used within AppInitializationProvider');
   }
-  
+
   return context;
 };
 

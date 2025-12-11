@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Employee, EmployeePermissions } from '@/types/employee';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +15,10 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { createEmployeeWithAllPermissions } from '@/lib/api/employees';
 import { useToast } from '@/components/ui/use-toast';
-import { UserPlus, Plus, Box, ShoppingCart, Users, Settings, BarChart3, Phone, Truck, Wrench as ServiceIcon, UserCog, BanknoteIcon, CreditCard } from 'lucide-react';
+import { UserPlus, Plus, Box, ShoppingCart, Users, Settings, BarChart3, Phone, Truck, Wrench as ServiceIcon, UserCog, BanknoteIcon, CreditCard, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { limitChecker, LimitCheckResponse } from '@/lib/subscription/limitChecker';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Card, 
   CardContent, 
@@ -188,6 +191,7 @@ const groupPermissions = (perms: EmployeePermissions) => {
 
 const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
   const { toast } = useToast();
+  const { organization } = useAuth();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -205,6 +209,30 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
     password: '',
     confirmPassword: ''
   });
+
+  // ⚡ حالة التحقق من حد الموظفين
+  const [limitStatus, setLimitStatus] = useState<LimitCheckResponse | null>(null);
+  const [isCheckingLimit, setIsCheckingLimit] = useState(false);
+
+  // ⚡ التحقق من حد الموظفين عند فتح الـ Dialog
+  useEffect(() => {
+    const checkLimit = async () => {
+      if (!open || !organization?.id) return;
+
+      setIsCheckingLimit(true);
+      try {
+        const result = await limitChecker.canAddStaff(organization.id);
+        setLimitStatus(result);
+      } catch (error) {
+        console.error('[AddEmployeeDialog] Error checking limit:', error);
+        setLimitStatus(null);
+      } finally {
+        setIsCheckingLimit(false);
+      }
+    };
+
+    checkLimit();
+  }, [open, organization?.id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -268,13 +296,23 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
+    // ⚡ التحقق من حد الموظفين قبل الإنشاء
+    if (limitStatus && !limitStatus.allowed) {
+      toast({
+        title: 'تم الوصول للحد الأقصى',
+        description: limitStatus.message,
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsSubmitting(true);
-    
+
     try {
       // استخدام الـ RPC الموحد: يتم منح جميع الصلاحيات افتراضياً من الجانب الخادمي
       const newEmployee = await createEmployeeWithAllPermissions(
@@ -364,7 +402,34 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
               أدخل بيانات الموظف وحدد الصلاحيات التي سيتمتع بها
             </DialogDescription>
           </DialogHeader>
-          
+
+          {/* ⚡ تحذير عند الوصول للحد الأقصى */}
+          {limitStatus && !limitStatus.allowed && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>{limitStatus.message}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setOpen(false);
+                    window.location.href = '/dashboard/subscription';
+                  }}
+                >
+                  ترقية الخطة
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* معلومات الحد الحالي */}
+          {limitStatus && limitStatus.allowed && !limitStatus.unlimited && (
+            <div className="mt-4 text-sm text-muted-foreground">
+              الموظفين: {limitStatus.currentCount} / {limitStatus.maxLimit} (متبقي: {limitStatus.remaining})
+            </div>
+          )}
+
           <div className="grid gap-6 py-4 flex-grow overflow-y-auto pr-2 scrollbar-thin">
             <Card>
               <CardHeader>
@@ -490,8 +555,17 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               إلغاء
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'جاري الإضافة...' : 'إضافة الموظف'}
+            <Button
+              type="submit"
+              disabled={isSubmitting || isCheckingLimit || (limitStatus && !limitStatus.allowed)}
+            >
+              {isCheckingLimit
+                ? 'جاري التحقق...'
+                : isSubmitting
+                  ? 'جاري الإضافة...'
+                  : limitStatus && !limitStatus.allowed
+                    ? 'تم الوصول للحد الأقصى'
+                    : 'إضافة الموظف'}
             </Button>
           </DialogFooter>
         </form>

@@ -177,6 +177,10 @@ export interface InsertProduct {
   is_new: boolean;
   has_variants: boolean;
   show_price_on_landing: boolean;
+  // إعدادات العرض والنشر
+  show_in_store?: boolean;
+  allow_marketplace?: boolean;
+  hide_stock_quantity?: boolean;
   features: string[];
   specifications: Record<string, string>;
   organization_id: string;
@@ -204,6 +208,10 @@ export type UpdateProduct = Omit<Database['public']['Tables']['products']['Updat
   category?: string;
   has_variants?: boolean;
   show_price_on_landing?: boolean;
+  // إعدادات العرض والنشر
+  show_in_store?: boolean;
+  allow_marketplace?: boolean;
+  hide_stock_quantity?: boolean;
   wholesale_price?: number;
   partial_wholesale_price?: number;
   min_wholesale_quantity?: number;
@@ -701,6 +709,18 @@ export const getProductById = async (id: string): Promise<Product | null> => {
           purchase_price,
           barcode
         )
+      ),
+      product_price_tiers(
+        id,
+        min_quantity,
+        price,
+        tier_name,
+        tier_label,
+        price_type,
+        max_quantity,
+        discount_percentage,
+        is_active,
+        sort_order
       )
     `)
     .eq('id', id)
@@ -711,6 +731,16 @@ export const getProductById = async (id: string): Promise<Product | null> => {
   }
 
   if (!data) return null;
+
+  // 🔍 DEBUG: فحص البيانات المجلوبة من قاعدة البيانات
+  console.log('='.repeat(80));
+  console.log('[getProductById] 🔍 DEBUG - Raw data from DB:', {
+    id: data.id,
+    name: data.name,
+    product_price_tiers: (data as any).product_price_tiers,
+    wholesale_tiers: (data as any).wholesale_tiers,
+  });
+  console.log('='.repeat(80));
 
   // Start with the base data and explicitly type it to avoid 'any' as much as possible
   const rawData = data as any; // Cast to any initially to access potentially joined array fields
@@ -1230,6 +1260,9 @@ const transformFormDataToV2Params = (productData: ProductFormValues, userId: str
     price_tiers_count: result.price_tiers?.length || 0,
     publication: result.publication,
   });
+
+  // 🔍 DEBUG: فحص مستويات الأسعار قبل الإرسال
+  console.log('[transformFormDataToV2Params] 🔍 DEBUG - price_tiers details:', JSON.stringify(result.price_tiers, null, 2));
   console.log('='.repeat(80));
 
   return result;
@@ -1544,7 +1577,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
           id, name, color_code, image_url, quantity, is_default, barcode, has_sizes, price, purchase_price, variant_number,
           product_sizes(id, size_name, quantity, price, purchase_price, barcode, is_default)
         ),
-        wholesale_tiers(id, min_quantity, price)
+        product_price_tiers(id, min_quantity, price, tier_name, tier_label, price_type, max_quantity, discount_percentage, is_active, sort_order)
       `)
       .eq('id', productId)
       .maybeSingle();
@@ -1661,6 +1694,50 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       }
     } catch (syncErr) {
       console.warn('[updateProduct] PowerSync forceSync failed (will sync later):', syncErr);
+    }
+
+    // ✅ تحديث مستويات الأسعار (wholesale_tiers) عبر PowerSync
+    // هذا يضمن العمل أوفلاين وأونلاين
+    const wholesaleTiers = (updates as any).wholesale_tiers;
+    if (wholesaleTiers && Array.isArray(wholesaleTiers)) {
+      console.log('[updateProduct] 💰 Updating wholesale tiers via PowerSync:', wholesaleTiers.length, 'tiers');
+      try {
+        // 1. حذف المستويات القديمة من PowerSync
+        const existingTiers = await powerSyncService.query<any>({
+          sql: 'SELECT id FROM product_wholesale_tiers WHERE product_id = ?',
+          params: [id]
+        });
+
+        for (const tier of existingTiers) {
+          await powerSyncService.mutate({
+            table: 'product_wholesale_tiers',
+            operation: 'DELETE',
+            data: { id: tier.id }
+          });
+        }
+        console.log('[updateProduct] 🗑️ Deleted', existingTiers.length, 'old tiers');
+
+        // 2. إضافة المستويات الجديدة
+        for (const tier of wholesaleTiers) {
+          const tierId = crypto.randomUUID();
+          await powerSyncService.mutate({
+            table: 'product_wholesale_tiers',
+            operation: 'INSERT',
+            data: {
+              id: tierId,
+              organization_id: orgId,
+              product_id: id,
+              min_quantity: Number(tier.min_quantity),
+              price_per_unit: Number(tier.price_per_unit || tier.price),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }
+          });
+        }
+        console.log('[updateProduct] ✅ Inserted', wholesaleTiers.length, 'new tiers via PowerSync');
+      } catch (tierError) {
+        console.error('[updateProduct] ❌ Exception updating wholesale tiers:', tierError);
+      }
     }
 
     toast.success('تم تحديث المنتج عبر PowerSync (أوفلاين/أونلاين)');
@@ -1813,7 +1890,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
           id, name, color_code, image_url, quantity, is_default, barcode, has_sizes, price, purchase_price, variant_number,
           product_sizes(id, size_name, quantity, price, purchase_price, barcode, is_default)
         ),
-        wholesale_tiers(id, min_quantity, price)
+        product_price_tiers(id, min_quantity, price, tier_name, tier_label, price_type, max_quantity, discount_percentage, is_active, sort_order)
       `)
       .eq('id', id)
       .maybeSingle();
@@ -2054,24 +2131,47 @@ export const createSubcategory = async (subcategory: { category_id: string; name
 };
 
 export const getWholesaleTiers = async (productId: string) => {
+  console.log('[getWholesaleTiers] 🔍 Loading tiers for product:', productId);
 
   if (!productId) {
+    console.log('[getWholesaleTiers] ⚠️ No productId provided');
     return [];
   }
-  
+
   try {
+    // ✅ استخدام product_price_tiers بدلاً من wholesale_tiers
+    // هذا هو الجدول الصحيح الذي يستخدمه RPC upsert_product_v2
     const { data, error } = await supabase
-      .from('wholesale_tiers')
-      .select('*')
+      .from('product_price_tiers')
+      .select('id, product_id, min_quantity, price, tier_name, tier_label, price_type, max_quantity, discount_percentage, is_active, sort_order')
       .eq('product_id', productId)
       .order('min_quantity', { ascending: true });
 
     if (error) {
+      console.error('[getWholesaleTiers] ❌ Error:', error);
       throw error;
     }
 
-    return data || [];
+    // تحويل البيانات للتوافق مع الـ interface القديم
+    const transformedData = (data || []).map(tier => ({
+      id: tier.id,
+      product_id: tier.product_id,
+      min_quantity: tier.min_quantity,
+      price_per_unit: tier.price, // تحويل price إلى price_per_unit للتوافق
+      price: tier.price,
+      tier_name: tier.tier_name,
+      tier_label: tier.tier_label,
+      price_type: tier.price_type,
+      max_quantity: tier.max_quantity,
+      discount_percentage: tier.discount_percentage,
+      is_active: tier.is_active,
+      sort_order: tier.sort_order,
+    }));
+
+    console.log('[getWholesaleTiers] ✅ Loaded tiers:', transformedData.length);
+    return transformedData;
   } catch (error) {
+    console.error('[getWholesaleTiers] ❌ Exception:', error);
     throw error;
   }
 };
@@ -2079,26 +2179,44 @@ export const getWholesaleTiers = async (productId: string) => {
 export const createWholesaleTier = async (tier: {
   product_id: string;
   min_quantity: number;
-  price_per_unit: number;
+  price_per_unit?: number;
+  price?: number;
   organization_id: string;
 }) => {
+  console.log('[createWholesaleTier] 🔍 Creating tier:', tier);
+
+  // ✅ استخدام product_price_tiers بدلاً من product_wholesale_tiers
+  const priceValue = tier.price ?? tier.price_per_unit ?? 0;
+
   const { data, error } = await supabase
-    .from('product_wholesale_tiers')
+    .from('product_price_tiers')
     .insert([
       {
         product_id: tier.product_id,
         min_quantity: tier.min_quantity,
-        price_per_unit: tier.price_per_unit,
-        organization_id: tier.organization_id,
+        price: priceValue, // الجدول يستخدم price وليس price_per_unit
+        tier_name: 'wholesale',
+        price_type: 'fixed',
+        is_active: true,
+        sort_order: 0,
       },
     ])
     .select()
     .single();
 
   if (error) {
+    console.error('[createWholesaleTier] ❌ Error:', error);
     throw error;
   }
-  return data;
+
+  // تحويل البيانات للتوافق مع الـ interface القديم
+  const transformedData = {
+    ...data,
+    price_per_unit: data.price, // توافق مع الـ interface القديم
+  };
+
+  console.log('[createWholesaleTier] ✅ Created tier:', transformedData);
+  return transformedData;
 };
 
 export const updateWholesaleTier = async (
@@ -2106,39 +2224,68 @@ export const updateWholesaleTier = async (
   updates: {
     min_quantity?: number;
     price_per_unit?: number;
+    price?: number;
   }
 ) => {
+  console.log('[updateWholesaleTier] 🔍 Updating tier:', tierId, updates);
+
+  // ✅ استخدام product_price_tiers بدلاً من product_wholesale_tiers
+  // تحويل price_per_unit إلى price للتوافق مع الجدول
+  const updateData: Record<string, any> = {};
+  if (updates.min_quantity !== undefined) {
+    updateData.min_quantity = updates.min_quantity;
+  }
+  if (updates.price !== undefined) {
+    updateData.price = updates.price;
+  } else if (updates.price_per_unit !== undefined) {
+    updateData.price = updates.price_per_unit; // تحويل للتوافق
+  }
+
   const { data, error } = await supabase
-    .from('product_wholesale_tiers')
-    .update(updates)
+    .from('product_price_tiers')
+    .update(updateData)
     .eq('id', tierId)
     .select()
     .single();
 
   if (error) {
+    console.error('[updateWholesaleTier] ❌ Error:', error);
     throw error;
   }
-  return data;
+
+  // تحويل البيانات للتوافق مع الـ interface القديم
+  const transformedData = {
+    ...data,
+    price_per_unit: data.price,
+  };
+
+  console.log('[updateWholesaleTier] ✅ Updated tier:', transformedData);
+  return transformedData;
 };
 
 export const deleteWholesaleTier = async (tierId: string) => {
+  console.log('[deleteWholesaleTier] 🔍 Deleting tier:', tierId);
 
   if (!tierId) {
     throw new Error('معرف المرحلة السعرية مطلوب للحذف');
   }
-  
+
   try {
+    // ✅ استخدام product_price_tiers بدلاً من wholesale_tiers
     const { error } = await supabase
-      .from('wholesale_tiers')
+      .from('product_price_tiers')
       .delete()
       .eq('id', tierId);
 
     if (error) {
+      console.error('[deleteWholesaleTier] ❌ Error:', error);
       throw error;
     }
 
+    console.log('[deleteWholesaleTier] ✅ Deleted tier:', tierId);
     return true;
   } catch (error) {
+    console.error('[deleteWholesaleTier] ❌ Exception:', error);
     throw error;
   }
 };

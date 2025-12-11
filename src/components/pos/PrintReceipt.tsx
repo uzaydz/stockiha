@@ -16,6 +16,10 @@ import { unifiedPrintService, ReceiptData, ReceiptItem } from '@/services/Unifie
 import { toast } from 'sonner';
 import '@/styles/pos-print.css';
 
+// أنواع وحدات البيع
+type SellingUnit = 'piece' | 'weight' | 'box' | 'meter';
+type SaleType = 'retail' | 'wholesale' | 'partial_wholesale';
+
 interface CartItem {
   product: Product;
   quantity: number;
@@ -28,6 +32,29 @@ interface CartItem {
   sizeName?: string;
   variantPrice?: number;
   variantImage?: string;
+  // === أنواع البيع المتقدمة ===
+  sellingUnit?: SellingUnit;
+  // البيع بالوزن
+  weight?: number;
+  weightUnit?: 'kg' | 'g' | 'lb' | 'oz';
+  pricePerWeightUnit?: number;
+  // البيع بالكرتون
+  boxCount?: number;
+  unitsPerBox?: number;
+  // البيع بالمتر
+  length?: number;
+  meterUnit?: 'm' | 'cm' | 'ft' | 'inch';
+  // === التتبع المتقدم ===
+  // الأرقام التسلسلية
+  serialNumbers?: string[];
+  // الدفعات والصلاحية
+  batchId?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  // نوع البيع (جملة/تجزئة)
+  saleType?: SaleType;
+  // سعر مخصص
+  customPrice?: number;
 }
 
 interface SelectedService extends Omit<Service, 'description'> {
@@ -378,14 +405,45 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
 
   // تحويل عناصر السلة إلى تنسيق ReceiptItem
   const convertCartItemsToReceiptItems = useCallback((): ReceiptItem[] => {
-    return items.map(item => ({
-      name: item.product.name,
-      quantity: item.quantity,
-      price: item.variantPrice || item.wholesalePrice || item.product.price,
-      total: (item.variantPrice || item.wholesalePrice || item.product.price) * item.quantity,
-      colorName: item.colorName,
-      sizeName: item.sizeName,
-    }));
+    return items.map(item => {
+      const basePrice = item.customPrice ?? item.variantPrice ?? item.wholesalePrice ?? item.product.price;
+      let total = basePrice * item.quantity;
+
+      // حساب الإجمالي حسب نوع البيع
+      if (item.sellingUnit === 'weight') {
+        const pricePerWeight = item.pricePerWeightUnit || basePrice;
+        total = (item.weight || 0) * pricePerWeight;
+      } else if (item.sellingUnit === 'box') {
+        const boxPrice = (item.product as any).box_price || basePrice;
+        total = (item.boxCount || item.quantity) * boxPrice;
+      } else if (item.sellingUnit === 'meter') {
+        const pricePerMeter = (item.product as any).price_per_meter || basePrice;
+        total = (item.length || 0) * pricePerMeter;
+      }
+
+      return {
+        name: item.product.name,
+        quantity: item.quantity,
+        price: basePrice,
+        total,
+        colorName: item.colorName,
+        sizeName: item.sizeName,
+        // === البيانات الإضافية ===
+        sellingUnit: item.sellingUnit,
+        weight: item.weight,
+        weightUnit: item.weightUnit,
+        boxCount: item.boxCount,
+        unitsPerBox: item.unitsPerBox,
+        length: item.length,
+        meterUnit: item.meterUnit,
+        serialNumbers: item.serialNumbers,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+        saleType: item.saleType,
+        warrantyMonths: (item.product as any).warranty_duration_months,
+        hasWarranty: (item.product as any).has_warranty,
+      };
+    });
   }, [items]);
 
   // تحويل الخدمات إلى تنسيق ReceiptService
@@ -560,27 +618,73 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
     }
   };
 
-  // نسخ معلومات الوصل كنص
+  // نسخ معلومات الوصل كنص - محسّن
   const handleCopyAsText = async () => {
     if (!printRef.current) return;
 
+    // دالة مساعدة لتنسيق عنصر واحد
+    const formatItemText = (item: CartItem): string => {
+      let line = `- ${item.product.name}`;
+
+      // المتغيرات
+      if (item.colorName) line += ` | ${item.colorName}`;
+      if (item.sizeName) line += ` | ${item.sizeName}`;
+
+      // نوع البيع
+      if (item.saleType && item.saleType !== 'retail') {
+        line += ` [${item.saleType === 'wholesale' ? 'جملة' : 'نصف جملة'}]`;
+      }
+
+      // الكمية حسب نوع البيع
+      if (item.sellingUnit === 'weight') {
+        line += ` × ${(item.weight || 0).toFixed(2)} ${item.weightUnit === 'g' ? 'غ' : 'كغ'}`;
+      } else if (item.sellingUnit === 'box') {
+        line += ` × ${item.boxCount || item.quantity} كرتون`;
+      } else if (item.sellingUnit === 'meter') {
+        line += ` × ${(item.length || 0).toFixed(2)} م`;
+      } else {
+        line += ` × ${formatNumberNormal(item.quantity.toString())}`;
+      }
+
+      // السعر
+      const itemTotal = calculateItemTotal(item);
+      line += ` = ${formatPriceWithSettings(itemTotal)}`;
+
+      // التفاصيل الإضافية
+      const extras: string[] = [];
+      if (item.serialNumbers?.length) extras.push(`S/N: ${item.serialNumbers.join(', ')}`);
+      if (item.batchNumber) extras.push(`دفعة: ${item.batchNumber}`);
+      if (item.expiryDate) extras.push(`صلاحية: ${formatShortDate(item.expiryDate)}`);
+      if ((item.product as any).has_warranty && (item.product as any).warranty_duration_months) {
+        extras.push(`ضمان: ${(item.product as any).warranty_duration_months} شهر`);
+      }
+
+      if (extras.length > 0) {
+        line += `\n  ${extras.join(' | ')}`;
+      }
+
+      return line;
+    };
+
     const receiptText = `
+━━━━━━━━━━━━━━━━━━━━━━━━
 وصل رقم: ${formatNumberNormal(orderId)}
 التاريخ: ${formatDateArabic(new Date())} ${formatTimeNormal(new Date())}
 ${employeeName ? `الموظف: ${employeeName}` : ''}
 ${customerName ? `العميل: ${customerName}` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-المنتجات:
-${items.map(item => `- ${item.product.name} × ${formatNumberNormal(item.quantity.toString())} = ${formatPriceWithSettings((item.variantPrice || item.wholesalePrice || item.product.price) * item.quantity)}`).join('\n')}
+📦 المنتجات:
+${items.map(formatItemText).join('\n')}
 
-${services.length > 0 ? `الخدمات:\n${services.map(service => `- ${service.name} = ${formatPriceWithSettings(service.price)}`).join('\n')}\n` : ''}${subscriptionAccountInfo && Object.values(subscriptionAccountInfo).some(val => val) ? `\n🔐 معلومات حساب الاشتراك:\n${subscriptionAccountInfo.username ? `اسم المستخدم: ${subscriptionAccountInfo.username}\n` : ''}${subscriptionAccountInfo.email ? `البريد الإلكتروني: ${subscriptionAccountInfo.email}\n` : ''}${subscriptionAccountInfo.password ? `كلمة المرور: ${subscriptionAccountInfo.password}\n` : ''}${subscriptionAccountInfo.notes ? `ملاحظات: ${subscriptionAccountInfo.notes}\n` : ''}\n` : ''}
-
+${services.length > 0 ? `🔧 الخدمات:\n${services.map(service => `- ${service.name} = ${formatPriceWithSettings(service.price)}`).join('\n')}\n` : ''}${subscriptionAccountInfo && Object.values(subscriptionAccountInfo).some(val => val) ? `
+🔐 معلومات حساب الاشتراك:
+${subscriptionAccountInfo.username ? `اسم المستخدم: ${subscriptionAccountInfo.username}\n` : ''}${subscriptionAccountInfo.email ? `البريد الإلكتروني: ${subscriptionAccountInfo.email}\n` : ''}${subscriptionAccountInfo.password ? `كلمة المرور: ${subscriptionAccountInfo.password}\n` : ''}${subscriptionAccountInfo.notes ? `ملاحظات: ${subscriptionAccountInfo.notes}\n` : ''}` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━
 المجموع الفرعي: ${formatPriceWithSettings(subtotal)}
-${discountAmount > 0 ? `الخصم (${formatNumberNormal(discount.toString())}%): -${formatPriceWithSettings(discountAmount)}` : ''}
-${tax > 0 ? `الضريبة: ${formatPriceWithSettings(tax)}` : ''}
-المجموع الكلي: ${formatPriceWithSettings(total)}
-
-${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
+${discountAmount > 0 ? `الخصم (${formatNumberNormal(discount.toString())}%): -${formatPriceWithSettings(discountAmount)}\n` : ''}${tax > 0 ? `الضريبة: ${formatPriceWithSettings(tax)}\n` : ''}💰 المجموع الكلي: ${formatPriceWithSettings(total)}
+${paymentMethod ? `\nطريقة الدفع: ${paymentMethod}` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━
     `.trim();
 
     try {
@@ -630,6 +734,76 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
       const englishNumbers = '0123456789';
       return englishNumbers[arabicNumbers.indexOf(match)];
     });
+  };
+
+  // === دوال تنسيق أنواع البيع المتقدمة ===
+
+  // دالة للحصول على وحدة البيع بالعربية
+  const getUnitLabel = (item: CartItem): string => {
+    switch (item.sellingUnit) {
+      case 'weight':
+        return item.weightUnit === 'g' ? 'غ' : item.weightUnit === 'lb' ? 'رطل' : item.weightUnit === 'oz' ? 'أونصة' : 'كغ';
+      case 'box':
+        return 'كرتون';
+      case 'meter':
+        return item.meterUnit === 'cm' ? 'سم' : item.meterUnit === 'ft' ? 'قدم' : item.meterUnit === 'inch' ? 'إنش' : 'م';
+      default:
+        return '';
+    }
+  };
+
+  // دالة للحصول على الكمية حسب نوع البيع
+  const getDisplayQuantity = (item: CartItem): string => {
+    switch (item.sellingUnit) {
+      case 'weight':
+        return `${(item.weight || 0).toFixed(2)} ${getUnitLabel(item)}`;
+      case 'box':
+        const boxInfo = item.boxCount || item.quantity;
+        return item.unitsPerBox ? `${boxInfo} كرتون (${boxInfo * item.unitsPerBox} وحدة)` : `${boxInfo} كرتون`;
+      case 'meter':
+        return `${(item.length || 0).toFixed(2)} ${getUnitLabel(item)}`;
+      default:
+        return formatNumberNormal(item.quantity.toString());
+    }
+  };
+
+  // دالة للحصول على نوع البيع بالعربية (مختصر)
+  const getSaleTypeLabel = (saleType?: SaleType): string => {
+    switch (saleType) {
+      case 'wholesale': return 'جملة';
+      case 'partial_wholesale': return 'نصف جملة';
+      default: return '';
+    }
+  };
+
+  // دالة لحساب إجمالي العنصر حسب نوع البيع
+  const calculateItemTotal = (item: CartItem): number => {
+    const basePrice = item.customPrice ?? item.variantPrice ?? item.wholesalePrice ?? item.product.price;
+
+    switch (item.sellingUnit) {
+      case 'weight':
+        const pricePerWeight = item.pricePerWeightUnit || basePrice;
+        return (item.weight || 0) * pricePerWeight;
+      case 'box':
+        const boxPrice = (item.product as any).box_price || basePrice;
+        return (item.boxCount || item.quantity) * boxPrice;
+      case 'meter':
+        const pricePerMeter = (item.product as any).price_per_meter || basePrice;
+        return (item.length || 0) * pricePerMeter;
+      default:
+        return basePrice * item.quantity;
+    }
+  };
+
+  // دالة لتنسيق التاريخ المختصر (للصلاحية)
+  const formatShortDate = (dateStr?: string): string => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+    } catch {
+      return dateStr;
+    }
   };
 
   // تحديد محاذاة النص
@@ -925,7 +1099,7 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
                   </h3>
 
                   {settings?.item_display_style === 'table' ? (
-                    // عرض في شكل جدول
+                    // عرض في شكل جدول محسّن
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-dashed">
@@ -937,37 +1111,124 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
                         </tr>
                       </thead>
                       <tbody>
-                        {items.map((item, index) => (
-                          <tr key={index}>
-                            <td className="text-right py-1">
-                              {item.product.name}
-                              {item.colorName && <span className="text-xs text-gray-500 dark:text-gray-400"> - {item.colorName}</span>}
-                              {item.sizeName && <span className="text-xs text-gray-500 dark:text-gray-400"> - {item.sizeName}</span>}
-                            </td>
-                            <td className="text-center py-1">{formatNumberNormal(item.quantity.toString())}</td>
-                            <td className={`py-1 ${settings.price_position === 'right' ? 'text-right' : 'text-left'}`}>
-                              {formatPriceWithSettings((item.variantPrice || item.wholesalePrice || item.product.price) * item.quantity)}
-                            </td>
-                          </tr>
-                        ))}
+                        {items.map((item, index) => {
+                          const hasExtras = item.colorName || item.sizeName || item.saleType ||
+                                           item.serialNumbers?.length || item.batchNumber ||
+                                           item.expiryDate || (item.product as any).has_warranty;
+                          const itemTotal = calculateItemTotal(item);
+
+                          return (
+                            <React.Fragment key={`${item.product.id}-${item.colorId || 'nc'}-${item.sizeId || 'ns'}-${index}`}>
+                              {/* صف المنتج الرئيسي */}
+                              <tr className={hasExtras ? '' : 'border-b border-dotted border-gray-200'}>
+                                <td className="text-right py-1 align-top">
+                                  <span className="font-medium">{item.product.name}</span>
+                                  {/* المتغيرات في نفس السطر */}
+                                  {(item.colorName || item.sizeName) && (
+                                    <span className="text-gray-500 dark:text-gray-400 text-xs">
+                                      {item.colorName && ` • ${item.colorName}`}
+                                      {item.sizeName && ` • ${item.sizeName}`}
+                                    </span>
+                                  )}
+                                  {/* نوع البيع */}
+                                  {item.saleType && item.saleType !== 'retail' && (
+                                    <span className="text-blue-600 dark:text-blue-400 text-xs mr-1">
+                                      [{getSaleTypeLabel(item.saleType)}]
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="text-center py-1 align-top">
+                                  {getDisplayQuantity(item)}
+                                </td>
+                                <td className={`py-1 align-top ${settings.price_position === 'right' ? 'text-right' : 'text-left'}`}>
+                                  {formatPriceWithSettings(itemTotal)}
+                                </td>
+                              </tr>
+                              {/* صف التفاصيل الإضافية (مضغوط) */}
+                              {(item.serialNumbers?.length || item.batchNumber || item.expiryDate || (item.product as any).has_warranty) && (
+                                <tr className="border-b border-dotted border-gray-200">
+                                  <td colSpan={3} className="py-0.5 pr-2">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-2 gap-y-0.5">
+                                      {/* الأرقام التسلسلية */}
+                                      {item.serialNumbers && item.serialNumbers.length > 0 && (
+                                        <span>S/N: {item.serialNumbers.slice(0, 2).join(', ')}{item.serialNumbers.length > 2 ? ` +${item.serialNumbers.length - 2}` : ''}</span>
+                                      )}
+                                      {/* رقم الدفعة */}
+                                      {item.batchNumber && (
+                                        <span>دفعة: {item.batchNumber}</span>
+                                      )}
+                                      {/* تاريخ الصلاحية */}
+                                      {item.expiryDate && (
+                                        <span>صلاحية: {formatShortDate(item.expiryDate)}</span>
+                                      )}
+                                      {/* الضمان */}
+                                      {(item.product as any).has_warranty && (item.product as any).warranty_duration_months && (
+                                        <span>ضمان: {(item.product as any).warranty_duration_months} شهر</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   ) : (
-                    // عرض في شكل قائمة
-                    <div className="space-y-2">
-                      {items.map((item, index) => (
-                        <div key={index} className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <span className="text-xs">{item.product.name}</span>
-                            {item.colorName && <span className="text-xs text-gray-500 dark:text-gray-400"> - {item.colorName}</span>}
-                            {item.sizeName && <span className="text-xs text-gray-500 dark:text-gray-400"> - {item.sizeName}</span>}
-                            <span className="text-xs text-muted-foreground mx-1">×{formatNumberNormal(item.quantity.toString())}</span>
+                    // عرض في شكل قائمة محسّنة
+                    <div className="space-y-1.5">
+                      {items.map((item, index) => {
+                        const itemTotal = calculateItemTotal(item);
+                        const hasExtras = item.serialNumbers?.length || item.batchNumber ||
+                                         item.expiryDate || (item.product as any).has_warranty;
+
+                        return (
+                          <div
+                            key={`list-${item.product.id}-${item.colorId || 'nc'}-${item.sizeId || 'ns'}-${index}`}
+                            className="border-b border-dotted border-gray-200 dark:border-gray-700 pb-1.5"
+                          >
+                            {/* الصف الرئيسي */}
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium">{item.product.name}</span>
+                                {/* المتغيرات */}
+                                {(item.colorName || item.sizeName) && (
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {item.colorName && ` • ${item.colorName}`}
+                                    {item.sizeName && ` • ${item.sizeName}`}
+                                  </span>
+                                )}
+                                {/* نوع البيع */}
+                                {item.saleType && item.saleType !== 'retail' && (
+                                  <span className="text-xs text-blue-600 dark:text-blue-400 mr-1">
+                                    [{getSaleTypeLabel(item.saleType)}]
+                                  </span>
+                                )}
+                                {/* الكمية */}
+                                <span className="text-xs text-muted-foreground mx-1">
+                                  ×{getDisplayQuantity(item)}
+                                </span>
+                              </div>
+                              <span className="text-xs font-mono font-medium">
+                                {formatPriceWithSettings(itemTotal)}
+                              </span>
+                            </div>
+                            {/* التفاصيل الإضافية */}
+                            {hasExtras && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap gap-x-2">
+                                {item.serialNumbers && item.serialNumbers.length > 0 && (
+                                  <span>S/N: {item.serialNumbers.slice(0, 2).join(', ')}{item.serialNumbers.length > 2 ? ` +${item.serialNumbers.length - 2}` : ''}</span>
+                                )}
+                                {item.batchNumber && <span>دفعة: {item.batchNumber}</span>}
+                                {item.expiryDate && <span>صلاحية: {formatShortDate(item.expiryDate)}</span>}
+                                {(item.product as any).has_warranty && (item.product as any).warranty_duration_months && (
+                                  <span>ضمان: {(item.product as any).warranty_duration_months} شهر</span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <span className="text-xs font-mono">
-                            {formatPriceWithSettings((item.variantPrice || item.wholesalePrice || item.product.price) * item.quantity)}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -990,8 +1251,8 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
                               الخدمات
                             </h3>
                             <div className="space-y-2">
-                              {regularServices.map((service, index) => (
-                                <div key={index} className="flex justify-between items-center">
+                              {regularServices.map((service) => (
+                                <div key={service.id || service.name} className="flex justify-between items-center">
                                   <div className="flex-1">
                                     <span className="text-xs">{service.name}</span>
                                     {service.public_tracking_code && (
@@ -1014,8 +1275,8 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
                               🔐 الاشتراكات
                             </h3>
                             <div className="space-y-2">
-                              {subscriptions.map((subscription, index) => (
-                                <div key={index} className="flex justify-between items-start">
+                              {subscriptions.map((subscription) => (
+                                <div key={subscription.id || subscription.name} className="flex justify-between items-start">
                                   <div className="flex-1">
                                     <span className="text-xs font-medium">{subscription.name}</span>
                                     {subscription.duration && (
@@ -1236,20 +1497,28 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
                 )}
               </div>
 
-              {/* نص الضمان والشروط */}
-              <div className="mt-4 pt-3 border-t border-dashed border-gray-300 dark:border-gray-600">
-                <div className="text-center mb-2">
-                  <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300">ضمان المبيعات</h4>
+              {/* نص الضمان والشروط - يظهر فقط إذا كان هناك منتج بضمان */}
+              {items.some(item => (item.product as any).has_warranty) && (
+                <div className="mt-3 pt-2 border-t border-dashed border-gray-300 dark:border-gray-600">
+                  <div className="text-center mb-1">
+                    <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300">📋 شروط الضمان</h4>
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 leading-relaxed">
+                    <p className="text-center">• الضمان ساري من تاريخ الشراء</p>
+                    <p className="text-center">• لا يشمل: السقوط، السوائل، سوء الاستخدام</p>
+                    <p className="text-center">• يُرجى الاحتفاظ بالوصل للمراجعة</p>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1.5 text-justify leading-relaxed">
-                  <p>
-                    يمنح المتجر ضمانًا لمدة شهر ضد مشاكل الحرارة أو التوقف المفاجئ، ولا يشمل الأضرار الناتجة عن سوء الاستخدام مثل: السقوط، تسرب السوائل، أو انقطاع الكهرباء.
-                  </p>
-                  <p>
-                    يحق للعميل إرجاع المنتج خلال 24 ساعة من تاريخ الشراء بشرط أن يكون في نفس الحالة الأصلية مع كامل الإكسسوارات والتغليف.
+              )}
+
+              {/* سياسة الإرجاع المختصرة */}
+              {settings?.show_return_policy !== false && (
+                <div className="mt-2 pt-2 border-t border-dotted border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    🔄 الإرجاع خلال 24 ساعة بحالة المنتج الأصلية
                   </p>
                 </div>
-              </div>
+              )}
 
               {/* خط النهاية */}
               <div className="mt-4 pt-2 border-t-2 border-dashed border-gray-300 dark:border-gray-600 text-center">

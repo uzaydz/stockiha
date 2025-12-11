@@ -27,6 +27,7 @@ bucket_definitions:
           stock_quantity, min_stock_level, reorder_level, reorder_quantity,
           thumbnail_image, images, has_variants, use_sizes, is_active,
           is_digital, is_new, is_featured, show_price_on_landing,
+          show_in_store, allow_marketplace, hide_stock_quantity,
           use_variant_prices, last_inventory_update,
           sell_by_weight, weight_unit, price_per_weight_unit,
           purchase_price_per_weight_unit, min_weight_per_sale,

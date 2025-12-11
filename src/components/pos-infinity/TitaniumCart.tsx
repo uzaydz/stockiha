@@ -2,6 +2,10 @@
  * 🛒 TitaniumCart - السلة المحسّنة
  * ═══════════════════════════════════════════════════════════════════════════
  * تصميم بسيط مع تعديل مباشر للكمية والسعر
+ * دعم كامل للميزات المتقدمة:
+ * - الدفعات والصلاحية
+ * - الأرقام التسلسلية
+ * - أنواع البيع (جملة/تجزئة)
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -26,13 +30,20 @@ import {
   Zap,
   Loader2,
   Clock,
-  PauseCircle
+  PauseCircle,
+  Hash,
+  Layers,
+  Tag,
+  Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import type { POSMode } from './CommandIsland';
+import type { SaleType } from '@/lib/pricing/wholesalePricing';
+import { calculateProductPrice, toProductPricingInfo, parseWholesaleTiers, getApplicableTier } from '@/lib/pricing/wholesalePricing';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -53,6 +64,14 @@ interface CartItem {
   weightUnit?: 'kg' | 'g';
   boxCount?: number;
   length?: number;
+  // الدفعات والصلاحية
+  batchId?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  // الأرقام التسلسلية
+  serialNumbers?: string[];
+  // نوع البيع (جملة/تجزئة)
+  saleType?: SaleType;
 }
 
 type SaleMode = 'normal' | 'discount' | 'debt';
@@ -149,6 +168,13 @@ const SALE_MODE_CONFIG = {
   debt: { label: 'مديونية', color: 'bg-blue-500', textColor: 'text-blue-600' }
 };
 
+// تكوين أنواع التسعير (جملة/تجزئة)
+const SALE_TYPE_CONFIG: Record<SaleType, { label: string; color: string; bgColor: string }> = {
+  retail: { label: 'تجزئة', color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-500/20' },
+  partial_wholesale: { label: 'ن.جملة', color: 'text-amber-600', bgColor: 'bg-amber-100 dark:bg-amber-500/20' },
+  wholesale: { label: 'جملة', color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-500/20' }
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════
@@ -203,7 +229,35 @@ const calculateItemTotal = (item: CartItem): number => {
       return (item.length || 0) * unitPrice;
     }
     default: {
-      const unitPrice = hasCustomPrice ? customPrice : (item.product?.price || 0);
+      // ✅ استخدام نظام الجملة (wholesale_tiers) للقطع
+      if (hasCustomPrice) {
+        return customPrice * item.quantity;
+      }
+
+      // ⚠️ إذا اختار المستخدم "تجزئة" صراحةً، نستخدم سعر التجزئة
+      if (item.saleType === 'retail') {
+        const unitPrice = item.product?.price || 0;
+        return unitPrice * item.quantity;
+      }
+
+      // التحقق من وجود مستويات أسعار الجملة
+      const wholesaleTiers = item.product?.wholesale_tiers;
+      if (wholesaleTiers && Array.isArray(wholesaleTiers) && wholesaleTiers.length > 0) {
+        // استخدام سعر الجملة إذا كان نوع البيع جملة أو الكمية تحقق الشرط
+        const lowestTier = wholesaleTiers.reduce((min: any, t: any) =>
+          (!min || t.min_quantity < min.min_quantity) ? t : min, null);
+
+        // تطبيق الجملة فقط إذا: saleType = wholesale أو (لم يُحدد saleType والكمية كافية)
+        if (item.saleType === 'wholesale' || (!item.saleType && lowestTier && item.quantity >= lowestTier.min_quantity)) {
+          const tier = getApplicableTier(wholesaleTiers, item.quantity);
+          if (tier) {
+            return (tier.price_per_unit || tier.price) * item.quantity;
+          }
+        }
+      }
+
+      // السعر العادي (تجزئة)
+      const unitPrice = item.product?.price || 0;
       return unitPrice * item.quantity;
     }
   }
@@ -220,8 +274,107 @@ const getUnitPrice = (item: CartItem): number => {
     case 'weight': return item.product?.price_per_weight_unit || item.product?.price || 0;
     case 'box': return item.product?.box_price || item.product?.price || 0;
     case 'meter': return item.product?.price_per_meter || item.product?.price || 0;
-    default: return item.product?.price || 0;
+    default: {
+      // ⚠️ إذا اختار المستخدم "تجزئة" صراحةً
+      if (item.saleType === 'retail') {
+        return item.product?.price || 0;
+      }
+
+      // ✅ استخدام سعر الجملة إذا متاح
+      const wholesaleTiers = item.product?.wholesale_tiers;
+      if (wholesaleTiers && Array.isArray(wholesaleTiers) && wholesaleTiers.length > 0) {
+        const lowestTier = wholesaleTiers.reduce((min: any, t: any) =>
+          (!min || t.min_quantity < min.min_quantity) ? t : min, null);
+
+        // تطبيق الجملة فقط إذا: saleType = wholesale أو (لم يُحدد saleType والكمية كافية)
+        if (item.saleType === 'wholesale' || (!item.saleType && lowestTier && item.quantity >= lowestTier.min_quantity)) {
+          const tier = getApplicableTier(wholesaleTiers, item.quantity);
+          if (tier) return tier.price_per_unit || tier.price;
+        }
+      }
+      return item.product?.price || 0;
+    }
   }
+};
+
+// التحقق من متطلبات العنصر (الدفعات والأرقام التسلسلية)
+interface ItemRequirements {
+  needsBatch: boolean;
+  hasBatch: boolean;
+  needsSerial: boolean;
+  hasAllSerials: boolean;
+  serialCount: number;
+  requiredSerialCount: number;
+  hasWarning: boolean;
+  hasSaleType: boolean;
+  saleType?: SaleType;
+  // ✅ معلومات الجملة
+  hasWholesaleTiers: boolean;
+  isWholesalePrice: boolean;
+  retailPrice: number;
+  wholesalePrice: number;
+  savings: number;
+  savingsPercent: number;
+}
+
+const getItemRequirements = (item: CartItem): ItemRequirements => {
+  const product = item.product;
+  const needsBatch = product?.track_batches === true;
+  const hasBatch = !!item.batchId;
+
+  const needsSerial = product?.track_serial_numbers === true && product?.require_serial_on_sale !== false;
+  const requiredSerialCount = item.sellingUnit === 'piece' ? item.quantity : 1;
+  const serialCount = item.serialNumbers?.length || 0;
+  const hasAllSerials = serialCount >= requiredSerialCount;
+
+  const hasWarning = (needsBatch && !hasBatch) || (needsSerial && !hasAllSerials);
+
+  // ✅ حساب معلومات الجملة
+  const wholesaleTiers = product?.wholesale_tiers;
+  const hasWholesaleTiers = wholesaleTiers && Array.isArray(wholesaleTiers) && wholesaleTiers.length > 0;
+  const retailPrice = product?.price || 0;
+
+  let isWholesalePrice = false;
+  let wholesalePrice = retailPrice;
+  let savings = 0;
+  let savingsPercent = 0;
+
+  // ⚠️ إذا اختار المستخدم "تجزئة" صراحةً، لا نعرض معلومات الجملة
+  if (item.saleType !== 'retail' && hasWholesaleTiers && item.sellingUnit !== 'weight' && item.sellingUnit !== 'box' && item.sellingUnit !== 'meter') {
+    const lowestTier = wholesaleTiers.reduce((min: any, t: any) =>
+      (!min || t.min_quantity < min.min_quantity) ? t : min, null);
+
+    // تطبيق الجملة فقط إذا: saleType = wholesale أو (لم يُحدد saleType والكمية كافية)
+    if (item.saleType === 'wholesale' || (!item.saleType && lowestTier && item.quantity >= lowestTier.min_quantity)) {
+      const tier = getApplicableTier(wholesaleTiers, item.quantity);
+      if (tier) {
+        wholesalePrice = tier.price_per_unit || tier.price;
+        isWholesalePrice = true;
+        savings = (retailPrice - wholesalePrice) * item.quantity;
+        savingsPercent = retailPrice > 0 ? Math.round(((retailPrice - wholesalePrice) / retailPrice) * 100) : 0;
+      }
+    }
+  }
+
+  const hasSaleType = isWholesalePrice || (!!item.saleType && item.saleType !== 'retail');
+
+  return {
+    needsBatch,
+    hasBatch,
+    needsSerial,
+    hasAllSerials,
+    serialCount,
+    requiredSerialCount,
+    hasWarning,
+    hasSaleType,
+    saleType: isWholesalePrice ? 'wholesale' : item.saleType,
+    hasWholesaleTiers,
+    isWholesalePrice,
+    retailPrice,
+    wholesalePrice,
+    savings,
+    savingsPercent
+  };
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -250,6 +403,9 @@ const CartItemCard = memo<{
   const isDecimal = item.sellingUnit === 'weight' || item.sellingUnit === 'meter';
   const unitConfig = UNIT_CONFIG[item.sellingUnit || 'piece'];
   const UnitIcon = unitConfig.icon;
+
+  // التحقق من المتطلبات
+  const requirements = getItemRequirements(item);
 
   const productImage = item.product?.thumbnail_base64 ||
     item.product?.thumbnail_image ||
@@ -316,7 +472,9 @@ const CartItemCard = memo<{
         "relative bg-white dark:bg-zinc-800/80 rounded-xl overflow-hidden",
         "border border-zinc-200 dark:border-zinc-700/60",
         "shadow-sm hover:shadow-md dark:shadow-zinc-950/20",
-        "transition-all duration-200"
+        "transition-all duration-200",
+        // تحذير إذا كانت هناك متطلبات ناقصة
+        requirements.hasWarning && "border-yellow-400 dark:border-yellow-600 ring-1 ring-yellow-400/30"
       )}>
         <div className="flex flex-row-reverse gap-3 p-3">
           {/* صورة المنتج مع زر التفاصيل */}
@@ -365,10 +523,53 @@ const CartItemCard = memo<{
                 <h4 className="font-bold text-sm text-zinc-800 dark:text-zinc-100 truncate">
                   {item.product?.name}
                 </h4>
-                {(item.colorName || item.sizeName) && (
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
-                    {[item.colorName, item.sizeName].filter(Boolean).join(' • ')}
-                  </p>
+                {/* المتغيرات + شارة نوع البيع */}
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  {(item.colorName || item.sizeName) && (
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                      {[item.colorName, item.sizeName].filter(Boolean).join(' • ')}
+                    </span>
+                  )}
+                  {/* شارة نوع التسعير (جملة/تجزئة) */}
+                  {requirements.hasSaleType && requirements.saleType && (
+                    <span className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                      SALE_TYPE_CONFIG[requirements.saleType].bgColor,
+                      SALE_TYPE_CONFIG[requirements.saleType].color
+                    )}>
+                      {SALE_TYPE_CONFIG[requirements.saleType].label}
+                    </span>
+                  )}
+                  {/* شارة الدفعة */}
+                  {requirements.hasBatch && item.batchNumber && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5">
+                      <Layers className="w-3 h-3" />
+                      {item.batchNumber}
+                    </span>
+                  )}
+                  {/* شارة الأرقام التسلسلية */}
+                  {requirements.needsSerial && requirements.serialCount > 0 && (
+                    <span className={cn(
+                      "text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
+                      requirements.hasAllSerials
+                        ? "bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400"
+                        : "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400"
+                    )}>
+                      <Hash className="w-3 h-3" />
+                      {requirements.serialCount}/{requirements.requiredSerialCount}
+                    </span>
+                  )}
+                </div>
+                {/* تحذيرات المتطلبات الناقصة */}
+                {requirements.hasWarning && (
+                  <div className="flex items-center gap-1 mt-1 text-[10px] text-yellow-600 dark:text-yellow-400">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>
+                      {requirements.needsBatch && !requirements.hasBatch && 'يتطلب اختيار دفعة'}
+                      {requirements.needsBatch && !requirements.hasBatch && requirements.needsSerial && !requirements.hasAllSerials && ' • '}
+                      {requirements.needsSerial && !requirements.hasAllSerials && `يتطلب ${requirements.requiredSerialCount - requirements.serialCount} رقم تسلسلي`}
+                    </span>
+                  </div>
                 )}
               </div>
               <button
@@ -438,31 +639,44 @@ const CartItemCard = memo<{
               </div>
 
               {/* السعر - قابل للتعديل */}
-              {isEditingPrice ? (
-                <input
-                  type="number"
-                  value={tempPrice}
-                  onChange={(e) => setTempPrice(e.target.value)}
-                  onBlur={handlePriceSave}
-                  onKeyDown={(e) => e.key === 'Enter' && handlePriceSave()}
-                  className="w-20 h-7 text-center text-sm font-bold border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
-                  autoFocus
-                  min={0}
-                />
-              ) : (
-                <button
-                  onClick={handlePriceClick}
-                  disabled={!onUpdatePrice}
-                  className={cn(
-                    "text-sm font-bold flex items-baseline gap-1 px-2 py-1 rounded-lg",
-                    theme.text,
-                    onUpdatePrice && "hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer transition-colors"
-                  )}
-                >
-                  <span className="text-[10px] opacity-70 text-zinc-500 dark:text-zinc-400">د.ج</span>
-                  <span className="font-numeric">{formatPrice(total)}</span>
-                </button>
-              )}
+              <div className="flex flex-col items-end">
+                {isEditingPrice ? (
+                  <input
+                    type="number"
+                    value={tempPrice}
+                    onChange={(e) => setTempPrice(e.target.value)}
+                    onBlur={handlePriceSave}
+                    onKeyDown={(e) => e.key === 'Enter' && handlePriceSave()}
+                    className="w-20 h-7 text-center text-sm font-bold border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+                    autoFocus
+                    min={0}
+                  />
+                ) : (
+                  <button
+                    onClick={handlePriceClick}
+                    disabled={!onUpdatePrice}
+                    className={cn(
+                      "text-sm font-bold flex items-baseline gap-1 px-2 py-1 rounded-lg",
+                      requirements.isWholesalePrice ? "text-green-600 dark:text-green-400" : theme.text,
+                      onUpdatePrice && "hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer transition-colors"
+                    )}
+                  >
+                    <span className="text-[10px] opacity-70 text-zinc-500 dark:text-zinc-400">د.ج</span>
+                    <span className="font-numeric">{formatPrice(total)}</span>
+                  </button>
+                )}
+                {/* ✅ عرض التوفير إذا كان سعر جملة */}
+                {requirements.isWholesalePrice && requirements.savings > 0 && (
+                  <div className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+                    <span className="line-through text-zinc-400 dark:text-zinc-500">
+                      {formatPrice(requirements.retailPrice * (item.sellingUnit === 'piece' ? item.quantity : 1))}
+                    </span>
+                    <span className="font-bold">
+                      -{requirements.savingsPercent}%
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -537,6 +751,19 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
 
   // ⚡ التحقق من إمكانية التسجيل في وضع الخسارة
   const canCheckoutLoss = mode !== 'loss' || (lossDescription && lossDescription.trim().length > 0);
+
+  // ⚡ التحقق من اكتمال متطلبات جميع العناصر
+  const itemsRequirements = useMemo(() => {
+    return items.map(item => getItemRequirements(item));
+  }, [items]);
+
+  const hasItemsWithWarnings = useMemo(() => {
+    return itemsRequirements.some(req => req.hasWarning);
+  }, [itemsRequirements]);
+
+  const warningItemsCount = useMemo(() => {
+    return itemsRequirements.filter(req => req.hasWarning).length;
+  }, [itemsRequirements]);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-[#0f1419] shadow-sm">
@@ -778,12 +1005,27 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
         </div>
       </div>
 
+      {/* تحذير المتطلبات الناقصة */}
+      {hasItemsWithWarnings && items.length > 0 && (
+        <div className="mb-3 p-2.5 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300">
+              {warningItemsCount} منتج يتطلب إكمال بيانات
+            </p>
+            <p className="text-[10px] text-yellow-600 dark:text-yellow-400">
+              اضغط على "تفاصيل" لإكمال الدفعات أو الأرقام التسلسلية
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="flex gap-3">
         {/* Primary Button: Solid Color */}
         <Button
           onClick={onCheckout}
-          disabled={isSubmitting || items.length === 0 || !canCheckoutLoss}
+          disabled={isSubmitting || items.length === 0 || !canCheckoutLoss || hasItemsWithWarnings}
           className={cn(
             "flex-1 h-12 rounded-xl text-white text-base font-bold shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg",
             theme.solid,
@@ -795,6 +1037,11 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
             <span className="flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin" />
               <span>جاري...</span>
+            </span>
+          ) : hasItemsWithWarnings ? (
+            <span className="flex items-center justify-center gap-2">
+              <AlertTriangle className="w-5 h-5" strokeWidth={2.5} />
+              <span>أكمل البيانات المطلوبة</span>
             </span>
           ) : (
             <span className="flex items-center justify-center gap-2">
@@ -830,3 +1077,7 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
 TitaniumCart.displayName = 'TitaniumCart';
 
 export default TitaniumCart;
+
+
+
+

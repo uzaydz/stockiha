@@ -242,8 +242,8 @@ export default function PrintReceiptDialog({
             <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 max-h-48 overflow-y-auto">
               <h4 className="font-bold text-sm text-gray-700 dark:text-gray-300 mb-3">المنتجات:</h4>
               <div className="space-y-2">
-                {completedItems.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center text-sm">
+                {completedItems.map((item) => (
+                  <div key={`${item.product.id}-${item.colorId || 'nc'}-${item.sizeId || 'ns'}`} className="flex justify-between items-center text-sm">
                     <span className="text-gray-600 dark:text-gray-400">
                       {item.product.name}
                       {item.colorName && <span className="text-xs"> - {item.colorName}</span>}

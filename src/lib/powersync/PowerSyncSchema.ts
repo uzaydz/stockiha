@@ -1,7 +1,7 @@
 /**
  * PowerSync Schema - Bazaar Console
  * ============================================================
- * آخر تحديث: 2025-12-07
+ * آخر تحديث: 2025-12-10
  *
  * ✅ متطابق مع Supabase Schema الفعلي (تم التحقق عبر MCP)
  * ✅ متطابق مع sync-rules-complete.yaml
@@ -12,12 +12,34 @@
  * ✅ تم إضافة organization_id للجداول المفقودة
  * ✅ جميع الأعمدة موثقة من Supabase
  *
- * عدد الجداول: 39 مُزامن + 14 محلي = 53
- * - org_data: 37 جدول (مع organization_id)
+ * عدد الجداول: 54 مُزامن + 14 محلي = 68
+ * - org_data: 52 جدول (مع organization_id)
  * - global_data: 2 جدول (subscription_plans, payment_methods)
  * - local-only: 14 جدول (لا تُزامن مع السيرفر)
  *
- * ⚡ الجداول الجديدة (v3.1) - نظام المشتريات الذكي:
+ * ⚡ الجداول الجديدة (v4.0) - نظام إدارة الموارد البشرية:
+ *    - work_shifts (الورديات)
+ *    - employee_shift_assignments (تعيين الورديات)
+ *    - employee_attendance (الحضور والانصراف)
+ *    - attendance_adjustments (تعديلات الحضور)
+ *    - leave_types (أنواع الإجازات)
+ *    - employee_leave_balances (رصيد الإجازات)
+ *    - leave_requests (طلبات الإجازة)
+ *    - official_holidays (العطلات الرسمية)
+ *    - salary_structures (هيكل الرواتب)
+ *    - payroll_records (سجلات الرواتب)
+ *    - employee_loans (السلف والقروض)
+ *    - loan_payments (دفعات القروض)
+ *    - performance_criteria (معايير الأداء)
+ *    - performance_review_periods (فترات التقييم)
+ *    - performance_reviews (تقييمات الأداء)
+ *    - employee_goals (أهداف الموظفين)
+ *    - goal_updates (تحديثات الأهداف)
+ *    - employee_warnings (الإنذارات)
+ *    - employee_documents (وثائق الموظفين)
+ *    - employee_daily_stats (إحصائيات يومية)
+ *
+ * ⚡ الجداول السابقة (v3.1) - نظام المشتريات الذكي:
  *    - supplier_purchases (المشتريات)
  *    - supplier_purchase_items (عناصر المشتريات)
  *    - purchase_landed_costs (التكاليف الإضافية)
@@ -85,6 +107,10 @@ const products = new Table(
     is_new: column.integer,
     is_featured: column.integer,
     show_price_on_landing: column.integer,
+    // إعدادات العرض والنشر
+    show_in_store: column.integer,
+    allow_marketplace: column.integer,
+    hide_stock_quantity: column.integer,
     // Features & Specs
     features: column.text, // JSON array
     specifications: column.text, // JSON object
@@ -1583,6 +1609,743 @@ const payment_methods = new Table(
 );
 
 // ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    👥 HR MANAGEMENT TABLES                                  ║
+// ║              نظام إدارة الموارد البشرية                                    ║
+// ║              ⚡ جديد v4.0 - 2025-12-10                                      ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+// ========================================
+// HR-1. WORK SHIFTS (الورديات)
+// ========================================
+const work_shifts = new Table(
+  {
+    organization_id: column.text,
+    name: column.text,
+    name_ar: column.text,
+    start_time: column.text, // TIME as text
+    end_time: column.text, // TIME as text
+    break_duration_minutes: column.integer,
+    grace_period_minutes: column.integer,
+    overtime_rate: column.real,
+    is_active: column.integer,
+    is_default: column.integer,
+    color: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { indexes: { org: ['organization_id'], active: ['is_active'] } }
+);
+
+// ========================================
+// HR-2. EMPLOYEE SHIFT ASSIGNMENTS (تعيين الورديات)
+// ========================================
+const employee_shift_assignments = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    shift_id: column.text,
+    start_date: column.text, // DATE as text
+    end_date: column.text,
+    days_of_week: column.text, // JSON array [0,1,2,3,4,5,6]
+    is_active: column.integer,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      shift: ['shift_id'],
+      org_employee: ['organization_id', 'employee_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-3. EMPLOYEE ATTENDANCE (الحضور والانصراف)
+// ========================================
+const employee_attendance = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    shift_id: column.text,
+    // التاريخ والأوقات
+    attendance_date: column.text,
+    check_in_time: column.text, // TIMESTAMPTZ as text
+    check_out_time: column.text,
+    expected_check_in: column.text,
+    expected_check_out: column.text,
+    // حسابات الوقت (بالدقائق)
+    late_minutes: column.integer,
+    early_leave_minutes: column.integer,
+    overtime_minutes: column.integer,
+    work_duration_minutes: column.integer,
+    break_duration_minutes: column.integer,
+    // الحالة
+    status: column.text, // present, absent, late, early_leave, half_day, on_leave, sick_leave, remote, holiday
+    // معلومات الموقع
+    check_in_location: column.text, // JSON
+    check_out_location: column.text, // JSON
+    check_in_device: column.text,
+    check_out_device: column.text,
+    check_in_photo_url: column.text,
+    check_out_photo_url: column.text,
+    // ملاحظات
+    notes: column.text,
+    admin_notes: column.text,
+    is_manual_entry: column.integer,
+    approved_by: column.text,
+    approved_at: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      date: ['attendance_date'],
+      org_date: ['organization_id', 'attendance_date'],
+      org_employee_date: ['organization_id', 'employee_id', 'attendance_date'],
+      status: ['status'],
+    }
+  }
+);
+
+// ========================================
+// HR-4. ATTENDANCE ADJUSTMENTS (تعديلات الحضور)
+// ========================================
+const attendance_adjustments = new Table(
+  {
+    organization_id: column.text,
+    attendance_id: column.text,
+    adjusted_by: column.text,
+    field_changed: column.text,
+    old_value: column.text,
+    new_value: column.text,
+    reason: column.text,
+    created_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      attendance: ['attendance_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-5. LEAVE TYPES (أنواع الإجازات)
+// ========================================
+const leave_types = new Table(
+  {
+    organization_id: column.text,
+    name: column.text,
+    name_ar: column.text,
+    code: column.text, // annual, sick, unpaid, maternity, etc.
+    color: column.text,
+    icon: column.text,
+    // الإعدادات
+    days_per_year: column.integer,
+    can_carry_forward: column.integer,
+    max_carry_forward_days: column.integer,
+    requires_approval: column.integer,
+    requires_attachment: column.integer,
+    min_days_notice: column.integer,
+    max_consecutive_days: column.integer,
+    // مدفوعة أم لا
+    is_paid: column.integer,
+    pay_percentage: column.real,
+    // القيود
+    gender_restriction: column.text, // male, female, null
+    min_service_months: column.integer,
+    is_active: column.integer,
+    sort_order: column.integer,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      code: ['code'],
+      active: ['is_active'],
+    }
+  }
+);
+
+// ========================================
+// HR-6. EMPLOYEE LEAVE BALANCES (رصيد الإجازات)
+// ========================================
+const employee_leave_balances = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    leave_type_id: column.text,
+    year: column.integer,
+    total_days: column.real,
+    used_days: column.real,
+    pending_days: column.real,
+    carried_forward_days: column.real,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      employee_year: ['employee_id', 'year'],
+      org_year: ['organization_id', 'year'],
+    }
+  }
+);
+
+// ========================================
+// HR-7. LEAVE REQUESTS (طلبات الإجازة)
+// ========================================
+const leave_requests = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    leave_type_id: column.text,
+    // التواريخ
+    start_date: column.text,
+    end_date: column.text,
+    total_days: column.real,
+    is_half_day: column.integer,
+    half_day_type: column.text, // morning, afternoon
+    // الحالة
+    status: column.text, // pending, approved, rejected, cancelled, withdrawn
+    // التفاصيل
+    reason: column.text,
+    attachment_urls: column.text, // JSON array
+    // الموافقة
+    reviewed_by: column.text,
+    reviewed_at: column.text,
+    review_notes: column.text,
+    // البديل
+    substitute_employee_id: column.text,
+    handover_notes: column.text,
+    // الإلغاء
+    cancelled_by: column.text,
+    cancelled_at: column.text,
+    cancellation_reason: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      status: ['status'],
+      dates: ['start_date', 'end_date'],
+      org_status: ['organization_id', 'status'],
+    }
+  }
+);
+
+// ========================================
+// HR-8. OFFICIAL HOLIDAYS (العطلات الرسمية)
+// ========================================
+const official_holidays = new Table(
+  {
+    organization_id: column.text,
+    name: column.text,
+    name_ar: column.text,
+    date: column.text,
+    is_recurring: column.integer,
+    is_half_day: column.integer,
+    is_active: column.integer,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      date: ['date'],
+      org_date: ['organization_id', 'date'],
+    }
+  }
+);
+
+// ========================================
+// HR-9. SALARY STRUCTURES (هيكل الرواتب)
+// ========================================
+const salary_structures = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    // الراتب الأساسي
+    basic_salary: column.real,
+    currency: column.text,
+    // البدلات
+    housing_allowance: column.real,
+    transport_allowance: column.real,
+    food_allowance: column.real,
+    phone_allowance: column.real,
+    other_allowances: column.text, // JSON
+    // الخصومات الثابتة
+    social_insurance: column.real,
+    health_insurance: column.real,
+    tax_amount: column.real,
+    other_deductions: column.text, // JSON
+    // طريقة الدفع
+    payment_method: column.text, // bank_transfer, cash, check, mobile_wallet
+    bank_name: column.text,
+    bank_account_number: column.text,
+    // الصلاحية
+    effective_from: column.text,
+    effective_to: column.text,
+    is_current: column.integer,
+    // معدلات
+    hourly_rate: column.real,
+    daily_rate: column.real,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      org_employee: ['organization_id', 'employee_id'],
+      current: ['is_current'],
+    }
+  }
+);
+
+// ========================================
+// HR-10. PAYROLL RECORDS (سجلات الرواتب)
+// ========================================
+const payroll_records = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    salary_structure_id: column.text,
+    // الفترة
+    pay_period_month: column.integer,
+    pay_period_year: column.integer,
+    // الراتب الأساسي والبدلات
+    basic_salary: column.real,
+    housing_allowance: column.real,
+    transport_allowance: column.real,
+    food_allowance: column.real,
+    phone_allowance: column.real,
+    other_allowances: column.real,
+    total_allowances: column.real,
+    // الإضافات
+    overtime_hours: column.real,
+    overtime_amount: column.real,
+    bonus_amount: column.real,
+    commission_amount: column.real,
+    incentives: column.real,
+    total_earnings: column.real,
+    // الخصومات
+    absent_days: column.real,
+    absent_deduction: column.real,
+    late_deduction: column.real,
+    advance_deduction: column.real,
+    loan_deduction: column.real,
+    social_insurance: column.real,
+    health_insurance: column.real,
+    tax_deduction: column.real,
+    other_deductions: column.real,
+    total_deductions: column.real,
+    // الصافي
+    gross_salary: column.real,
+    net_salary: column.real,
+    // الحالة
+    status: column.text, // draft, pending, approved, paid, cancelled
+    // الدفع
+    payment_date: column.text,
+    payment_reference: column.text,
+    payment_method: column.text,
+    // الموافقة
+    approved_by: column.text,
+    approved_at: column.text,
+    // الملاحظات
+    notes: column.text,
+    details: column.text, // JSON
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      period: ['pay_period_year', 'pay_period_month'],
+      org_period: ['organization_id', 'pay_period_year', 'pay_period_month'],
+      status: ['status'],
+    }
+  }
+);
+
+// ========================================
+// HR-11. EMPLOYEE LOANS (السلف والقروض)
+// ========================================
+const employee_loans = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    // نوع القرض
+    loan_type: column.text, // salary_advance, personal_loan, emergency_loan
+    // المبالغ
+    principal_amount: column.real,
+    remaining_amount: column.real,
+    monthly_deduction: column.real,
+    total_installments: column.integer,
+    paid_installments: column.integer,
+    // التواريخ
+    request_date: column.text,
+    approval_date: column.text,
+    start_deduction_date: column.text,
+    expected_end_date: column.text,
+    // الحالة
+    status: column.text, // pending, approved, rejected, active, completed, cancelled
+    // الموافقة
+    approved_by: column.text,
+    rejection_reason: column.text,
+    // ملاحظات
+    reason: column.text,
+    notes: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      status: ['status'],
+      org_employee: ['organization_id', 'employee_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-12. LOAN PAYMENTS (دفعات القروض)
+// ========================================
+const loan_payments = new Table(
+  {
+    organization_id: column.text,
+    loan_id: column.text,
+    payroll_id: column.text,
+    payment_date: column.text,
+    amount: column.real,
+    installment_number: column.integer,
+    payment_method: column.text,
+    reference: column.text,
+    notes: column.text,
+    created_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      loan: ['loan_id'],
+      payroll: ['payroll_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-13. PERFORMANCE CRITERIA (معايير الأداء)
+// ========================================
+const performance_criteria = new Table(
+  {
+    organization_id: column.text,
+    name: column.text,
+    name_ar: column.text,
+    description: column.text,
+    // التصنيف
+    category: column.text, // productivity, quality, attendance, teamwork, communication, etc.
+    // الوزن والحدود
+    weight: column.real,
+    max_score: column.integer,
+    // الوصف لكل درجة
+    score_descriptions: column.text, // JSON
+    is_active: column.integer,
+    sort_order: column.integer,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      category: ['category'],
+      active: ['is_active'],
+    }
+  }
+);
+
+// ========================================
+// HR-14. PERFORMANCE REVIEW PERIODS (فترات التقييم)
+// ========================================
+const performance_review_periods = new Table(
+  {
+    organization_id: column.text,
+    name: column.text,
+    name_ar: column.text,
+    // الفترة
+    start_date: column.text,
+    end_date: column.text,
+    // مواعيد التقييم
+    review_start_date: column.text,
+    review_end_date: column.text,
+    // الحالة
+    status: column.text, // upcoming, in_progress, completed, cancelled
+    is_active: column.integer,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      status: ['status'],
+      dates: ['start_date', 'end_date'],
+    }
+  }
+);
+
+// ========================================
+// HR-15. PERFORMANCE REVIEWS (تقييمات الأداء)
+// ========================================
+const performance_reviews = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    reviewer_id: column.text,
+    period_id: column.text,
+    // الفترة
+    review_period_start: column.text,
+    review_period_end: column.text,
+    // الدرجات
+    scores: column.text, // JSON {criteria_id: {score, comment}}
+    total_score: column.real,
+    weighted_score: column.real,
+    grade: column.text, // A, B, C, D, F
+    // التقييم العام
+    strengths: column.text,
+    areas_for_improvement: column.text,
+    achievements: column.text,
+    goals_for_next_period: column.text,
+    // التعليقات
+    reviewer_comments: column.text,
+    employee_comments: column.text,
+    manager_comments: column.text,
+    // التوصيات
+    recommendations: column.text, // JSON
+    // الحالة
+    status: column.text, // draft, submitted, acknowledged, disputed, finalized
+    // التوقيعات
+    submitted_at: column.text,
+    acknowledged_at: column.text,
+    finalized_at: column.text,
+    finalized_by: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      reviewer: ['reviewer_id'],
+      period: ['period_id'],
+      status: ['status'],
+      org_employee: ['organization_id', 'employee_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-16. EMPLOYEE GOALS (أهداف الموظفين)
+// ========================================
+const employee_goals = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    assigned_by: column.text,
+    // تفاصيل الهدف
+    title: column.text,
+    description: column.text,
+    category: column.text, // sales, productivity, learning, project, personal, team
+    // القياس
+    target_type: column.text, // numeric, percentage, binary, milestone
+    target_value: column.real,
+    current_value: column.real,
+    unit: column.text,
+    // المراحل
+    milestones: column.text, // JSON array
+    // التواريخ
+    start_date: column.text,
+    due_date: column.text,
+    completed_at: column.text,
+    // الأولوية والوزن
+    priority: column.text, // low, medium, high, critical
+    weight: column.real,
+    // الحالة
+    status: column.text, // draft, active, on_hold, achieved, partially, missed, cancelled
+    // النتيجة
+    achievement_percentage: column.real,
+    final_notes: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      status: ['status'],
+      due_date: ['due_date'],
+      org_employee: ['organization_id', 'employee_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-17. GOAL UPDATES (تحديثات الأهداف)
+// ========================================
+const goal_updates = new Table(
+  {
+    organization_id: column.text,
+    goal_id: column.text,
+    updated_by: column.text,
+    previous_value: column.real,
+    new_value: column.real,
+    notes: column.text,
+    created_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      goal: ['goal_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-18. EMPLOYEE WARNINGS (الإنذارات)
+// ========================================
+const employee_warnings = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    issued_by: column.text,
+    // نوع الإنذار
+    warning_type: column.text, // verbal, written, final_warning, suspension, termination
+    // السبب
+    reason_category: column.text, // attendance, performance, behavior, policy_violation, safety, other
+    // التفاصيل
+    title: column.text,
+    description: column.text,
+    incident_date: column.text,
+    evidence_urls: column.text, // JSON array
+    // الإجراء
+    action_required: column.text,
+    improvement_deadline: column.text,
+    // الحالة
+    status: column.text, // draft, issued, acknowledged, appealed, resolved, expired, revoked
+    // الاستلام
+    acknowledged_at: column.text,
+    employee_response: column.text,
+    // الانتهاء
+    expires_at: column.text,
+    resolved_at: column.text,
+    resolved_by: column.text,
+    resolution_notes: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      status: ['status'],
+      type: ['warning_type'],
+      org_employee: ['organization_id', 'employee_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-19. EMPLOYEE DOCUMENTS (وثائق الموظفين)
+// ========================================
+const employee_documents = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    uploaded_by: column.text,
+    // نوع الوثيقة
+    document_type: column.text, // contract, id_card, passport, qualification, certificate, medical, other
+    // التفاصيل
+    title: column.text,
+    description: column.text,
+    file_url: column.text,
+    file_name: column.text,
+    file_size: column.integer,
+    file_type: column.text,
+    // الصلاحية
+    issue_date: column.text,
+    expiry_date: column.text,
+    // الحالة
+    is_verified: column.integer,
+    verified_by: column.text,
+    verified_at: column.text,
+    is_confidential: column.integer,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      type: ['document_type'],
+      expiry: ['expiry_date'],
+      org_employee: ['organization_id', 'employee_id'],
+    }
+  }
+);
+
+// ========================================
+// HR-20. EMPLOYEE DAILY STATS (إحصائيات يومية)
+// ========================================
+const employee_daily_stats = new Table(
+  {
+    organization_id: column.text,
+    employee_id: column.text,
+    stat_date: column.text,
+    // إحصائيات المبيعات
+    total_sales: column.real,
+    total_orders: column.integer,
+    cash_sales: column.real,
+    card_sales: column.real,
+    credit_sales: column.real,
+    returns_amount: column.real,
+    returns_count: column.integer,
+    // إحصائيات الأداء
+    products_sold: column.integer,
+    customers_served: column.integer,
+    avg_transaction_value: column.real,
+    avg_transaction_time: column.integer, // بالثواني
+    // إحصائيات الحضور
+    check_in_time: column.text,
+    check_out_time: column.text,
+    work_hours: column.real,
+    break_hours: column.real,
+    overtime_hours: column.real,
+    // تقييم اليوم
+    customer_rating: column.real,
+    supervisor_rating: column.real,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  {
+    indexes: {
+      org: ['organization_id'],
+      employee: ['employee_id'],
+      date: ['stat_date'],
+      org_date: ['organization_id', 'stat_date'],
+      employee_date: ['employee_id', 'stat_date'],
+    }
+  }
+);
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
 // ║                      📦 LOCAL-ONLY TABLES                                  ║
 // ║              الجداول المحلية فقط (لا تُزامن)                              ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
@@ -1707,18 +2470,42 @@ const notification_sync_queue = new Table(
 
 // ========================================
 // 🔐 USER PERMISSIONS (صلاحيات المستخدم - كاش محلي)
+// تم تحديثه: 2025-12-10 لدعم الأوفلاين الكامل
 // ========================================
 const user_permissions = new Table(
   {
     auth_user_id: column.text,
+    user_id: column.text,
+    email: column.text,
+    name: column.text,
     organization_id: column.text,
     role: column.text,
     permissions: column.text, // JSON string
     is_org_admin: column.integer,
+    is_super_admin: column.integer,
+    is_active: column.integer,
+    // صلاحيات محسوبة (computed) للوصول السريع
+    has_inventory_access: column.integer,
+    can_manage_products: column.integer,
+    can_view_reports: column.integer,
+    can_manage_users: column.integer,
+    can_manage_orders: column.integer,
+    can_access_pos: column.integer,
+    can_manage_settings: column.integer,
+    // timestamps
+    last_synced_at: column.text,
     created_at: column.text,
     updated_at: column.text,
   },
-  { localOnly: true, indexes: { user: ['auth_user_id'], org: ['organization_id'] } }
+  {
+    localOnly: true,
+    indexes: {
+      user: ['auth_user_id'],
+      org: ['organization_id'],
+      user_org: ['auth_user_id', 'organization_id'],
+      role: ['role']
+    }
+  }
 );
 
 // ========================================
@@ -1872,7 +2659,7 @@ const local_printer_settings = new Table(
 
 export const PowerSyncSchema = new Schema({
   // ═══════════════════════════════════════
-  // 🔄 SYNCED TABLES (34 tables)
+  // 🔄 SYNCED TABLES (54 tables)
   // ═══════════════════════════════════════
 
   // Products (9) - تم إضافة inventory_batches و product_serial_numbers
@@ -1938,7 +2725,31 @@ export const PowerSyncSchema = new Schema({
   payment_methods,
 
   // ═══════════════════════════════════════
-  // 📦 LOCAL-ONLY TABLES (13)
+  // 👥 HR MANAGEMENT TABLES (20) - ⚡ جديد v4.0
+  // ═══════════════════════════════════════
+  work_shifts,
+  employee_shift_assignments,
+  employee_attendance,
+  attendance_adjustments,
+  leave_types,
+  employee_leave_balances,
+  leave_requests,
+  official_holidays,
+  salary_structures,
+  payroll_records,
+  employee_loans,
+  loan_payments,
+  performance_criteria,
+  performance_review_periods,
+  performance_reviews,
+  employee_goals,
+  goal_updates,
+  employee_warnings,
+  employee_documents,
+  employee_daily_stats,
+
+  // ═══════════════════════════════════════
+  // 📦 LOCAL-ONLY TABLES (14)
   // ═══════════════════════════════════════
   local_image_cache,
   app_init_cache,

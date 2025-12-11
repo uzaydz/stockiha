@@ -265,97 +265,135 @@ export const deleteProduct = async (organizationId: string, productId: string): 
 
 /**
  * جلب مراحل أسعار الجملة للمنتج
+ * ✅ تم التحديث لاستخدام product_price_tiers بدلاً من wholesale_tiers
  */
 export const getWholesaleTiers = async (organizationId: string, productId: string) => {
+  console.log('[productService:getWholesaleTiers] 🔍 Loading tiers:', { organizationId, productId });
   try {
     const { data, error } = await supabase
-      .from('wholesale_tiers')
-      .select('*')
-      .eq('organization_id', organizationId)
+      .from('product_price_tiers')
+      .select('id, product_id, min_quantity, price, tier_name, tier_label, price_type, max_quantity, discount_percentage, is_active, sort_order')
       .eq('product_id', productId)
       .order('min_quantity', { ascending: true });
-    
+
     if (error) {
+      console.error('[productService:getWholesaleTiers] ❌ Error:', error);
       throw error;
     }
-    
-    return data || [];
+
+    // تحويل البيانات للتوافق مع الـ interface القديم
+    const transformedData = (data || []).map(tier => ({
+      ...tier,
+      price_per_unit: tier.price, // للتوافق مع الكود القديم
+    }));
+
+    console.log('[productService:getWholesaleTiers] ✅ Loaded:', transformedData.length, 'tiers');
+    return transformedData;
   } catch (error) {
+    console.error('[productService:getWholesaleTiers] ❌ Exception:', error);
     return [];
   }
 };
 
 /**
  * إضافة مرحلة سعر جملة جديدة
+ * ✅ تم التحديث لاستخدام product_price_tiers بدلاً من wholesale_tiers
  */
 export const addWholesaleTier = async (organizationId: string, tier: {
   product_id: string;
   min_quantity: number;
   price: number;
 }) => {
+  console.log('[productService:addWholesaleTier] 🔍 Adding tier:', tier);
   try {
     const { data, error } = await supabase
-      .from('wholesale_tiers')
+      .from('product_price_tiers')
       .insert({
-        ...tier,
-        organization_id: organizationId
+        product_id: tier.product_id,
+        min_quantity: tier.min_quantity,
+        price: tier.price,
+        tier_name: 'wholesale',
+        price_type: 'fixed',
+        is_active: true,
+        sort_order: 0,
       })
       .select()
       .single();
-    
+
     if (error) {
+      console.error('[productService:addWholesaleTier] ❌ Error:', error);
       throw error;
     }
-    
-    return data;
+
+    const transformedData = {
+      ...data,
+      price_per_unit: data.price,
+    };
+
+    console.log('[productService:addWholesaleTier] ✅ Added:', transformedData);
+    return transformedData;
   } catch (error) {
+    console.error('[productService:addWholesaleTier] ❌ Exception:', error);
     return null;
   }
 };
 
 /**
  * تحديث مرحلة سعر جملة
+ * ✅ تم التحديث لاستخدام product_price_tiers بدلاً من wholesale_tiers
  */
 export const updateWholesaleTier = async (organizationId: string, tierId: string, updates: {
   min_quantity?: number;
   price?: number;
 }) => {
+  console.log('[productService:updateWholesaleTier] 🔍 Updating tier:', tierId, updates);
   try {
     const { data, error } = await supabase
-      .from('wholesale_tiers')
+      .from('product_price_tiers')
       .update(updates)
-      .eq('organization_id', organizationId)
       .eq('id', tierId)
       .select()
       .single();
-    
+
     if (error) {
+      console.error('[productService:updateWholesaleTier] ❌ Error:', error);
       throw error;
     }
-    
-    return data;
+
+    const transformedData = {
+      ...data,
+      price_per_unit: data.price,
+    };
+
+    console.log('[productService:updateWholesaleTier] ✅ Updated:', transformedData);
+    return transformedData;
   } catch (error) {
+    console.error('[productService:updateWholesaleTier] ❌ Exception:', error);
     return null;
   }
 };
 
 /**
  * حذف مرحلة سعر جملة
+ * ✅ تم التحديث لاستخدام product_price_tiers بدلاً من wholesale_tiers
  */
 export const deleteWholesaleTier = async (organizationId: string, tierId: string) => {
+  console.log('[productService:deleteWholesaleTier] 🔍 Deleting tier:', tierId);
   try {
     const { error } = await supabase
-      .from('wholesale_tiers')
+      .from('product_price_tiers')
       .delete()
-      .eq('organization_id', organizationId)
       .eq('id', tierId);
-    
+
     if (error) {
+      console.error('[productService:deleteWholesaleTier] ❌ Error:', error);
       throw error;
     }
-    
+
+    console.log('[productService:deleteWholesaleTier] ✅ Deleted tier:', tierId);
     return true;
   } catch (error) {
+    console.error('[productService:deleteWholesaleTier] ❌ Exception:', error);
     return false;
   }
 };

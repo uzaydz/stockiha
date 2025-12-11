@@ -218,8 +218,8 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ settings }) => {
                 </tr>
               </thead>
               <tbody>
-                {sampleOrder.items.map((item, index) => (
-                  <tr key={index}>
+                {sampleOrder.items.map((item) => (
+                  <tr key={item.name}>
                     <td className="text-right py-1">{item.name}</td>
                     <td className="text-center py-1">{item.quantity}</td>
                     <td className={`py-1 ${settings.price_position === 'right' ? 'text-right' : 'text-left'}`}>
@@ -232,8 +232,8 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ settings }) => {
           ) : (
             // عرض في شكل قائمة
             <div className="space-y-2">
-              {sampleOrder.items.map((item, index) => (
-                <div key={index} className="flex justify-between items-center">
+              {sampleOrder.items.map((item) => (
+                <div key={`list-${item.name}`} className="flex justify-between items-center">
                   <div className="flex-1">
                     <span className="text-xs">{item.name}</span>
                     <span className="text-xs text-muted-foreground mx-1">×{item.quantity}</span>

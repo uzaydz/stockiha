@@ -46,9 +46,9 @@ const LossVariantDialog: React.FC<LossVariantDialogProps> = ({
               </p>
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {productVariants.map((variant, index) => (
+                {productVariants.map((variant) => (
                   <div
-                    key={index}
+                    key={`${variant.product_id}-${variant.color_id || 'no-color'}-${variant.size_id || 'no-size'}`}
                     className="flex items-center justify-between p-3 border rounded cursor-pointer hover:bg-muted"
                     onClick={() => onSelectVariant(variant)}
                   >
@@ -92,6 +92,13 @@ const LossVariantDialog: React.FC<LossVariantDialogProps> = ({
 };
 
 export default LossVariantDialog;
+
+
+
+
+
+
+
 
 
 

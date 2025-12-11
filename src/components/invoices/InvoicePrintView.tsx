@@ -10,7 +10,8 @@ import {
   XCircle,
   Clock,
   AlertCircle,
-  Loader2
+  Loader2,
+  Zap
 } from "lucide-react";
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -49,7 +50,7 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
       try {
         setIsPrinting(true);
 
-        // إنشاء HTML للطباعة
+        // إنشاء HTML للطباعة مع CSS محسّن
         const printHtmlContent = `
           <!DOCTYPE html>
           <html dir="rtl" lang="ar">
@@ -57,13 +58,43 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
               <meta charset="UTF-8">
               <title>فاتورة-${invoice.invoiceNumber}</title>
               <style>
-                * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: 'Tajawal', 'Arial', sans-serif; direction: rtl; background: white; color: black; }
-                @page { size: A4; margin: 10mm; }
+                * {
+                  box-sizing: border-box;
+                  margin: 0;
+                  padding: 0;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                body {
+                  font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                  direction: rtl;
+                  background: white;
+                  color: black;
+                  padding: 10mm;
+                  line-height: 1.5;
+                }
+                @page {
+                  size: A4;
+                  margin: 10mm;
+                }
                 @media print {
                   body { background: white !important; }
-                  * { color: black !important; background: transparent !important; }
+                  * { color: black !important; }
+                  .bg-gray-50, .bg-gray-100 { background-color: #f9fafb !important; }
+                  .border { border: 1px solid #e5e7eb !important; }
+                  table { border-collapse: collapse !important; }
+                  th, td { padding: 8px !important; }
                 }
+                /* تحسين الجداول */
+                table { width: 100%; border-collapse: collapse; }
+                th { background-color: #f3f4f6; font-weight: 600; }
+                td, th { padding: 10px; text-align: right; }
+                /* تحسين العناوين */
+                h1, h2, h3 { font-weight: 700; }
+                /* تحسين الحاويات */
+                .rounded-lg { border-radius: 8px; }
+                .border { border: 1px solid #e5e7eb; }
+                .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
               </style>
             </head>
             <body>
@@ -93,6 +124,59 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
 
     // ⚡ التراجع إلى react-to-print
     handleReactToPrint();
+  };
+
+  // ⚡ دالة الطباعة السريعة (صامتة)
+  const handleQuickPrint = async () => {
+    if (isPrinting) return;
+
+    if (isElectronPrint && printRef.current) {
+      try {
+        setIsPrinting(true);
+        toast.loading('جاري الطباعة السريعة...');
+
+        const printHtmlContent = `
+          <!DOCTYPE html>
+          <html dir="rtl" lang="ar">
+            <head>
+              <meta charset="UTF-8">
+              <title>فاتورة-${invoice.invoiceNumber}</title>
+              <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; background: white; color: black; padding: 10mm; }
+                @page { size: A4; margin: 10mm; }
+              </style>
+            </head>
+            <body>
+              ${printRef.current.innerHTML}
+            </body>
+          </html>
+        `;
+
+        const result = await printHtml(printHtmlContent, {
+          silent: true, // طباعة صامتة بدون نافذة
+          pageSize: 'A4',
+          landscape: false,
+        });
+
+        toast.dismiss();
+
+        if (result.success) {
+          toast.success('تمت الطباعة السريعة بنجاح');
+        } else {
+          toast.error('فشل في الطباعة السريعة', { description: result.error });
+        }
+      } catch (err) {
+        toast.dismiss();
+        toast.error('حدث خطأ أثناء الطباعة');
+        console.error('[InvoicePrint] خطأ:', err);
+      } finally {
+        setIsPrinting(false);
+      }
+    } else {
+      // في المتصفح، استخدم الطباعة العادية
+      handlePrint();
+    }
   };
 
   // تنزيل الفاتورة كملف PDF
@@ -256,6 +340,17 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
         </Button>
         
         <div className="flex gap-2">
+          {/* زر الطباعة السريعة - يظهر فقط في Electron */}
+          {isElectronPrint && (
+            <Button variant="default" onClick={handleQuickPrint} className="gap-2" disabled={isPrinting}>
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4" />
+              )}
+              طباعة سريعة
+            </Button>
+          )}
           <Button variant="outline" onClick={() => handlePrint()} className="gap-2" disabled={isPrinting}>
             {isPrinting ? (
               <Loader2 className="h-4 w-4 animate-spin" />

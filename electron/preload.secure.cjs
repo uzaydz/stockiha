@@ -663,7 +663,23 @@ const electronAPI = {
      * الحصول على قائمة الطابعات المتاحة
      * @returns {Promise<{success: boolean, printers: Array, error?: string}>}
      */
-    getPrinters: () => ipcRenderer.invoke('print:get-printers'),
+    getPrinters: async () => {
+      try {
+        const result = await ipcRenderer.invoke('print:get-printers');
+        // الـ main process يعيد الآن {success, printers}
+        if (result && typeof result === 'object' && 'printers' in result) {
+          return result;
+        }
+        // Fallback: إذا أعاد مصفوفة مباشرة (للتوافق القديم)
+        if (Array.isArray(result)) {
+          return { success: true, printers: result };
+        }
+        return { success: true, printers: result || [] };
+      } catch (error) {
+        console.error('[Preload] getPrinters error:', error);
+        return { success: false, error: error.message, printers: [] };
+      }
+    },
 
     /**
      * طباعة إيصال POS

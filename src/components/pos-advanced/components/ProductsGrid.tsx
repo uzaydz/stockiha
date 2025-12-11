@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TabsContent } from '@/components/ui/tabs';
 import { Package2 } from 'lucide-react';
@@ -6,13 +7,20 @@ import { ProductsGridProps } from '../types';
 import ProductGridItem from './ProductGridItem';
 import ProductListItem from './ProductListItem';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚡ VIRTUALIZATION CONFIG - إعدادات الأداء
+// ═══════════════════════════════════════════════════════════════════════════
+const GRID_ITEM_HEIGHT = 220; // ارتفاع عنصر الشبكة
+const LIST_ITEM_HEIGHT = 80;  // ارتفاع عنصر القائمة
+const OVERSCAN = 5;           // عناصر إضافية خارج الشاشة
+
 // مكون منطقة فارغة محسن
 const EmptyState = React.memo<{ hasFilters: boolean }>(({ hasFilters }) => (
   <div className="h-64 flex items-center justify-center">
     <div className="text-center">
       <Package2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
       <h3 className="text-lg font-medium mb-2">
-        {hasFilters 
+        {hasFilters
           ? 'لا توجد منتجات مطابقة للتصفية'
           : 'لا توجد منتجات'
         }
@@ -29,15 +37,170 @@ const EmptyState = React.memo<{ hasFilters: boolean }>(({ hasFilters }) => (
 
 EmptyState.displayName = 'EmptyState';
 
-// مكون عرض الشبكة محسن
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚡ VIRTUALIZED GRID VIEW - عرض الشبكة الافتراضي
+// ═══════════════════════════════════════════════════════════════════════════
+const VirtualizedGridView = React.memo<{
+  products: any[];
+  favoriteProducts: any[];
+  isReturnMode: boolean;
+  onAddToCart: (product: any) => void;
+}>(({ products, favoriteProducts, isReturnMode, onAddToCart }) => {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // حساب عدد الأعمدة بناءً على عرض الشاشة
+  const columnsCount = useMemo(() => {
+    if (typeof window === 'undefined') return 5;
+    const width = window.innerWidth;
+    if (width < 640) return 3;      // sm
+    if (width < 768) return 4;      // md
+    if (width < 1536) return 5;     // lg, xl
+    return 6;                        // 2xl
+  }, []);
+
+  // تجميع المنتجات في صفوف
+  const rows = useMemo(() => {
+    const result: any[][] = [];
+    for (let i = 0; i < products.length; i += columnsCount) {
+      result.push(products.slice(i, i + columnsCount));
+    }
+    return result;
+  }, [products, columnsCount]);
+
+  // Virtualizer للصفوف
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => GRID_ITEM_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  return (
+    <div
+      ref={parentRef}
+      className="h-[calc(100vh-300px)] overflow-auto"
+      style={{ contain: 'strict' }}
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualItems.map((virtualRow) => {
+          const rowProducts = rows[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.key}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-6 gap-3 px-4">
+                {rowProducts.map((product) => (
+                  <ProductGridItem
+                    key={`grid-${product.id}`}
+                    product={product}
+                    favoriteProducts={favoriteProducts}
+                    isReturnMode={isReturnMode}
+                    onAddToCart={onAddToCart}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+VirtualizedGridView.displayName = 'VirtualizedGridView';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚡ VIRTUALIZED LIST VIEW - عرض القائمة الافتراضي
+// ═══════════════════════════════════════════════════════════════════════════
+const VirtualizedListView = React.memo<{
+  products: any[];
+  favoriteProducts: any[];
+  isReturnMode: boolean;
+  onAddToCart: (product: any) => void;
+}>(({ products, favoriteProducts, isReturnMode, onAddToCart }) => {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: products.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => LIST_ITEM_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  return (
+    <div
+      ref={parentRef}
+      className="h-[calc(100vh-300px)] overflow-auto"
+      style={{ contain: 'strict' }}
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualItems.map((virtualItem) => {
+          const product = products[virtualItem.index];
+          return (
+            <div
+              key={virtualItem.key}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`,
+                padding: '0 16px',
+              }}
+            >
+              <ProductListItem
+                product={product}
+                favoriteProducts={favoriteProducts}
+                isReturnMode={isReturnMode}
+                onAddToCart={onAddToCart}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+VirtualizedListView.displayName = 'VirtualizedListView';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 📦 FALLBACK NON-VIRTUALIZED VIEWS (للقوائم الصغيرة < 50 عنصر)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// مكون عرض الشبكة العادي (للقوائم الصغيرة)
 const GridView = React.memo<{
   products: any[];
   favoriteProducts: any[];
   isReturnMode: boolean;
   onAddToCart: (product: any) => void;
 }>(({ products, favoriteProducts, isReturnMode, onAddToCart }) => {
-  // تحسين الـ key للمنتجات لتجنب إعادة الرسم غير الضرورية
-  const productItems = useMemo(() => 
+  const productItems = useMemo(() =>
     products.map((product) => (
       <ProductGridItem
         key={`grid-${product.id}-${product.stock_quantity}-${product.price}`}
@@ -58,15 +221,14 @@ const GridView = React.memo<{
 
 GridView.displayName = 'GridView';
 
-// مكون عرض القائمة محسن
+// مكون عرض القائمة العادي (للقوائم الصغيرة)
 const ListView = React.memo<{
   products: any[];
   favoriteProducts: any[];
   isReturnMode: boolean;
   onAddToCart: (product: any) => void;
 }>(({ products, favoriteProducts, isReturnMode, onAddToCart }) => {
-  // تحسين الـ key للمنتجات لتجنب إعادة الرسم غير الضرورية
-  const productItems = useMemo(() => 
+  const productItems = useMemo(() =>
     products.map((product) => (
       <ProductListItem
         key={`list-${product.id}-${product.stock_quantity}-${product.price}`}

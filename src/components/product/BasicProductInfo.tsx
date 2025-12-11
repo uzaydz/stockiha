@@ -23,6 +23,9 @@ const DescriptionGeneratorLazy = lazy(async () => ({
 const ProductInfoGeneratorLazy = lazy(async () => ({
   default: (await import("./ProductInfoGenerator")).ProductInfoGenerator,
 }));
+const ProductVisibilitySettingsLazy = lazy(async () => ({
+  default: (await import("./ProductVisibilitySettings")).default,
+}));
 
 interface BasicProductInfoProps {
   form: UseFormReturn<ProductFormValues>;
@@ -446,6 +449,22 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Product Visibility Settings */}
+        <Suspense fallback={
+          <Card className="border-border/50 shadow-md animate-pulse">
+            <CardHeader className="pb-3 p-3 sm:p-4">
+              <div className="h-6 bg-muted rounded w-1/3"></div>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-4 space-y-3">
+              <div className="h-16 bg-muted rounded"></div>
+              <div className="h-16 bg-muted rounded"></div>
+              <div className="h-16 bg-muted rounded"></div>
+            </CardContent>
+          </Card>
+        }>
+          <ProductVisibilitySettingsLazy form={form} />
+        </Suspense>
 
         {/* Advanced Description Builder Dialog */}
         <Suspense fallback={null}>

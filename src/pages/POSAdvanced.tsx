@@ -866,7 +866,7 @@ const POSAdvanced = () => {
     const extraItemsCount = selectedServices.length + selectedSubscriptions.length;
     const itemsTotal = productItemsCount + extraItemsCount;
 
-    // ⚡ حساب إجمالي المنتجات الحالي (مع التعديلات)
+    // ⚡ حساب إجمالي المنتجات الحالي (مع التعديلات + دعم الجملة)
     const productsTotal = cartItems.reduce((total, item) => {
       const sellingUnit = (item as any).sellingUnit;
       // نتحقق هل يوجد سعر مخصص (تم تعديله)
@@ -887,13 +887,49 @@ const POSAdvanced = () => {
           return total + ((item as any).length || 0) * unitPrice;
         }
         default: {
-          const unitPrice = hasCustomPrice ? customPrice : (item.product?.price || 0);
-          return total + unitPrice * (item.quantity || 0);
+          // ✅ استخدام نظام الجملة (wholesale_tiers) للقطع
+          if (hasCustomPrice) {
+            return total + customPrice * (item.quantity || 0);
+          }
+
+          const quantity = item.quantity || 0;
+          const itemSaleType = (item as any).saleType;
+
+          // ⚠️ إذا اختار المستخدم "تجزئة" صراحةً، نستخدم سعر التجزئة
+          if (itemSaleType === 'retail') {
+            const unitPrice = item.product?.price || 0;
+            return total + unitPrice * quantity;
+          }
+
+          // التحقق من وجود مستويات أسعار الجملة
+          const wholesaleTiers = item.product?.wholesale_tiers;
+
+          if (wholesaleTiers && Array.isArray(wholesaleTiers) && wholesaleTiers.length > 0) {
+            // البحث عن أدنى مستوى
+            const lowestTier = wholesaleTiers.reduce((min: any, t: any) =>
+              (!min || t.min_quantity < min.min_quantity) ? t : min, null);
+
+            // تطبيق الجملة فقط إذا: saleType = wholesale أو (لم يُحدد saleType والكمية كافية)
+            if (itemSaleType === 'wholesale' || (!itemSaleType && lowestTier && quantity >= lowestTier.min_quantity)) {
+              // البحث عن المستوى المناسب للكمية
+              const sortedTiers = [...wholesaleTiers].sort((a: any, b: any) => b.min_quantity - a.min_quantity);
+              const applicableTier = sortedTiers.find((t: any) => quantity >= t.min_quantity);
+              if (applicableTier) {
+                const wholesalePrice = applicableTier.price_per_unit || applicableTier.price;
+                return total + wholesalePrice * quantity;
+              }
+            }
+          }
+
+          // السعر العادي (تجزئة)
+          const unitPrice = item.product?.price || 0;
+          return total + unitPrice * quantity;
         }
       }
     }, 0);
 
-    // ⚡ حساب السعر الأصلي (بدون أي تعديلات - السعر من المنتج مباشرة)
+    // ⚡ حساب السعر الأصلي (بدون تعديلات يدوية - لكن مع الجملة)
+    // ملاحظة: أسعار الجملة تُعتبر أسعار أصلية وليست تخفيضات يدوية
     const originalProductsTotal = cartItems.reduce((total, item) => {
       const sellingUnit = (item as any).sellingUnit;
       const quantity = item.quantity || 1;
@@ -906,8 +942,34 @@ const POSAdvanced = () => {
           return total + ((item as any).boxCount || 0) * (item.product?.box_price || item.product?.price || 0);
         case 'meter':
           return total + ((item as any).length || 0) * (item.product?.price_per_meter || item.product?.price || 0);
-        default:
+        default: {
+          // ✅ استخدام نفس منطق الجملة - أسعار الجملة هي أسعار أصلية
+          const itemSaleType = (item as any).saleType;
+
+          // ⚠️ إذا اختار المستخدم "تجزئة" صراحةً، نستخدم سعر التجزئة
+          if (itemSaleType === 'retail') {
+            return total + (item.product?.price || 0) * quantity;
+          }
+
+          const wholesaleTiers = item.product?.wholesale_tiers;
+
+          if (wholesaleTiers && Array.isArray(wholesaleTiers) && wholesaleTiers.length > 0) {
+            const lowestTier = wholesaleTiers.reduce((min: any, t: any) =>
+              (!min || t.min_quantity < min.min_quantity) ? t : min, null);
+
+            // تطبيق الجملة فقط إذا: saleType = wholesale أو (لم يُحدد saleType والكمية كافية)
+            if (itemSaleType === 'wholesale' || (!itemSaleType && lowestTier && quantity >= lowestTier.min_quantity)) {
+              const sortedTiers = [...wholesaleTiers].sort((a: any, b: any) => b.min_quantity - a.min_quantity);
+              const applicableTier = sortedTiers.find((t: any) => quantity >= t.min_quantity);
+              if (applicableTier) {
+                const wholesalePrice = applicableTier.price_per_unit || applicableTier.price;
+                return total + wholesalePrice * quantity;
+              }
+            }
+          }
+
           return total + (item.product?.price || 0) * quantity;
+        }
       }
     }, 0);
 
@@ -1113,6 +1175,8 @@ const POSAdvanced = () => {
       if (updates.boxCount !== undefined) updateItemBoxCount?.(index, updates.boxCount);
       if (updates.length !== undefined) updateItemLength?.(index, updates.length);
       if (updates.sellingUnit !== undefined) updateItemSellingUnit?.(index, updates.sellingUnit);
+      // ✅ تحديث نوع البيع (جملة/تجزئة)
+      if (updates.saleType !== undefined) updateItemSaleType?.(index, updates.saleType);
     }
     toast.success('✅ تم حفظ التعديلات بنجاح');
   }, [
@@ -1120,7 +1184,7 @@ const POSAdvanced = () => {
     updateReturnItemQuantity, updateReturnItemPrice, updateReturnItemWeight,
     updateReturnItemBoxCount, updateReturnItemLength, updateReturnItemSellingUnit,
     updateItemQuantity, updateItemPrice, updateItemWeight,
-    updateItemBoxCount, updateItemLength, updateItemSellingUnit
+    updateItemBoxCount, updateItemLength, updateItemSellingUnit, updateItemSaleType
   ]);
 
   const handleTitaniumRemoveItem = useCallback((index: number) => {
@@ -1179,7 +1243,7 @@ const POSAdvanced = () => {
     } else if (isReturnMode) {
       handleProcessReturn({});
     } else {
-      // فتح نافذة الدفع بدلاً من البيع المباشر
+      // فتح نافذة الدفع مباشرة
       setIsPaymentDialogOpen(true);
     }
   }, [isLossMode, isReturnMode, submitLoss, handleProcessReturn]);
@@ -1704,6 +1768,7 @@ const POSAdvanced = () => {
           currentDiscount={discountValue}
           currentDiscountType={discountType}
           total={cartSummary.total}
+          originalTotal={cartSummary.originalTotal}
           customers={customers}
           selectedCustomerId={activeTab?.customerId}
           onPaymentComplete={handlePaymentComplete}
@@ -1723,6 +1788,7 @@ const POSAdvanced = () => {
         saleMode={saleMode}
         onSelectCustomer={handleSelectCustomer}
         onChangeSaleMode={handleChangeSaleMode}
+        onConfirmAndProceed={() => setIsPaymentDialogOpen(true)}
       />
 
     </POSPureLayout>

@@ -78,7 +78,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
   isRenewal = false,
   onSubscriptionComplete,
 }) => {
-  const { user, userData } = useAuth();
+  const { user, userProfile } = useAuth();
   const [step, setStep] = useState<'plan' | 'payment' | 'complete'>('plan');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
@@ -159,24 +159,26 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
     setReferralValid(null);
 
     try {
-      const { data, error } = await supabase.rpc('validate_referral_code', {
+      const { data, error } = await supabase.rpc('validate_referral_code' as any, {
         p_code: referralCode.trim().toUpperCase(),
         p_org_id: organizationId
       });
 
       if (error) throw error;
 
-      if (data.valid) {
+      const result = data as any;
+
+      if (result.valid) {
         setReferralValid(true);
         setReferralInfo({
-          referrer_org_id: data.referrer_org_id,
-          referrer_name: data.referrer_name,
-          discount_percentage: data.discount_percentage
+          referrer_org_id: result.referrer_org_id,
+          referrer_name: result.referrer_name,
+          discount_percentage: result.discount_percentage
         });
-        toast.success(data.message, { icon: <Gift className="w-5 h-5 text-emerald-500" /> });
+        toast.success(result.message, { icon: <Gift className="w-5 h-5 text-emerald-500" /> });
       } else {
         setReferralValid(false);
-        setReferralError(data.error);
+        setReferralError(result.error);
       }
     } catch (error: any) {
       console.error('Error validating referral code:', error);
@@ -246,7 +248,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
           discount_amount: discountAmount,
           discount_percentage: referralInfo?.discount_percentage || 0
         }),
-        contactName: userData?.name || formFields.contact_name || undefined,
+        contactName: userProfile?.name || formFields.contact_name || undefined,
         contactEmail: user?.email || formFields.contact_email || undefined,
         contactPhone: formFields.contact_phone || undefined,
         customerNotes: formFields.notes || undefined

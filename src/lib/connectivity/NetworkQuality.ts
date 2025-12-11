@@ -111,7 +111,7 @@ class NetworkQualityService {
       }
     }
 
-    console.log('[NetworkQuality] Connection changed:', info);
+    // ⚡ v2.0: تقليل logs - تم إزالة log المتكرر
   };
 
   /**

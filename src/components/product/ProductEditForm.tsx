@@ -85,6 +85,10 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
         thumbnail_image: product?.thumbnail_image || '',
         has_variants: Boolean((product as any)?.has_variants),
         show_price_on_landing: (product as any)?.show_price_on_landing !== false,
+        // إعدادات العرض والنشر
+        show_in_store: (product as any)?.show_in_store !== false,
+        allow_marketplace: Boolean((product as any)?.allow_marketplace),
+        hide_stock_quantity: Boolean((product as any)?.hide_stock_quantity),
         is_featured: Boolean(product?.is_featured),
         is_new: Boolean(product?.is_new),
         use_sizes: Boolean((product as any)?.use_sizes),
@@ -247,6 +251,10 @@ const ProductEditForm: React.FC<ProductEditFormProps> = ({
         is_new: values.is_new,
         has_variants: values.has_variants,
         show_price_on_landing: values.show_price_on_landing,
+        // إعدادات العرض والنشر
+        show_in_store: values.show_in_store,
+        allow_marketplace: values.allow_marketplace,
+        hide_stock_quantity: values.hide_stock_quantity,
         use_sizes: values.use_sizes,
         updated_at: new Date().toISOString(),
       };

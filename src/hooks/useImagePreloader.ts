@@ -42,15 +42,24 @@ export const useImagePreloader = ({
           return prev;
         }
         if (currentState?.loading) {
-          // إذا كانت قيد التحميل، انتظر
+          // إذا كانت قيد التحميل، انتظر مع timeout للحماية من Memory Leak
+          let checkCount = 0;
+          const MAX_CHECKS = 100; // 10 ثوانٍ كحد أقصى (100 * 100ms)
+
           const checkInterval = setInterval(() => {
+            checkCount++;
             const state = prev.get(url);
+
             if (state?.loaded) {
               clearInterval(checkInterval);
               resolve();
             } else if (state?.error) {
               clearInterval(checkInterval);
               reject(new Error(`Image failed to load: ${url}`));
+            } else if (checkCount >= MAX_CHECKS) {
+              // 🔧 Fix: إلغاء الـ interval بعد timeout للحماية من Memory Leak
+              clearInterval(checkInterval);
+              reject(new Error(`Image load timeout (waiting): ${url}`));
             }
           }, 100);
           return prev;

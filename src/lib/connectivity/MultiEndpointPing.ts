@@ -2,10 +2,10 @@
  * MultiEndpointPing.ts
  *
  * Verifies internet connectivity by pinging multiple endpoints.
- * Uses a race strategy - first successful response wins.
+ * Uses a "Smart Failover" strategy - tries primary fast endpoint first, then falls back to others.
  *
  * Features:
- * - Multiple fallback endpoints (Google, Apple, Cloudflare)
+ * - Smart Failover: Google -> Cloudflare -> Apple -> etc.
  * - Captive portal detection via Apple's endpoint
  * - Lightweight requests (HEAD/204 responses)
  * - Configurable timeout
@@ -14,19 +14,24 @@
 import type { PingResult } from './ConnectivityTypes';
 
 /**
- * Default ping endpoints - ordered by reliability
- * ✅ تم إزالة endpoints التي تسبب أخطاء CORS:
- *    - cloudflare.com/favicon.ico (CORS blocked)
- *    - msftconnecttest.com (SSL certificate issues)
+ * Default ping endpoints - ordered by priority
+ * 1. Google (Fastest global CDN)
+ * 2. Cloudflare (Reliable fallback)
+ * 3. Apple (Captive portal check)
+ * 4. Mozilla (Community standard)
  */
 const DEFAULT_PING_ENDPOINTS = [
-  // Google 204 endpoints (0 bytes response body) - الأفضل للـ connectivity check
+  // Google 204 endpoints (0 bytes response body) - Primary
   'https://www.google.com/generate_204',
-  'https://connectivitycheck.gstatic.com/generate_204',
-  'https://clients3.google.com/generate_204',
+
+  // Cloudflare - Secondary (Reliable)
+  'https://www.cloudflare.com/cdn-cgi/trace',
 
   // Apple captive portal check (returns specific HTML)
   'https://captive.apple.com/hotspot-detect.html',
+
+  // Mozilla Detect Portal
+  'http://detectportal.firefox.com/success.txt',
 ];
 
 /**
@@ -46,6 +51,7 @@ interface MultiEndpointPingOptions {
   endpoints?: string[];
   timeout?: number;
   onPing?: PingEventListener;
+  failoverInterval?: number;
 }
 
 /**
@@ -56,6 +62,7 @@ interface MultiEndpointPingOptions {
 class MultiEndpointPingService {
   private endpoints: string[];
   private timeout: number;
+  private failoverInterval: number;
   private lastResult: PingResult | null = null;
   private onPing: PingEventListener | null = null;
   private isPinging = false;
@@ -63,12 +70,13 @@ class MultiEndpointPingService {
   constructor(options: MultiEndpointPingOptions = {}) {
     this.endpoints = options.endpoints || DEFAULT_PING_ENDPOINTS;
     this.timeout = options.timeout || 3000;
+    this.failoverInterval = options.failoverInterval || 500;
     this.onPing = options.onPing || null;
   }
 
   /**
-   * Ping multiple endpoints and return first successful result.
-   * Uses Promise.any for race condition - first success wins.
+   * Ping using Smart Failover strategy.
+   * Tries endpoints sequentially (or with slight overlap) to ensure accuracy.
    */
   async ping(): Promise<PingResult> {
     if (this.isPinging) {
@@ -80,22 +88,33 @@ class MultiEndpointPingService {
     const startTime = performance.now();
 
     try {
-      // Create promises for all endpoints
-      const promises = this.endpoints.map((endpoint) =>
-        this.pingEndpoint(endpoint)
-      );
-
-      // Race all endpoints - first successful response wins
-      const result = await Promise.any(promises);
-      this.lastResult = result;
-
-      // Notify listener
-      if (this.onPing) {
-        this.onPing(result);
+      // Try the first endpoint (Primary)
+      try {
+        const primaryResult = await this.pingEndpoint(this.endpoints[0], this.timeout);
+        this.finishPing(primaryResult);
+        return primaryResult;
+      } catch (e) {
+        // Primary failed, continue to fallbacks
+        // console.log('[MultiEndpointPing] Primary endpoint failed, switching to failover...');
       }
 
-      return result;
-    } catch (aggregateError) {
+      // Try remaining endpoints with failover logic
+      for (let i = 1; i < this.endpoints.length; i++) {
+        const endpoint = this.endpoints[i];
+        try {
+          // Add small delay between failovers to avoid network congestion if it's just a hiccup
+          if (i > 1 && this.failoverInterval > 0) {
+            await new Promise(resolve => setTimeout(resolve, this.failoverInterval));
+          }
+
+          const result = await this.pingEndpoint(endpoint, this.timeout);
+          this.finishPing(result);
+          return result;
+        } catch (e) {
+          // Continue to next endpoint
+        }
+      }
+
       // All endpoints failed
       const latency = Math.round(performance.now() - startTime);
       const result: PingResult = {
@@ -104,25 +123,37 @@ class MultiEndpointPingService {
         endpoint: null,
         error: 'All ping endpoints failed',
       };
-      this.lastResult = result;
+      this.finishPing(result);
+      return result;
 
-      // Notify listener
-      if (this.onPing) {
-        this.onPing(result);
-      }
-
+    } catch (error) {
+      // Unexpected error
+      const result: PingResult = {
+        success: false,
+        latency: 0,
+        endpoint: null,
+        error: 'Unexpected ping error',
+      };
+      this.finishPing(result);
       return result;
     } finally {
       this.isPinging = false;
     }
   }
 
+  private finishPing(result: PingResult) {
+    this.lastResult = result;
+    if (this.onPing) {
+      this.onPing(result);
+    }
+  }
+
   /**
    * Ping a single endpoint with timeout
    */
-  private async pingEndpoint(endpoint: string): Promise<PingResult> {
+  private async pingEndpoint(endpoint: string, timeoutVal: number): Promise<PingResult> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutVal);
     const startTime = performance.now();
 
     try {
@@ -130,30 +161,44 @@ class MultiEndpointPingService {
       const isAppleEndpoint = endpoint.includes('apple.com');
       const is204Endpoint = endpoint.includes('generate_204');
 
-      // في Electron/Desktop، استخدم no-cors مباشرة لتجنب أخطاء CORS في الـ console
+      // In Electron context, check if we can use no-cors safely
       const isElectron = typeof window !== 'undefined' && (
         (window as any).electronAPI ||
         navigator.userAgent.includes('Electron')
       );
 
-      // استخدم no-cors للـ 204 endpoints لتجنب أخطاء CORS
-      if (isElectron && is204Endpoint) {
-        return await this.pingNoCors(endpoint);
-      }
-
-      const response = await fetch(endpoint, {
+      // Request options
+      const options: RequestInit = {
         method: is204Endpoint ? 'HEAD' : 'GET',
-        mode: 'cors', // Try CORS first for proper response
+        mode: 'cors', // Try CORS first
         cache: 'no-store',
         credentials: 'omit',
         signal: controller.signal,
         headers: {
           'Accept': '*/*',
         },
-      });
+      };
+
+      // Special handling for 204 endpoints in Electron (to avoid CORS errors in console)
+      // or known CORS-blocking endpoints
+      if (isElectron && is204Endpoint) {
+        options.mode = 'no-cors';
+      }
+
+      const response = await fetch(endpoint, options);
 
       clearTimeout(timeoutId);
       const latency = Math.round(performance.now() - startTime);
+
+      // Handle no-cors opaque response
+      if (response.type === 'opaque') {
+        return {
+          success: true,
+          latency,
+          endpoint,
+          isCaptivePortal: false,
+        };
+      }
 
       // Check for captive portal on Apple's endpoint
       if (isAppleEndpoint && response.ok) {
@@ -169,7 +214,7 @@ class MultiEndpointPingService {
         }
       }
 
-      // For 204 endpoints, any response is success
+      // For 204 endpoints, success status is enough
       if (is204Endpoint) {
         return {
           success: true,
@@ -179,7 +224,7 @@ class MultiEndpointPingService {
         };
       }
 
-      // For other endpoints, check status code
+      // Standard success check
       if (response.ok || response.status < 500) {
         return {
           success: true,
@@ -190,62 +235,36 @@ class MultiEndpointPingService {
       }
 
       throw new Error(`HTTP ${response.status}`);
+
     } catch (error: unknown) {
       clearTimeout(timeoutId);
-      const latency = Math.round(performance.now() - startTime);
 
-      // Check if it's an abort error
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Timeout after ${this.timeout}ms`);
-      }
-
-      // For CORS errors, try no-cors mode
-      // In no-cors mode, we can't read the response but we know the server responded
-      try {
-        const noCorsResponse = await this.pingNoCors(endpoint);
-        if (noCorsResponse.success) {
-          return noCorsResponse;
+      // If CORS failed, try no-cors as a last resort fallback for simple reachability
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        // Retry with no-cors if not already tried
+        // This is a minimal check just to see if we can reach the server
+        try {
+          await fetch(endpoint, {
+            method: 'HEAD',
+            mode: 'no-cors',
+            cache: 'no-store',
+            signal: controller.signal // Re-use signal, might need new timeout if strict
+          });
+          // If we get here, it means we reached it but couldn't read logic
+          return {
+            success: true,
+            latency: Math.round(performance.now() - startTime),
+            endpoint,
+            isCaptivePortal: false
+          };
+        } catch {
+          // Ignore secondary failure
         }
-      } catch {
-        // no-cors also failed
       }
 
-      throw error;
-    }
-  }
-
-  /**
-   * Ping with no-cors mode (opaque response)
-   * Can't read response but confirms server is reachable
-   */
-  private async pingNoCors(endpoint: string): Promise<PingResult> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-    const startTime = performance.now();
-
-    try {
-      await fetch(endpoint, {
-        method: 'HEAD',
-        mode: 'no-cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      const latency = Math.round(performance.now() - startTime);
-
-      // If we get here without error, the server responded (opaque response)
-      return {
-        success: true,
-        latency,
-        endpoint,
-        isCaptivePortal: false,
-      };
-    } catch (error: unknown) {
-      clearTimeout(timeoutId);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`no-cors failed: ${errorMsg}`);
+      const isAbort = error instanceof Error && error.name === 'AbortError';
+      const msg = isAbort ? `Timeout after ${timeoutVal}ms` : (error instanceof Error ? error.message : 'Unknown error');
+      throw new Error(msg);
     }
   }
 
@@ -255,39 +274,20 @@ class MultiEndpointPingService {
   private async checkAppleCaptivePortal(response: Response): Promise<boolean> {
     try {
       const text = await response.text();
-      // Apple returns specific HTML for success
-      // Any different response indicates captive portal
       const isSuccess = text.includes('Success') || text === APPLE_SUCCESS_RESPONSE;
       return !isSuccess;
     } catch {
-      // If we can't read the response, assume no captive portal
       return false;
     }
   }
 
   /**
-   * Quick connectivity check - single fast endpoint
-   * Use this for rapid checks (e.g., after online event)
+   * Quick connectivity check - alias for checks that might need less overhead
+   * For v2, we reuse the smart ping but maybe with shorter timeout logic if needed later
    */
   async quickCheck(): Promise<boolean> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
-
-    try {
-      await fetch('https://www.google.com/generate_204', {
-        method: 'HEAD',
-        mode: 'no-cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      return true;
-    } catch {
-      clearTimeout(timeoutId);
-      return false;
-    }
+    const result = await this.ping();
+    return result.success;
   }
 
   /**
@@ -316,56 +316,36 @@ class MultiEndpointPingService {
       const isSuccess = text.includes('Success');
 
       if (!isSuccess) {
-        // Captive portal detected - the response was redirected/modified
         return { detected: true, url };
       }
 
       return { detected: false, url: null };
     } catch {
       clearTimeout(timeoutId);
-      // Network error - can't determine, assume no captive portal
       return { detected: false, url: null };
     }
   }
 
-  /**
-   * Get last ping result
-   */
   getLastResult(): PingResult | null {
     return this.lastResult;
   }
 
-  /**
-   * Check if currently pinging
-   */
   getIsPinging(): boolean {
     return this.isPinging;
   }
 
-  /**
-   * Configure endpoints
-   */
   setEndpoints(endpoints: string[]): void {
     this.endpoints = endpoints;
   }
 
-  /**
-   * Configure timeout
-   */
   setTimeout(timeout: number): void {
     this.timeout = timeout;
   }
 
-  /**
-   * Set ping event listener
-   */
   setOnPing(listener: PingEventListener | null): void {
     this.onPing = listener;
   }
 
-  /**
-   * Get current configuration
-   */
   getConfig(): { endpoints: string[]; timeout: number } {
     return {
       endpoints: [...this.endpoints],

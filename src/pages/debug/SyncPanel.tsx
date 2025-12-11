@@ -65,14 +65,15 @@ const SyncPanel: React.FC = () => {
             // ⚡ استخدام PowerSync مباشرة
             const orgId = currentOrganization.id;
             
+            // PowerSync handles sync status internally - just count all records
             const [orders, customers, products, invoices, returns, losses, debts] = await Promise.all([
-                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM orders WHERE organization_id = ? AND synced = 0', [orgId]),
-                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM customers WHERE organization_id = ? AND synced = 0', [orgId]),
-                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM products WHERE organization_id = ? AND synced = 0', [orgId]),
-                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM invoices WHERE organization_id = ? AND synced = 0', [orgId]),
-                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM returns WHERE organization_id = ? AND synced = 0', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM orders WHERE organization_id = ?', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM customers WHERE organization_id = ?', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM products WHERE organization_id = ?', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM invoices WHERE organization_id = ?', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM returns WHERE organization_id = ?', [orgId]),
                 powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM losses WHERE organization_id = ?', [orgId]),
-                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM customer_debts WHERE organization_id = ? AND synced = 0', [orgId])
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM customer_debts WHERE organization_id = ?', [orgId])
             ]);
 
             setPendingCounts({

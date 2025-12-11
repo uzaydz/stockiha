@@ -225,7 +225,7 @@ const CustomPagination = ({
         {/* أرقام الصفحات */}
         <div className="flex items-center gap-1">
           {pageNumbers.map((page, index) => (
-            <React.Fragment key={index}>
+            <React.Fragment key={`page-${page}-${index}`}>
               {page === '...' ? (
                 <span className="flex h-9 w-9 items-center justify-center text-muted-foreground">
                   <MoreHorizontal className="h-4 w-4" />
@@ -239,8 +239,8 @@ const CustomPagination = ({
                   disabled={loading}
                   className={cn(
                     "h-9 w-9 p-0 transition-all",
-                    currentPage === page 
-                      ? "bg-primary text-primary-foreground shadow-md" 
+                    currentPage === page
+                      ? "bg-primary text-primary-foreground shadow-md"
                       : "hover:bg-accent hover:text-accent-foreground"
                   )}
                   title={`الصفحة ${page}`}

@@ -15,7 +15,7 @@ import {
   Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2,
   FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database, UserCircle, Shield,
   Clock, RefreshCw, CreditCard, PieChart, MoreVertical, LayoutDashboard, ScanBarcode, ClipboardList,
-  Globe, Crown, Gift
+  Globe, Crown, Gift, UserCog
 } from 'lucide-react';
 import { ShoppingBag, Wrench } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -249,6 +249,16 @@ export const posSidebarItems: POSSidebarItem[] = [
 
   // 4. الإدارة والفريق (Admin & Staff)
   {
+    id: 'hr-operations',
+    title: 'الموارد البشرية',
+    icon: UserCog,
+    href: '/dashboard/hr-operations/dashboard',
+    badge: 'جديد',
+    isOnlineOnly: false,
+    alwaysShow: true,
+    permissions: ['manageHR', 'viewHR', 'manageStaff', 'manageEmployees'],
+  },
+  {
     id: 'staff-management',
     title: 'الموظفين',
     icon: Users,
@@ -283,7 +293,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     badge: 'جديد',
     isOnlineOnly: true,
     alwaysShow: true,
-    permissions: ['manageOrganizationSettings'],
+    // متاح لجميع المستخدمين - بدون صلاحيات مطلوبة
   },
 
   // 5. أخرى (Extras)

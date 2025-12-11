@@ -293,7 +293,7 @@ export default function MultiImageUploader({
         {images.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {images.map((url, index) => (
-              <div key={index} className="relative group border rounded-md overflow-hidden">
+              <div key={url || `img-${index}`} className="relative group border rounded-md overflow-hidden">
                 <div className="aspect-square overflow-hidden">
                   <img src={url} alt={`صورة ${index + 1}`} className="w-full h-full object-cover" />
                 </div>

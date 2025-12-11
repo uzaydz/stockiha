@@ -211,6 +211,8 @@ export function POSDataProvider({ children }: { children: ReactNode }) {
   // 📊 PRODUCTS QUERY
   // =================================================================
 
+  // ⚡ v4.0: تحديد columns + LIMIT للأداء الأفضل (تحسين كبير للذاكرة)
+  // ⚠️ ملاحظة: LIMIT 500 يكفي لمعظم الاستخدامات، مع دعم infinite scroll للمزيد
   const {
     data: products = [],
     isLoading: productsLoading,
@@ -219,10 +221,16 @@ export function POSDataProvider({ children }: { children: ReactNode }) {
   } = usePowerSyncQuery<LocalProduct>({
     queryKey: ['products', organizationId],
     sql: `
-      SELECT * FROM products
+      SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
+             stock_quantity, min_stock_level, category_id, subcategory_id,
+             thumbnail_image, has_variants, use_sizes,
+             sell_by_weight, sell_by_meter, sell_by_box,
+             is_active, organization_id, wholesale_price
+      FROM products
       WHERE organization_id = ?
         AND is_active = 1
-      ORDER BY name ASC
+      ORDER BY updated_at DESC, name ASC
+      LIMIT 500
     `,
     params: [organizationId],
     enabled: !!organizationId && isReady,
@@ -232,6 +240,7 @@ export function POSDataProvider({ children }: { children: ReactNode }) {
   // 📂 CATEGORIES QUERY
   // =================================================================
 
+  // ⚡ v4.0: تحديد columns + LIMIT للأداء الأفضل
   const {
     data: categories = [],
     isLoading: categoriesLoading,
@@ -239,10 +248,13 @@ export function POSDataProvider({ children }: { children: ReactNode }) {
   } = usePowerSyncQuery<ProductCategory>({
     queryKey: ['categories', organizationId],
     sql: `
-      SELECT * FROM product_categories
+      SELECT id, name, description, parent_id, image_url, display_order,
+             is_active, organization_id, created_at, updated_at
+      FROM product_categories
       WHERE organization_id = ?
         AND is_active = 1
-      ORDER BY name ASC
+      ORDER BY display_order ASC, name ASC
+      LIMIT 100
     `,
     params: [organizationId],
     enabled: !!organizationId && isReady,
@@ -252,6 +264,7 @@ export function POSDataProvider({ children }: { children: ReactNode }) {
   // 👥 CUSTOMERS QUERY
   // =================================================================
 
+  // ⚡ v4.0: تحديد columns + LIMIT للأداء الأفضل
   const {
     data: customers = [],
     isLoading: customersLoading,
@@ -259,10 +272,14 @@ export function POSDataProvider({ children }: { children: ReactNode }) {
   } = usePowerSyncQuery<LocalCustomer>({
     queryKey: ['customers', organizationId],
     sql: `
-      SELECT * FROM customers
+      SELECT id, name, phone, email, address, city, wilaya,
+             total_purchases, total_debt, is_active, organization_id,
+             created_at, updated_at, customer_type, notes
+      FROM customers
       WHERE organization_id = ?
         AND is_active = 1
-      ORDER BY name ASC
+      ORDER BY updated_at DESC, name ASC
+      LIMIT 200
     `,
     params: [organizationId],
     enabled: !!organizationId && isReady,
@@ -696,7 +713,9 @@ export const mapLocalProductToPOSProduct = (
       if (sellByWeight === true || sellByWeight === 1 || sellByWeight === '1') return 'weight';
       if (sellByBox === true || sellByBox === 1 || sellByBox === '1') return 'box';
       return 'piece';
-    })()
+    })(),
+    // ⚡ مستويات أسعار الجملة - يتم تعبئتها من product_wholesale_tiers
+    wholesale_tiers: (product as any).wholesale_tiers || []
   };
 };
 

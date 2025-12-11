@@ -23,17 +23,17 @@ function getOrganizationId(explicitOrgId?: string): string | null {
 
 async function countPendingInvoices(orgId: string): Promise<number> {
   try {
+    // PowerSync stores pending changes in ps_crud table
+    // Count only invoice-related pending operations
     const row = await powerSyncService.get<{ count: number }>(
-      `SELECT COUNT(*) as count 
-       FROM invoices 
-       WHERE organization_id = ? 
-         AND (synced = 0 
-              OR pending_operation IS NOT NULL 
-              OR pendingOperation IS NOT NULL)`,
-      [orgId]
+      `SELECT COUNT(*) as count
+       FROM ps_crud
+       WHERE data LIKE '%"invoices"%'`,
+      []
     );
     return row?.count || 0;
   } catch (err) {
+    // If ps_crud query fails, return 0 (no pending)
     console.warn('[syncPendingInvoices] Count failed, assuming 0 pending', err);
     return 0;
   }

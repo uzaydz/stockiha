@@ -39,6 +39,10 @@ export const useLossProductSearch = (): UseLossProductSearchResult => {
     setIsVariantDialogOpen(false);
   }, []);
 
+  /**
+   * ⚡ v2.0: إصلاح N+1 Query - استخدام استعلام واحد بدلاً من استعلام لكل منتج
+   * التحسين: من 40 استعلام (20 منتج × 2) إلى 2 استعلام فقط
+   */
   const searchProducts = useCallback(async (query: string, organizationId?: string) => {
     if (!query || !organizationId) return;
     setSearchingProducts(true);
@@ -53,36 +57,41 @@ export const useLossProductSearch = (): UseLossProductSearchResult => {
         )
         .slice(0, 20);
 
-      const productsWithVariants = await Promise.all(
-        filteredProducts.map(async (product) => {
-          try {
-            const [colorsRes, sizesRes] = await Promise.all([
-              supabase
-                .from('product_colors')
-                .select('id')
-                .eq('product_id', product.id)
-                .limit(1),
-              supabase
-                .from('product_sizes')
-                .select('id')
-                .eq('product_id', product.id)
-                .limit(1)
-            ]);
+      // ⚡ إذا لم يوجد منتجات، لا حاجة لاستعلامات إضافية
+      if (filteredProducts.length === 0) {
+        setProducts([]);
+        return;
+      }
 
-            return {
-              ...product,
-              has_colors: (colorsRes.data?.length || 0) > 0,
-              has_sizes: (sizesRes.data?.length || 0) > 0
-            };
-          } catch (err) {
-            return {
-              ...product,
-              has_colors: false,
-              has_sizes: false
-            };
-          }
-        })
+      // ⚡ جلب جميع product IDs
+      const productIds = filteredProducts.map(p => p.id);
+
+      // ⚡ استعلام واحد لجميع الألوان والمقاسات (بدلاً من N+1)
+      const [colorsRes, sizesRes] = await Promise.all([
+        supabase
+          .from('product_colors')
+          .select('product_id')
+          .in('product_id', productIds),
+        supabase
+          .from('product_sizes')
+          .select('product_id')
+          .in('product_id', productIds)
+      ]);
+
+      // ⚡ إنشاء Sets للبحث السريع O(1)
+      const productsWithColors = new Set(
+        (colorsRes.data || []).map(c => c.product_id)
       );
+      const productsWithSizes = new Set(
+        (sizesRes.data || []).map(s => s.product_id)
+      );
+
+      // ⚡ دمج النتائج بدون استعلامات إضافية
+      const productsWithVariants = filteredProducts.map(product => ({
+        ...product,
+        has_colors: productsWithColors.has(product.id),
+        has_sizes: productsWithSizes.has(product.id)
+      }));
 
       setProducts(productsWithVariants as Product[]);
     } catch (error) {
@@ -229,6 +238,13 @@ export const useLossProductSearch = (): UseLossProductSearchResult => {
     startVariantSelection
   };
 };
+
+
+
+
+
+
+
 
 
 

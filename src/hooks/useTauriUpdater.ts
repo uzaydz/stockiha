@@ -143,7 +143,10 @@ export function useTauriUpdater() {
     if (!canUse) return;
 
     try {
-      await updater.quitAndInstall();
+      // لا ننتظر النتيجة لأن quitAndInstall سيغلق التطبيق فوراً
+      updater.quitAndInstall().catch(() => {
+        // تجاهل الأخطاء لأن التطبيق سيغلق
+      });
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setError(errorMsg);

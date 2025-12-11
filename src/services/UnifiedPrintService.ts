@@ -50,7 +50,7 @@ export interface PrintJobOptions {
 
 export interface PrintResult {
   success: boolean;
-  method: 'tauri-raw' | 'tauri-webview' | 'browser' | 'pdf';
+  method: 'electron-silent' | 'electron-webview' | 'browser' | 'pdf';
   error?: string;
   drawerOpened?: boolean;
 }
@@ -78,6 +78,10 @@ export interface ReceiptData {
   };
 }
 
+// أنواع وحدات البيع
+type SellingUnit = 'piece' | 'weight' | 'box' | 'meter';
+type SaleType = 'retail' | 'wholesale' | 'partial_wholesale';
+
 export interface ReceiptItem {
   name: string;
   quantity: number;
@@ -85,6 +89,26 @@ export interface ReceiptItem {
   total: number;
   colorName?: string;
   sizeName?: string;
+  // === أنواع البيع المتقدمة ===
+  sellingUnit?: SellingUnit;
+  // البيع بالوزن
+  weight?: number;
+  weightUnit?: 'kg' | 'g' | 'lb' | 'oz';
+  // البيع بالكرتون
+  boxCount?: number;
+  unitsPerBox?: number;
+  // البيع بالمتر
+  length?: number;
+  meterUnit?: 'm' | 'cm' | 'ft' | 'inch';
+  // === التتبع المتقدم ===
+  serialNumbers?: string[];
+  batchNumber?: string;
+  expiryDate?: string;
+  // نوع البيع
+  saleType?: SaleType;
+  // الضمان
+  warrantyMonths?: number;
+  hasWarranty?: boolean;
 }
 
 export interface ReceiptService {
@@ -288,7 +312,7 @@ class UnifiedPrintService {
   // ========================================
 
   /**
-   * الطباعة الصامتة عبر Electron
+   * الطباعة الصامتة عبر Electron - محدّث لاستخدام API الصحيح
    */
   private async printElectronSilent(
     html: string,
@@ -297,22 +321,49 @@ class UnifiedPrintService {
   ): Promise<PrintResult> {
     try {
       const w = window as any;
-      if (!w.electronAPI?.print) {
-        throw new Error('Electron print not available');
+
+      // التحقق من توفر Electron Print API الجديد
+      if (!w.electronAPI?.print?.html) {
+        console.warn('[UnifiedPrint] Electron print.html not available, falling back to webview');
+        return this.printElectronWebview(html, settings, copies);
       }
 
       const fullHtml = this.wrapHtmlForPrint(html, settings);
+      const paperWidth = settings.paper_width || 58;
 
-      // محاولة استخدام Electron print API
-      await w.electronAPI.print(fullHtml, {
-        printer_name: settings.printer_name || null,
-        paper_width: settings.paper_width,
-        copies,
-        silent: true,
-      });
+      // استخدام Electron Print API الصحيح
+      for (let i = 0; i < copies; i++) {
+        console.log('[UnifiedPrint] 📄 Sending print job', i + 1, 'of', copies);
 
-      console.log('[UnifiedPrint] ✅ Silent print successful');
-      return { success: true, method: 'tauri-raw' };
+        const result = await w.electronAPI.print.html({
+          html: fullHtml,
+          printerName: settings.printer_name || undefined,
+          silent: true,
+          // pageSize يحتاج width و height
+          pageSize: {
+            width: paperWidth * 1000, // microns (58mm = 58000 microns)
+            height: 297000, // A4 height in microns - سيتم القطع تلقائياً
+          },
+          landscape: false,
+          margins: {
+            marginType: 'none',
+          }
+        });
+
+        console.log('[UnifiedPrint] Print result:', result);
+
+        if (!result?.success) {
+          throw new Error(result?.error || 'Print failed');
+        }
+
+        // تأخير بين النسخ
+        if (i < copies - 1) {
+          await this.delay(300);
+        }
+      }
+
+      console.log('[UnifiedPrint] ✅ Silent print successful via Electron');
+      return { success: true, method: 'electron-silent' };
     } catch (error) {
       console.warn('[UnifiedPrint] Silent print failed, trying webview:', error);
       return this.printElectronWebview(html, settings, copies);
@@ -339,12 +390,12 @@ class UnifiedPrintService {
       }
 
       console.log('[UnifiedPrint] ✅ WebView print successful');
-      return { success: true, method: 'tauri-webview' };
+      return { success: true, method: 'electron-webview' };
     } catch (error) {
       console.error('[UnifiedPrint] WebView print failed:', error);
       return {
         success: false,
-        method: 'tauri-webview',
+        method: 'electron-webview',
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
@@ -428,7 +479,7 @@ class UnifiedPrintService {
   // ========================================
 
   /**
-   * فتح درج النقود
+   * فتح درج النقود - محدّث لاستخدام API الصحيح
    */
   async openCashDrawer(printerName?: string | null): Promise<boolean> {
     console.log('[UnifiedPrint] 💰 Opening cash drawer...');
@@ -440,11 +491,19 @@ class UnifiedPrintService {
 
     try {
       const w = window as any;
-      if (w.electronAPI?.openCashDrawer) {
-        await w.electronAPI.openCashDrawer(printerName);
-        console.log('[UnifiedPrint] ✅ Cash drawer opened');
-        return true;
+
+      // استخدام API الصحيح
+      if (w.electronAPI?.print?.openCashDrawer) {
+        const result = await w.electronAPI.print.openCashDrawer(printerName);
+        if (result?.success) {
+          console.log('[UnifiedPrint] ✅ Cash drawer opened');
+          return true;
+        }
+        console.warn('[UnifiedPrint] Cash drawer failed:', result?.error);
+        return false;
       }
+
+      console.warn('[UnifiedPrint] Cash drawer API not available');
       return false;
     } catch (error) {
       console.error('[UnifiedPrint] Failed to open cash drawer:', error);
@@ -866,20 +925,32 @@ class UnifiedPrintService {
   }
 
   /**
-   * الحصول على قائمة الطابعات
+   * الحصول على قائمة الطابعات - محدّث لاستخدام API الصحيح
    */
-  async getAvailablePrinters(): Promise<string[]> {
+  async getAvailablePrinters(): Promise<{ name: string; displayName: string; isDefault: boolean }[]> {
     if (!this.isElectronEnv) {
+      console.log('[UnifiedPrint] Not in Electron, returning empty printers list');
       return [];
     }
 
     try {
       const w = window as any;
-      if (w.electronAPI?.getPrinters) {
-        return await w.electronAPI.getPrinters();
+
+      // استخدام API الصحيح
+      if (w.electronAPI?.print?.getPrinters) {
+        const result = await w.electronAPI.print.getPrinters();
+        if (result?.success && Array.isArray(result.printers)) {
+          console.log('[UnifiedPrint] Found', result.printers.length, 'printers');
+          return result.printers;
+        }
+        console.warn('[UnifiedPrint] getPrinters failed:', result?.error);
+        return [];
       }
+
+      console.warn('[UnifiedPrint] getPrinters API not available');
       return [];
-    } catch {
+    } catch (error) {
+      console.error('[UnifiedPrint] Failed to get printers:', error);
       return [];
     }
   }

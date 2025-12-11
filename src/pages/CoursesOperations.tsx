@@ -15,8 +15,9 @@ const ECommerceStoreTab = React.lazy(() => import('./courses/ECommerceStoreCours
 const ECommerceTab = React.lazy(() => import('./courses/ECommerceCourse'));
 const TraditionalBusinessTab = React.lazy(() => import('./courses/TraditionalBusinessCourse'));
 const ServiceProvidersTab = React.lazy(() => import('./courses/ServiceProvidersCourse'));
+const SystemTrainingTab = React.lazy(() => import('./courses/SystemTrainingCourse'));
 
-type TabKey = 'all' | 'digital-marketing' | 'tiktok-marketing' | 'e-commerce-store' | 'e-commerce' | 'traditional-business' | 'service-providers';
+type TabKey = 'all' | 'digital-marketing' | 'tiktok-marketing' | 'e-commerce-store' | 'e-commerce' | 'traditional-business' | 'service-providers' | 'system-training';
 
 interface TabDefinition {
   id: TabKey;
@@ -75,6 +76,13 @@ const TAB_CONFIG: TabDefinition[] = [
     description: 'أدوات وتقنيات لتحسين إدارة وتسويق خدماتك.',
     icon: BookOpen,
     loaderMessage: 'جاري تحميل دورة مقدمي الخدمات...'
+  },
+  {
+    id: 'system-training',
+    title: 'شرح النظام',
+    description: 'دليل شامل لتعلم كيفية استخدام نظام سطوكيها باحترافية.',
+    icon: BookOpen,
+    loaderMessage: 'جاري تحميل شرح النظام...'
   }
 ];
 
@@ -229,6 +237,12 @@ const CoursesOperationsPage: React.FC = () => {
         return (
           <Suspense key="service-providers" fallback={<LoadingView message={TAB_CONFIG[6].loaderMessage} />}>
             <ServiceProvidersTab useStandaloneLayout={false} />
+          </Suspense>
+        );
+      case 'system-training':
+        return (
+          <Suspense key="system-training" fallback={<LoadingView message={TAB_CONFIG[7].loaderMessage} />}>
+            <SystemTrainingTab useStandaloneLayout={false} />
           </Suspense>
         );
       default:

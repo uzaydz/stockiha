@@ -182,28 +182,28 @@ export const POSAdvanced = lazy(async () => {
   try {
     // محاولة تحميل المكون مع معالجة الأخطاء بشكل أفضل
     const module = await import('../pages/POSAdvanced');
-    
+
     // Preload POS dependencies (غير متزامن)
     Promise.all([
       import('react-barcode').catch(() => { }),
       import('qrcode.react').catch(() => { })
     ]).catch(() => { });
-    
+
     // التأكد من وجود default export
     if (!module.default) {
       throw new Error('POSAdvanced module does not have a default export');
     }
-    
+
     return module;
   } catch (error: any) {
     // تجاهل أخطاء CSS في وضع offline
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     const isCSSError = error?.message?.includes('preload CSS') || error?.message?.includes('Unable to preload');
-    const isImportError = error?.message?.includes('Importing binding name') || 
-                         error?.message?.includes('star export') ||
-                         error?.message?.includes('Importing a module script failed') ||
-                         error?.name === 'SyntaxError' ||
-                         error?.name === 'TypeError';
+    const isImportError = error?.message?.includes('Importing binding name') ||
+      error?.message?.includes('star export') ||
+      error?.message?.includes('Importing a module script failed') ||
+      error?.name === 'SyntaxError' ||
+      error?.name === 'TypeError';
 
     if (isOffline && isCSSError) {
       console.warn('⚠️ [POSAdvanced] تجاهل خطأ CSS في وضع offline، محاولة تحميل المكون بدون CSS الخارجي');
@@ -221,13 +221,13 @@ export const POSAdvanced = lazy(async () => {
     // في حالة خطأ الاستيراد (مثل star export أو module script failed)، إرجاع fallback component
     if (isImportError) {
       console.error('❌ فشل تحميل POSAdvanced بسبب خطأ في الاستيراد:', error);
-      
+
       // إرجاع fallback component بسيط - استخدام function component مباشرة
-      return { 
+      return {
         default: function POSAdvancedErrorFallback() {
           const errorMsg = error?.message || String(error);
           const isDev = import.meta.env.DEV;
-          
+
           return (
             <div className="flex items-center justify-center min-h-screen bg-background">
               <div className="text-center p-6 max-w-md">
@@ -255,9 +255,9 @@ export const POSAdvanced = lazy(async () => {
       };
     } else {
       console.error('❌ فشل تحميل POSAdvanced:', error);
-      
+
       // إرجاع fallback component بسيط
-      return { 
+      return {
         default: function POSAdvancedErrorFallback() {
           return (
             <div className="flex items-center justify-center min-h-screen bg-background">
@@ -400,6 +400,7 @@ export const ECommerceStoreCourse = lazy(() => import('../pages/courses/ECommerc
 export const TikTokAdsCourse = lazy(() => import('../pages/courses/TikTokAdsCourse'));
 export const TraditionalBusinessCourse = lazy(() => import('../pages/courses/TraditionalBusinessCourse'));
 export const ServiceProvidersCourse = lazy(() => import('../pages/courses/ServiceProvidersCourse'));
+export const SystemTrainingCourse = lazy(() => import('../pages/courses/SystemTrainingCourse'));
 
 // ============ COURSE MODULES - Use existing paths ============
 // Digital Marketing Modules
@@ -430,6 +431,15 @@ export const TikTokAdsModule5 = lazy(() => import('../pages/courses/modules/TikT
 export const TikTokAdsModule6 = lazy(() => import('../pages/courses/modules/TikTokAdsModule6'));
 export const TikTokAdsModule7 = lazy(() => import('../pages/courses/modules/TikTokAdsModule7'));
 export const TikTokAdsModule8 = lazy(() => import('../pages/courses/modules/TikTokAdsModule8'));
+
+// ============ HR MANAGEMENT - إدارة الموارد البشرية ============
+export const HRComingSoonPage = lazy(() => import('../pages/HRComingSoon'));
+export const HROperationsPage = lazy(() => import('../pages/HROperations'));
+export const HRDashboard = lazy(() => import('../pages/hr/HRDashboard'));
+export const AttendanceManagement = lazy(() => import('../pages/hr/AttendanceManagement'));
+export const LeaveManagement = lazy(() => import('../pages/hr/LeaveManagement'));
+export const PayrollManagement = lazy(() => import('../pages/hr/PayrollManagement'));
+export const PerformanceManagement = lazy(() => import('../pages/hr/PerformanceManagement'));
 
 // ============ ADMIN & SUPER ADMIN ============
 export const SuperAdminLogin = lazy(() => import('../pages/SuperAdminLogin'));

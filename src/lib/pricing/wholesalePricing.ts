@@ -116,20 +116,23 @@ export function getApplicableTier(
 
 /**
  * التحقق من توفر نوع البيع للمنتج
+ * الآن يعتمد على wholesale_tiers فقط
  */
 export function isSaleTypeAvailable(
   product: ProductPricingInfo,
   saleType: SaleType
 ): boolean {
+  const tiers = parseWholesaleTiers(product.wholesale_tiers);
+
   switch (saleType) {
     case 'retail':
       return product.allow_retail !== false; // افتراضياً متاح
     case 'wholesale':
-      return product.allow_wholesale === true &&
-             (product.wholesale_price !== null && product.wholesale_price !== undefined && product.wholesale_price > 0);
+      // الجملة متاحة إذا كانت هناك مستويات أسعار
+      return tiers.length > 0;
     case 'partial_wholesale':
-      return product.allow_partial_wholesale === true &&
-             (product.partial_wholesale_price !== null && product.partial_wholesale_price !== undefined && product.partial_wholesale_price > 0);
+      // نصف الجملة: لم نعد ندعمها - تم الإبقاء على wholesale_tiers فقط
+      return false;
     default:
       return false;
   }
@@ -137,16 +140,25 @@ export function isSaleTypeAvailable(
 
 /**
  * الحصول على الحد الأدنى للكمية لنوع البيع
+ * الآن يعتمد على wholesale_tiers فقط
  */
 export function getMinQuantityForSaleType(
   product: ProductPricingInfo,
   saleType: SaleType
 ): number {
+  const tiers = parseWholesaleTiers(product.wholesale_tiers);
+
   switch (saleType) {
     case 'wholesale':
-      return product.min_wholesale_quantity || 1;
+      // الحصول على أقل حد أدنى من مستويات الأسعار
+      if (tiers.length > 0) {
+        const lowestTier = tiers.reduce((min, t) =>
+          t.min_quantity < min.min_quantity ? t : min, tiers[0]);
+        return lowestTier.min_quantity;
+      }
+      return 1;
     case 'partial_wholesale':
-      return product.min_partial_wholesale_quantity || 1;
+      return 1; // لم نعد ندعم نصف الجملة
     case 'retail':
     default:
       return 1;

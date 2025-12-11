@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useTransition, memo } from 'react';
 import type { ReactNode } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/context/AuthContext';
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogContent,
@@ -57,7 +57,7 @@ const DEBOUNCE_DELAY = 300; // زيادة debounce لتحسين الأداء
 const DEFAULT_PAGE_SIZE = 12; // زيادة عدد المنتجات في الصفحة
 const MAX_CACHE_SIZE = 20; // تقليل حجم cache
 
-interface ProductsProps extends POSSharedLayoutControls {}
+interface ProductsProps extends POSSharedLayoutControls { }
 
 const ProductsComponent = ({
   useStandaloneLayout = true,
@@ -73,22 +73,24 @@ const ProductsComponent = ({
   const renderWithLayout = (node: ReactNode) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
-  
+
   // Enhanced request management
   const abortControllerRef = useRef<AbortController | null>(null);
   const loadingRef = useRef(false);
   const lastRequestIdRef = useRef<string>('');
   const currentPageRef = useRef(1);
-  
+
   // Core state management
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // ⚡ Anti-Flicker: Split loading states
+  const [isInitialLoading, setIsInitialLoading] = useState(true); // Only for first ever load
+  const [isPending, startTransition] = useTransition(); // For updates (search/filter)
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
+
   // Permission alert state
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
-  
+
   // Filter state with URL sync
   const [filters, setFilters] = useState<FilterState>(() => ({
     searchQuery: searchParams.get('search') || '',
@@ -121,7 +123,7 @@ const ProductsComponent = ({
 
   // حالة البحث بالباركود
   const [isScannerLoading, setIsScannerLoading] = useState(false);
-  
+
   // Enhanced debounced search - زيادة التأخير لتحسين الأداء
   const debouncedSearchQuery = useDebounce(filters.searchQuery, DEBOUNCE_DELAY);
 
@@ -152,9 +154,9 @@ const ProductsComponent = ({
   const updateURL = useCallback((newFilters: Partial<FilterState> = {}, newPage?: number) => {
     const updatedFilters = { ...filters, ...newFilters };
     const page = newPage || currentPage;
-    
+
     const params = new URLSearchParams();
-    
+
     // Add only non-default values
     if (updatedFilters.searchQuery) params.set('search', updatedFilters.searchQuery);
     if (updatedFilters.categoryFilter) params.set('category', updatedFilters.categoryFilter);
@@ -165,7 +167,7 @@ const ProductsComponent = ({
 
     const newSearch = params.toString();
     const currentSearch = location.search.replace('?', '');
-    
+
     // فقط تحديث URL إذا كان مختلفاً لتجنب الحلقات اللا نهائية
     if (newSearch !== currentSearch) {
       navigate({ search: newSearch }, { replace: true });
@@ -179,11 +181,11 @@ const ProductsComponent = ({
   ) => {
     const newFilters = { ...filters, [filterType]: value };
     setFilters(newFilters);
-    
+
     // إعادة تعيين للصفحة الأولى عند تغيير الفلاتر
     const newPage = 1;
     setCurrentPage(newPage);
-    
+
     // تحديث URL مباشرة
     updateURL(newFilters, newPage);
   }, [updateURL]); // إزالة filters من dependency array لتجنب الحلقة اللا نهائية
@@ -210,7 +212,8 @@ const ProductsComponent = ({
 
     if (!currentOrganization?.id) {
       setProducts([]);
-      setIsLoading(false);
+      setIsInitialLoading(false);
+      setIsRefreshing(false);
       loadingRef.current = false;
       return;
     }
@@ -231,24 +234,25 @@ const ProductsComponent = ({
     if (forceRefresh) {
       setIsRefreshing(true);
     } else {
-      setIsLoading(true);
+      // ⚡ Anti-Flicker: Don't set global isLoading for updates
+      // We rely on isPending from useTransition for updates
     }
     setLoadError(null);
 
     try {
       // 🚀 تحسين الأداء: تجهيز البيانات بشكل متدرج
-      
+
       // الخطوة 1: تحضير المعاملات
       const currentPageValue = page || currentPageRef.current;
       const currentFilters = filtersRef.current;
       const currentDebouncedQuery = debouncedSearchQueryRef.current;
-      
+
       const searchFilters = { ...currentFilters, ...filterOverrides };
 
       // تحديد ما إذا كان يجب تضمين المنتجات غير النشطة بناءً على فلتر حالة النشر
-      const shouldIncludeInactive = searchFilters.publicationFilter === 'all' || 
-                                   searchFilters.publicationFilter === 'draft' || 
-                                   searchFilters.publicationFilter === 'archived';
+      const shouldIncludeInactive = searchFilters.publicationFilter === 'all' ||
+        searchFilters.publicationFilter === 'draft' ||
+        searchFilters.publicationFilter === 'archived';
 
       let result: {
         products: Product[];
@@ -263,10 +267,10 @@ const ProductsComponent = ({
       if (!isOnline) {
         // ⚡ وضع الأوفلاين - جلب من SQLite فقط
         console.log('[Products] ⚡ Offline mode - fetching from SQLite...');
-        
+
         // استخدام البحث المحلي السريع
         let localProducts: any[];
-        
+
         if (currentDebouncedQuery.trim()) {
           // بحث بالنص
           localProducts = await fastSearchLocalProducts(
@@ -303,7 +307,7 @@ const ProductsComponent = ({
       } else {
         // ⚡ وضع الأونلاين - جلب من API
         const { getProductsPaginatedOptimized } = await import('@/lib/api/products');
-        
+
         result = await getProductsPaginatedOptimized(
           currentOrganization.id,
           currentPageValue,
@@ -327,20 +331,15 @@ const ProductsComponent = ({
         return;
       }
 
-      // 🚀 تحديث الحالة بشكل متدرج لتجنب حجب الواجهة
-      
-      // تحديث البيانات الأساسية أولاً
-      setProducts(result.products);
-      setTotalCount(result.totalCount);
-      
-      // تأخير قصير لتجنب حجب الواجهة
-      await new Promise(resolve => setTimeout(resolve, 5));
-      
-      // تحديث بيانات التصفح
-      setTotalPages(result.totalPages);
-      setCurrentPage(result.currentPage);
-      setHasNextPage(result.hasNextPage);
-      setHasPreviousPage(result.hasPreviousPage);
+      // 🚀 تحديث الحالة داخل Transition لمنع الوميض
+      startTransition(() => {
+        setProducts(result.products);
+        setTotalCount(result.totalCount);
+        setTotalPages(result.totalPages);
+        setCurrentPage(result.currentPage);
+        setHasNextPage(result.hasNextPage);
+        setHasPreviousPage(result.hasPreviousPage);
+      });
 
     } catch (error: any) {
       if (error.name === 'AbortError' || signal.aborted) {
@@ -370,7 +369,7 @@ const ProductsComponent = ({
       // تنظيف الحالة فقط إذا كان هذا هو آخر طلب
       if (lastRequestIdRef.current === requestId) {
         loadingRef.current = false;
-        setIsLoading(false);
+        setIsInitialLoading(false); // Done with the first load
         setIsRefreshing(false);
       }
     }
@@ -383,23 +382,23 @@ const ProductsComponent = ({
     setCategoriesLoading(true);
     try {
       // 🚀 تحسين الأداء: تحميل الفئات بشكل محسن
-      
+
       // استخدام الـ API البسيط لجلب الفئات
       const { getCategories } = await import('@/lib/api/products');
       const categoriesData = await getCategories(currentOrganization.id);
-      
+
       // تأخير قصير لتجنب حجب الواجهة
       await new Promise(resolve => setTimeout(resolve, 5));
-      
+
       // معالجة البيانات بشكل متدرج
       const processedCategories = categoriesData.map(cat => ({
         id: cat.id,
         name: cat.name,
         slug: cat.slug || ''
       }));
-      
+
       setCategories(processedCategories);
-      
+
     } catch (error) {
     } finally {
       setCategoriesLoading(false);
@@ -420,16 +419,16 @@ const ProductsComponent = ({
       try {
         // الخطوة 1: تحميل الفئات أولاً (أسرع)
         const categoriesPromise = loadCategories();
-        
+
         // تأخير قصير لتجنب حجب الواجهة
         await new Promise(resolve => setTimeout(resolve, 5));
-        
+
         // الخطوة 2: تحميل المنتجات بشكل متدرج
         const productsPromise = fetchProducts(currentPage);
-        
+
         // انتظار اكتمال التحميل
         await Promise.all([categoriesPromise, productsPromise]);
-        
+
       } catch (error) {
       }
     };
@@ -464,21 +463,21 @@ const ProductsComponent = ({
   // دالة البحث بالباركود
   const handleBarcodeSearch = useCallback(async (barcode: string) => {
     if (!barcode.trim()) return;
-    
+
     setIsScannerLoading(true);
     try {
       // البحث عن المنتج بالباركود
       const trimmedBarcode = barcode.trim();
-      
+
       // تحديث البحث ليشمل الباركود
       const newFilters = { ...filters, searchQuery: trimmedBarcode };
       setFilters(newFilters);
       setCurrentPage(1);
       updateURL(newFilters, 1);
-      
+
       // إشعار المستخدم
       toast.success(`جاري البحث عن المنتج بالباركود: ${trimmedBarcode}`);
-      
+
     } catch (error) {
       toast.error('حدث خطأ أثناء البحث بالباركود');
     } finally {
@@ -495,10 +494,10 @@ const ProductsComponent = ({
       publicationFilter: 'all',
       sortOption: 'newest'
     };
-    
+
     setFilters(defaultFilters);
     setCurrentPage(1);
-    
+
     // مسح URL params
     navigate({ search: '' }, { replace: true });
   }, [navigate]);
@@ -513,7 +512,7 @@ const ProductsComponent = ({
       } catch (error) {
       }
     }
-    
+
     await fetchProducts(currentPage, {}, true);
     toast.success('تم تحديث قائمة المنتجات بنجاح');
   }, [fetchProducts, currentPage, currentOrganization?.id]);
@@ -528,21 +527,23 @@ const ProductsComponent = ({
 
   useEffect(() => {
     if (!onLayoutStateChange) return;
+
+    // Use queueMicrotask to avoid update loops during render
     queueMicrotask(() => {
       onLayoutStateChange({
-        isRefreshing: isRefreshing || (isLoading && (!Array.isArray(products) || products.length === 0)),
+        isRefreshing: isRefreshing || (isInitialLoading && (!Array.isArray(products) || products.length === 0)),
         connectionStatus: loadError ? 'disconnected' : 'connected'
       });
     });
-  }, [onLayoutStateChange, isRefreshing, isLoading, loadError, products.length]);
+  }, [onLayoutStateChange, isRefreshing, isInitialLoading, loadError, products]);
 
   // Navigation state effect for refresh
   useEffect(() => {
     const locationState = location.state as { refreshData?: boolean; timestamp?: number } | null;
-    
+
     if (locationState?.refreshData && locationState?.timestamp) {
       fetchProducts(currentPage, {}, true);
-      
+
       // مسح state
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
@@ -551,7 +552,7 @@ const ProductsComponent = ({
   // Product operation events listener
   useEffect(() => {
     const handleProductUpdated = (event: CustomEvent) => {
-      
+
       // مسح cache قبل التحديث إذا كان الحدث متعلق بإنشاء منتج جديد
       if (event.detail?.operation === 'create' && event.detail?.organizationId && typeof window !== 'undefined' && (window as any).clearProductsCache) {
         try {
@@ -559,10 +560,10 @@ const ProductsComponent = ({
         } catch (error) {
         }
       }
-      
+
       // استخدام ref للحصول على أحدث قيمة للصفحة الحالية
       const currentPageValue = currentPageRef.current || 1;
-      
+
       // تأخير أطول لتقليل الطلبات المتكررة وضمان اكتمال العملية
       setTimeout(() => {
         fetchProducts(currentPageValue, {}, true);
@@ -606,12 +607,12 @@ const ProductsComponent = ({
 
   // معالج موحد لزر إنشاء منتج
   const handleCreateProductClick = useCallback(() => {
-    
+
     if (!hasManageProductsPermission) {
       setShowPermissionAlert(true);
       return;
     }
-    
+
     setIsAddProductOpen(true);
   }, [hasManageProductsPermission, user]);
 
@@ -636,8 +637,8 @@ const ProductsComponent = ({
         <Search className="h-12 w-12" />
       </div>
       <h3 className="text-lg font-medium text-foreground mb-2">
-        {debouncedSearchQuery || filters.categoryFilter || filters.stockFilter !== 'all' 
-          ? 'لا توجد منتجات تطابق البحث' 
+        {debouncedSearchQuery || filters.categoryFilter || filters.stockFilter !== 'all'
+          ? 'لا توجد منتجات تطابق البحث'
           : 'لا توجد منتجات'}
       </h3>
       <p className="text-sm text-muted-foreground mb-4 text-center">
@@ -663,8 +664,8 @@ const ProductsComponent = ({
     </div>
   ), [debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, resetFilters, handleCreateProductClick, hasManageProductsPermission]);
 
-  // Loading state
-  if (isLoading && !isRefreshing && (!Array.isArray(products) || products.length === 0)) {
+  // Loading state - Only show Skeleton on INITIAL load, not during updates
+  if (isInitialLoading && !isRefreshing && (!Array.isArray(products) || products.length === 0)) {
     return renderWithLayout(<ProductsSkeleton />);
   }
 
@@ -678,7 +679,7 @@ const ProductsComponent = ({
   }
 
   const pageContent = (
-      <>
+    <>
       <div className={cn(
         "space-y-4 sm:space-y-6 products-page-container",
         useStandaloneLayout ? "container mx-auto p-2 sm:p-4 lg:p-6" : "px-3 sm:px-4"
@@ -690,7 +691,7 @@ const ProductsComponent = ({
           onBarcodeSearch={handleBarcodeSearch}
           onRefreshData={refreshProducts}
           productsCount={totalCount}
-          isLoading={isLoading || isRefreshing}
+          isLoading={isRefreshing} // Only show spinner for explicit refresh
           isScannerLoading={isScannerLoading}
           showBarcodeSearch={true}
         />
@@ -700,9 +701,9 @@ const ProductsComponent = ({
           <div className="text-sm text-muted-foreground">
             {totalCount} منتج متاح
           </div>
-          <Button 
-            onClick={handleCreateProductClick} 
-            className="gap-2" 
+          <Button
+            onClick={handleCreateProductClick}
+            className="gap-2"
             size="sm"
             disabled={!hasManageProductsPermission}
             title={!hasManageProductsPermission ? "ليس لديك صلاحية لإضافة منتجات" : ""}
@@ -839,7 +840,7 @@ const ProductsComponent = ({
                 isLoading={isRefreshing}
                 onRefreshProducts={refreshProducts}
               />
-              
+
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex justify-center items-center gap-4 pt-6">
@@ -848,7 +849,7 @@ const ProductsComponent = ({
                     totalPages={totalPages}
                     onPageChange={handlePageChange}
                   />
-                  
+
                   {/* Page Size Selector */}
                   <Select
                     value={pageSize.toString()}
@@ -892,7 +893,7 @@ const ProductsComponent = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </>
+    </>
   );
 
   return renderWithLayout(pageContent);

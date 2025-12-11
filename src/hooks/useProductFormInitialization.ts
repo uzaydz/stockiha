@@ -64,7 +64,24 @@ export const useProductFormInitialization = ({
 
     const formFeatures = (productData as any)?.features || []; // features not strongly typed in Product
     const formSpecifications = (productData as any)?.specifications || {}; // specifications not strongly typed in Product
-    const formWholesaleTiers = (productData as any)?.wholesale_tiers || []; // wholesale_tiers not strongly typed in Product
+
+    // 🔍 DEBUG: فحص البيانات الواردة للمنتج
+    console.log('='.repeat(80));
+    console.log('[useProductFormInitialization] 🔍 DEBUG - productData keys:', Object.keys(productData || {}));
+    console.log('[useProductFormInitialization] 🔍 DEBUG - wholesale_tiers (old):', (productData as any)?.wholesale_tiers);
+    console.log('[useProductFormInitialization] 🔍 DEBUG - product_price_tiers:', (productData as any)?.product_price_tiers);
+    console.log('='.repeat(80));
+
+    // تحويل product_price_tiers إلى wholesale_tiers للتوافق مع النموذج
+    const priceTiers = (productData as any)?.product_price_tiers || [];
+    const formWholesaleTiers = priceTiers.map((tier: any) => ({
+      id: tier.id,
+      min_quantity: tier.min_quantity,
+      price_per_unit: tier.price, // تحويل price إلى price_per_unit
+    }));
+
+    console.log('[useProductFormInitialization] 🔍 DEBUG - formWholesaleTiers (converted):', formWholesaleTiers);
+
     const formUseVariantPrices = (productData as any)?.use_variant_prices || false; // use_variant_prices not strongly typed in Product
 
     const defaultValuesForForm: ProductFormValues = {
@@ -80,6 +97,10 @@ export const useProductFormInitialization = ({
       thumbnail_image: productData?.thumbnail_image || '',
       has_variants: productData?.has_variants || false,
       show_price_on_landing: productData?.show_price_on_landing ?? true,
+      // إعدادات العرض والنشر
+      show_in_store: (productData as any)?.show_in_store ?? true,
+      allow_marketplace: (productData as any)?.allow_marketplace ?? false,
+      hide_stock_quantity: (productData as any)?.hide_stock_quantity ?? false,
       is_featured: productData?.is_featured || false,
       is_new: productData?.is_new ?? true,
       allow_retail: productData?.allow_retail ?? true,

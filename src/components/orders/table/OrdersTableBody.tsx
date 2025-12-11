@@ -1,9 +1,14 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, CSSProperties } from "react";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
 import { Order, OrdersTableProps } from "./OrderTableTypes";
 import OrderTableRow from "./OrderTableRow";
+
+// ⚡ استخراج inline styles كـ constants لتحسين الأداء
+const CONTAIN_LAYOUT_STYLE: CSSProperties = { contain: 'layout' };
+const TABLE_BODY_STYLE: CSSProperties = { contain: 'content', contentVisibility: 'auto' as any };
+const SPACER_STYLE: CSSProperties = { height: 24, visibility: 'hidden' };
 
 interface OrdersTableBodyProps {
   loading: boolean;
@@ -65,27 +70,27 @@ const OrdersTableBody = memo(({
   }, [autoLoadMoreOnScroll, onLoadMore]);
   const renderLoadingSkeleton = () => (
     Array.from({ length: 5 }).map((_, index) => (
-      <TableRow key={`skeleton-${index}`} className="hover:bg-accent/10 border-b border-border/20 transition-all duration-300 transform-gpu" style={{ contain: 'layout' }}>
+      <TableRow key={`skeleton-${index}`} className="hover:bg-accent/10 border-b border-border/20 transition-all duration-300 transform-gpu" style={CONTAIN_LAYOUT_STYLE}>
         {visibleColumns.includes("checkbox") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <Skeleton className="h-5 w-5 bg-muted/60 rounded-md animate-pulse" />
           </TableCell>
         )}
 
         {visibleColumns.includes("expand") && (
-          <TableCell className="py-5" style={{ contain: 'layout' }}>
+          <TableCell className="py-5" style={CONTAIN_LAYOUT_STYLE}>
             <Skeleton className="h-5 w-5 bg-muted/60 rounded-md animate-pulse" />
           </TableCell>
         )}
 
         {visibleColumns.includes("id") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <Skeleton className="h-6 w-28 bg-muted/60 rounded-lg animate-pulse" />
           </TableCell>
         )}
 
         {visibleColumns.includes("customer_name") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <div className="flex flex-col gap-2">
               <Skeleton className="h-6 w-36 bg-muted/60 rounded-lg animate-pulse" />
               <Skeleton className="h-4 w-24 bg-muted/40 rounded-md animate-pulse" />
@@ -94,7 +99,7 @@ const OrdersTableBody = memo(({
         )}
 
         {visibleColumns.includes("customer_contact") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Skeleton className="h-6 w-6 bg-muted/60 rounded-full animate-pulse" />
@@ -106,13 +111,13 @@ const OrdersTableBody = memo(({
         )}
 
         {visibleColumns.includes("total") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <Skeleton className="h-7 w-24 bg-muted/60 rounded-xl animate-pulse" />
           </TableCell>
         )}
 
         {visibleColumns.includes("status") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <Skeleton className="h-7 w-24 bg-muted/60 rounded-xl animate-pulse" />
           </TableCell>
         )}
@@ -120,19 +125,19 @@ const OrdersTableBody = memo(({
         {/* عمود فريق التأكيد تم حذفه */}
 
         {visibleColumns.includes("assignee") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <Skeleton className="h-6 w-28 bg-muted/60 rounded-lg animate-pulse" />
           </TableCell>
         )}
 
         {visibleColumns.includes("call_confirmation") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <Skeleton className="h-7 w-24 bg-muted/60 rounded-xl animate-pulse" />
           </TableCell>
         )}
 
         {visibleColumns.includes("shipping_provider") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-4 rounded-full bg-muted/60 animate-pulse" />
               <Skeleton className="h-6 w-36 bg-muted/60 rounded-lg animate-pulse" />
@@ -141,7 +146,7 @@ const OrdersTableBody = memo(({
         )}
 
         {visibleColumns.includes("actions") && (
-          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+          <TableCell className="py-5 px-6" style={CONTAIN_LAYOUT_STYLE}>
             <div className="flex justify-end">
               <Skeleton className="h-9 w-9 bg-muted/60 rounded-xl animate-pulse" />
             </div>
@@ -194,9 +199,9 @@ const OrdersTableBody = memo(({
   );
 
   return (
-    <TableBody style={{ contain: 'content', contentVisibility: 'auto' as any }}>
-      {loading ? renderLoadingSkeleton() : 
-       filteredOrders.length === 0 ? renderEmptyState() : 
+    <TableBody style={TABLE_BODY_STYLE}>
+      {loading ? renderLoadingSkeleton() :
+       filteredOrders.length === 0 ? renderEmptyState() :
        renderOrderRows()}
       {/* Sentinel for infinite scroll */}
       {autoLoadMoreOnScroll && !loading && filteredOrders.length > 0 && (
@@ -209,7 +214,7 @@ const OrdersTableBody = memo(({
       {/* Spacer rows لتثبيت ارتفاع الجدول ومنع القفزات عند تحميل البيانات/توسيع الصفوف */}
       <TableRow aria-hidden>
         <TableCell colSpan={visibleColumns.length}>
-          <div style={{ height: 24, visibility: 'hidden' }} />
+          <div style={SPACER_STYLE} />
         </TableCell>
       </TableRow>
     </TableBody>

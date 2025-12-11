@@ -26,17 +26,19 @@ import {
 interface POSAdvancedPaymentDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  
+
   // بيانات الطلب
   subtotal: number;
   currentDiscount: number;
   currentDiscountType: 'percentage' | 'fixed';
   total: number;
-  
+  // ✅ السعر الأصلي (قبل التعديل اليدوي) لحساب الفرق
+  originalTotal?: number;
+
   // العملاء
   customers: AppUser[];
   selectedCustomerId?: string;
-  
+
   // دوال المعالجة
   onPaymentComplete: (data: {
     customerId?: string;
@@ -48,7 +50,7 @@ interface POSAdvancedPaymentDialogProps {
     isPartialPayment: boolean;
     considerRemainingAsPartial: boolean;
   }) => void;
-  
+
   onCustomerAdded?: (customer: AppUser) => void;
   isProcessing?: boolean;
 }
@@ -60,6 +62,7 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
   currentDiscount,
   currentDiscountType,
   total,
+  originalTotal,
   customers,
   selectedCustomerId,
   onPaymentComplete,
@@ -98,6 +101,14 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
   const remainingAmount = Math.max(0, finalTotal - paidAmount);
   const change = Math.max(0, paidAmount - finalTotal);
   const isPartialPayment = paidAmount < finalTotal;
+
+  // ✅ حساب فرق السعر (تعديل يدوي)
+  const priceDifference = (originalTotal || total) - total;
+  const hasPriceDifference = priceDifference > 0;
+  const differencePercentage = originalTotal && originalTotal > 0 ? ((priceDifference / originalTotal) * 100).toFixed(1) : '0';
+
+  // حالة نوع معالجة الفرق
+  const [priceHandlingType, setPriceHandlingType] = useState<'discount' | 'partial'>('discount');
 
   // تحديث المبلغ المدفوع عند تغيير طريقة الدفع
   useEffect(() => {
@@ -246,8 +257,64 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
             />
           )}
           
-          <Separator />
-          
+          {/* ✅ قسم معالجة فرق السعر (إذا كان هناك تعديل يدوي) */}
+          {hasPriceDifference && (
+            <>
+              <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-300">فرق السعر</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">
+                    {formatPrice(priceDifference)} ({differencePercentage}%)
+                  </span>
+                </div>
+                <div className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                  السعر الأصلي: {formatPrice(originalTotal || 0)} → السعر الحالي: {formatPrice(total)}
+                </div>
+
+                {/* خيارات معالجة الفرق */}
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPriceHandlingType('discount')}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all ${
+                      priceHandlingType === 'discount'
+                        ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-400 dark:border-amber-600'
+                        : 'border-amber-200 dark:border-amber-700 hover:border-amber-300'
+                    }`}
+                  >
+                    <span className={`text-sm font-semibold ${priceHandlingType === 'discount' ? 'text-amber-700 dark:text-amber-300' : 'text-amber-600 dark:text-amber-400'}`}>
+                      تخفيض إضافي
+                    </span>
+                    <span className="text-[10px] text-amber-500 dark:text-amber-500">لا يحتاج متابعة</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPriceHandlingType('partial')}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all ${
+                      priceHandlingType === 'partial'
+                        ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-400 dark:border-blue-600'
+                        : 'border-amber-200 dark:border-amber-700 hover:border-amber-300'
+                    }`}
+                  >
+                    <span className={`text-sm font-semibold ${priceHandlingType === 'partial' ? 'text-blue-700 dark:text-blue-300' : 'text-amber-600 dark:text-amber-400'}`}>
+                      دفعة جزئية
+                    </span>
+                    <span className="text-[10px] text-amber-500 dark:text-amber-500">يحتاج عميل لمتابعة التحصيل</span>
+                  </button>
+                </div>
+
+                {priceHandlingType === 'partial' && customerId === 'anonymous' && (
+                  <div className="p-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+                    <p className="text-xs text-red-600 dark:text-red-400">
+                      ⚠️ يجب اختيار عميل لتسجيل الدفعة الجزئية
+                    </p>
+                  </div>
+                )}
+              </div>
+              <Separator />
+            </>
+          )}
+
           {/* قسم طريقة الدفع */}
           <PaymentMethodTabs
             paymentMethod={paymentMethod}
@@ -285,7 +352,7 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
           </Button>
           <Button
             onClick={handlePaymentComplete}
-            disabled={isProcessing || (isPartialPayment && considerRemainingAsPartial && customerId === 'anonymous')}
+            disabled={isProcessing || (isPartialPayment && considerRemainingAsPartial && customerId === 'anonymous') || (hasPriceDifference && priceHandlingType === 'partial' && customerId === 'anonymous')}
             className="min-w-[120px]"
             size="sm"
           >

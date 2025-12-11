@@ -302,15 +302,21 @@ const Invoices: React.FC<InvoicesProps> = ({
     return () => onRegisterRefresh(null);
   }, [onRegisterRefresh, isUnauthorized, handleRefresh]);
 
-  // تحديث حالة الـ Layout
+  // تحديث حالة الـ Layout - مؤجل لتجنب setState أثناء render
   useEffect(() => {
-    if (isUnauthorized) return;
-    const state: POSLayoutState = {
-      isRefreshing: Boolean(isLoading || isSyncing),
-      connectionStatus: isOnline ? 'connected' : 'disconnected',
-      executionTime: undefined
-    };
-    if (onLayoutStateChange) onLayoutStateChange(state);
+    if (isUnauthorized || !onLayoutStateChange) return;
+
+    // تأخير التحديث لتجنب خطأ React
+    const timeoutId = setTimeout(() => {
+      const state: POSLayoutState = {
+        isRefreshing: Boolean(isLoading || isSyncing),
+        connectionStatus: isOnline ? 'connected' : 'disconnected',
+        executionTime: undefined
+      };
+      onLayoutStateChange(state);
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, [onLayoutStateChange, isLoading, isSyncing, isOnline, isUnauthorized]);
 
   return renderWithLayout(pageContent);
