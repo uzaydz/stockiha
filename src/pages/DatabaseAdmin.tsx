@@ -83,6 +83,9 @@ const DatabaseAdmin: React.FC = () => {
 
   const isElectron = !!window.electronAPI?.db;
 
+  // ⚠️ أمان: التحقق من وضع التطوير
+  const isDev = window.electronAPI?.app?.isDev ?? false;
+
   useEffect(() => {
     if (isElectron) {
       loadTables();
@@ -409,6 +412,19 @@ const DatabaseAdmin: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 min-h-screen" dir="rtl">
+
+      {/* ⚠️ تحذير أمني: الوصول المحدود في وضع الإنتاج */}
+      {!isDev && (
+        <Alert variant="destructive" className="border-2 border-red-500">
+          <AlertCircle className="h-5 w-5" />
+          <AlertDescription className="text-base">
+            <strong>⚠️ وضع الإنتاج:</strong> الوصول لقاعدة البيانات محدود للقراءة فقط.
+            الاستعلامات المخصصة وعمليات الكتابة غير متاحة.
+            للوصول الكامل، شغّل التطبيق في وضع التطوير.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -418,6 +434,7 @@ const DatabaseAdmin: React.FC = () => {
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">
             عرض وإدارة وتحليل جميع البيانات المخزنة محلياً في SQLite
+            {isDev && <Badge variant="secondary" className="mr-2">وضع التطوير</Badge>}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -447,20 +464,23 @@ const DatabaseAdmin: React.FC = () => {
             <RefreshCw className="h-5 w-5" />
             تحديث
           </Button>
-          <Button
-            onClick={() => setShowDebug(!showDebug)}
-            size="lg"
-            variant={showDebug ? 'default' : 'outline'}
-            className="gap-2"
-          >
-            <Bug className="h-5 w-5" />
-            Debug
-          </Button>
+          {/* ⚠️ أمان: زر Debug متاح فقط في وضع التطوير */}
+          {isDev && (
+            <Button
+              onClick={() => setShowDebug(!showDebug)}
+              size="lg"
+              variant={showDebug ? 'default' : 'outline'}
+              className="gap-2"
+            >
+              <Bug className="h-5 w-5" />
+              Debug
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Debug Panel */}
-      {showDebug && (
+      {/* Debug Panel - ⚠️ أمان: متاح فقط في وضع التطوير */}
+      {isDev && showDebug && (
         <Card className="border-2 border-orange-500 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950">
             <div className="flex items-center justify-between">

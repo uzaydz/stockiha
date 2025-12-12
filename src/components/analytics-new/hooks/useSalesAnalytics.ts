@@ -8,7 +8,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@powersync/react';
 import { useTenant } from '@/context/tenant';
-import type { FilterState, SalesData, TimeSeriesDataPoint, CategoryBreakdown } from '../types';
+import type { FilterState, SalesData, TopProduct } from '../types';
 import { format, parseISO, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, startOfDay, endOfDay } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -21,10 +21,25 @@ export interface UseSalesAnalyticsReturn {
   refetch: () => void;
 }
 
+type TimeSeriesDataPoint = {
+  date: string;
+  value: number;
+  count: number;
+  label?: string;
+};
+
+type CategoryBreakdown = {
+  id: string;
+  name: string;
+  value: number;
+  count: number;
+  percentage: number;
+};
+
 // ==================== SQL Queries ====================
 
 const buildSalesQuery = (orgId: string, filters: FilterState) => {
-  const { dateRange, paymentMethods, saleTypes, staff } = filters;
+  const { dateRange, paymentMethods, staff } = filters;
 
   // ⚡ تم تصحيح أسماء الأعمدة لتتوافق مع PowerSync Schema
   let sql = `
@@ -36,7 +51,7 @@ const buildSalesQuery = (orgId: string, filters: FilterState) => {
       o.discount,
       o.tax,
       o.payment_method,
-      o.pos_order_type as sale_type,
+      o.pos_order_type,
       o.status,
       o.created_at,
       o.customer_id,
@@ -58,11 +73,6 @@ const buildSalesQuery = (orgId: string, filters: FilterState) => {
     params.push(...paymentMethods);
   }
 
-  if (saleTypes.length > 0) {
-    sql += ` AND o.pos_order_type IN (${saleTypes.map(() => '?').join(',')})`;
-    params.push(...saleTypes);
-  }
-
   if (staff.length > 0) {
     sql += ` AND o.created_by_staff_id IN (${staff.map(() => '?').join(',')})`;
     params.push(...staff);
@@ -74,7 +84,7 @@ const buildSalesQuery = (orgId: string, filters: FilterState) => {
 };
 
 const buildOrderItemsQuery = (orgId: string, filters: FilterState) => {
-  const { dateRange, categories, productTypes } = filters;
+  const { dateRange, categories, productTypes, saleTypes } = filters;
 
   // ⚡ تم تصحيح أسماء الأعمدة لتتوافق مع PowerSync Schema
   let sql = `
@@ -89,6 +99,13 @@ const buildOrderItemsQuery = (orgId: string, filters: FilterState) => {
       p.name as product_name,
       p.category_id,
       p.purchase_price,
+      p.unit_type,
+      CASE
+        WHEN COALESCE(p.sell_by_weight, 0) = 1 THEN 'weight'
+        WHEN COALESCE(p.sell_by_meter, 0) = 1 THEN 'meter'
+        WHEN COALESCE(p.sell_by_box, 0) = 1 THEN 'box'
+        ELSE 'piece'
+      END as product_type,
       pc.name as category_name,
       o.created_at,
       o.pos_order_type
@@ -110,8 +127,20 @@ const buildOrderItemsQuery = (orgId: string, filters: FilterState) => {
   }
 
   if (productTypes.length > 0) {
-    sql += ` AND oi.sale_type IN (${productTypes.map(() => '?').join(',')})`;
+    sql += ` AND (
+      CASE
+        WHEN COALESCE(p.sell_by_weight, 0) = 1 THEN 'weight'
+        WHEN COALESCE(p.sell_by_meter, 0) = 1 THEN 'meter'
+        WHEN COALESCE(p.sell_by_box, 0) = 1 THEN 'box'
+        ELSE 'piece'
+      END
+    ) IN (${productTypes.map(() => '?').join(',')})`;
     params.push(...productTypes);
+  }
+
+  if (saleTypes.length > 0) {
+    sql += ` AND oi.sale_type IN (${saleTypes.map(() => '?').join(',')})`;
+    params.push(...saleTypes);
   }
 
   return { sql, params };
@@ -237,6 +266,11 @@ const processPaymentBreakdown = (orders: any[]): CategoryBreakdown[] => {
 };
 
 const processSaleTypeBreakdown = (orders: any[]): CategoryBreakdown[] => {
+  // NOTE: Kept for backward compatibility; prefer processSaleTypeBreakdownFromItems
+  return [];
+};
+
+const processSaleTypeBreakdownFromItems = (orderItems: any[]): CategoryBreakdown[] => {
   const typeMap = new Map<string, { value: number; count: number }>();
 
   const typeLabels: Record<string, string> = {
@@ -245,17 +279,21 @@ const processSaleTypeBreakdown = (orders: any[]): CategoryBreakdown[] => {
     partial_wholesale: 'نصف جملة',
   };
 
-  orders.forEach((order) => {
-    const type = order.sale_type || 'retail';
+  for (const item of orderItems) {
+    const type = item.sale_type || 'retail';
+    const quantity = Number(item.quantity) || 0;
+    const totalPrice = Number(item.total_price) || 0;
+    const unitPrice = Number(item.unit_price) || 0;
+    const revenue = totalPrice > 0 ? totalPrice : unitPrice * quantity;
 
     if (!typeMap.has(type)) {
       typeMap.set(type, { value: 0, count: 0 });
     }
 
     const t = typeMap.get(type)!;
-    t.value += order.total_amount || 0;
-    t.count += 1;
-  });
+    t.value += revenue;
+    t.count += quantity;
+  }
 
   const total = Array.from(typeMap.values()).reduce((sum, t) => sum + t.value, 0);
 
@@ -268,6 +306,67 @@ const processSaleTypeBreakdown = (orders: any[]): CategoryBreakdown[] => {
       percentage: total > 0 ? (data.value / total) * 100 : 0,
     }))
     .sort((a, b) => b.value - a.value);
+};
+
+const processTopProducts = (orderItems: any[]): TopProduct[] => {
+  const byProduct = new Map<
+    string,
+    {
+      productName: string;
+      categoryName?: string;
+      quantitySold: number;
+      revenue: number;
+      cost: number;
+    }
+  >();
+
+  for (const item of orderItems) {
+    const productId = item.product_id;
+    if (!productId) continue;
+
+    const quantity = Number(item.quantity) || 0;
+    const totalPrice = Number(item.total_price) || 0;
+    const unitPrice = Number(item.unit_price) || 0;
+    const purchasePrice = Number(item.purchase_price) || 0;
+
+    const revenue = totalPrice > 0 ? totalPrice : unitPrice * quantity;
+    const cost = purchasePrice * quantity;
+
+    if (!byProduct.has(productId)) {
+      byProduct.set(productId, {
+        productName: item.product_name || 'منتج',
+        categoryName: item.category_name || undefined,
+        quantitySold: 0,
+        revenue: 0,
+        cost: 0,
+      });
+    }
+
+    const agg = byProduct.get(productId)!;
+    agg.quantitySold += quantity;
+    agg.revenue += revenue;
+    agg.cost += cost;
+  }
+
+  return Array.from(byProduct.entries())
+    .map(([productId, data]) => {
+      const profit = data.revenue - data.cost;
+      const profitMargin = data.revenue > 0 ? (profit / data.revenue) * 100 : 0;
+
+      return {
+        productId,
+        productName: data.productName,
+        categoryName: data.categoryName,
+        quantitySold: data.quantitySold,
+        revenue: data.revenue,
+        cost: data.cost,
+        profit,
+        profitMargin,
+        hasColors: false,
+        hasSizes: false,
+      };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
 };
 
 // ==================== Main Hook ====================
@@ -301,14 +400,59 @@ export function useSalesAnalytics(filters: FilterState): UseSalesAnalyticsReturn
     const items = itemsData as any[];
 
     // Calculate totals - ⚡ تم تصحيح أسماء الحقول
-    const totalSales = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    const totalSales = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
     const totalOrders = orders.length;
-    const totalDiscount = orders.reduce((sum, o) => sum + (o.discount || 0), 0);
-    const totalTax = orders.reduce((sum, o) => sum + (o.tax || 0), 0);
+    const totalDiscount = orders.reduce((sum, o) => sum + (Number(o.discount) || 0), 0);
+    const totalTax = orders.reduce((sum, o) => sum + (Number(o.tax) || 0), 0);
     const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
     // Calculate items sold
-    const totalItemsSold = items.reduce((sum, i) => sum + (i.quantity || 0), 0);
+    const totalItemsSold = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+
+    // Breakdown totals (legacy fields used by some widgets)
+    let cashSales = 0;
+    let cardSales = 0;
+    let creditSales = 0;
+    let otherPaymentSales = 0;
+
+    for (const o of orders) {
+      const amount = Number(o.total_amount) || 0;
+      const method = o.payment_method || 'cash';
+      if (method === 'cash') cashSales += amount;
+      else if (method === 'card') cardSales += amount;
+      else if (method === 'credit') creditSales += amount;
+      else otherPaymentSales += amount;
+    }
+
+    let retailSales = 0;
+    let wholesaleSales = 0;
+    let partialWholesaleSales = 0;
+
+    for (const item of items) {
+      const quantity = Number(item.quantity) || 0;
+      const totalPrice = Number(item.total_price) || 0;
+      const unitPrice = Number(item.unit_price) || 0;
+      const revenue = totalPrice > 0 ? totalPrice : unitPrice * quantity;
+
+      const type = item.sale_type || 'retail';
+      if (type === 'retail') retailSales += revenue;
+      else if (type === 'wholesale') wholesaleSales += revenue;
+      else if (type === 'partial_wholesale') partialWholesaleSales += revenue;
+    }
+
+    let pieceSales = 0;
+    let weightSales = 0;
+    let meterSales = 0;
+    let boxSales = 0;
+
+    for (const item of items) {
+      const revenue = (Number(item.total_price) || 0) || (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
+      const pt = item.product_type || item.unit_type;
+      if (pt === 'piece') pieceSales += revenue;
+      else if (pt === 'weight') weightSales += revenue;
+      else if (pt === 'meter') meterSales += revenue;
+      else if (pt === 'box') boxSales += revenue;
+    }
 
     // Determine granularity based on date range
     const daysDiff = Math.ceil(
@@ -325,10 +469,27 @@ export function useSalesAnalytics(filters: FilterState): UseSalesAnalyticsReturn
       totalItemsSold,
       salesByDay: processTimeSeriesData(orders, filters.dateRange, granularity),
       salesByCategory: processCategoryBreakdown(items),
-      salesByPaymentMethod: processPaymentBreakdown(orders),
-      salesBySaleType: processSaleTypeBreakdown(orders),
-      topProducts: [], // Will be calculated separately if needed
-      salesGrowth: 0, // Calculate with comparison period
+      salesByPaymentMethod: processPaymentBreakdown(orders).map((p) => ({ name: p.name, value: p.value })),
+      salesBySaleType: processSaleTypeBreakdownFromItems(items).map((t) => ({ name: t.name, value: t.value })),
+      topProducts: processTopProducts(items),
+
+      // Legacy/Other props
+      ordersCount: totalOrders,
+      itemsSold: totalItemsSold,
+
+      retailSales,
+      wholesaleSales,
+      partialWholesaleSales,
+
+      cashSales,
+      cardSales,
+      creditSales,
+      otherPaymentSales,
+
+      pieceSales,
+      weightSales,
+      meterSales,
+      boxSales,
     };
   }, [ordersData, itemsData, filters.dateRange]);
 

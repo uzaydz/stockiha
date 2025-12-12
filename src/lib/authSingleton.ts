@@ -160,7 +160,12 @@ class AuthSingleton {
     try {
       // إضافة حماية من الحلقة اللانهائية
       if (this.isInAuthLoop) {
-        return { data: { session: null }, error: new Error('Auth loop detected') };
+        console.warn('[AuthSingleton] ⚠️ Auth loop detected, returning cached session');
+        // ⚡ بدلاً من إرجاع خطأ، نعيد البيانات المخزنة مؤقتاً
+        if (this.cache?.data?.session) {
+          return { data: { session: this.cache.data.session }, error: null };
+        }
+        return { data: { session: null }, error: null };
       }
 
       this.isInAuthLoop = true;

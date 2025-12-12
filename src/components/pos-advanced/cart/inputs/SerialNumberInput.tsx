@@ -1,11 +1,20 @@
 /**
- * 🔢 Serial Number Input Component
+ * 🔢 Serial Number Input Component - محدث للعمل Offline
  *
  * مكون إدخال الرقم التسلسلي للمنتجات التي تتطلب تتبع الأرقام التسلسلية
  * يدعم المسح بالباركود والإدخال اليدوي والتحقق من الأرقام
+ *
+ * ⚡ v5.0: يعمل 100% offline مع نظام الحجز (Reservation)
+ * - حجز تلقائي عند اختيار serial
+ * - تحرير تلقائي عند الإزالة
+ * - معالجة التعارضات (جهاز آخر حجز نفس الـ serial)
+ *
+ * @version 5.0.0
+ * @date 2025-12-12
  */
 
 import { memo, useState, useCallback, useEffect, useRef } from 'react';
+import { usePowerSync } from '@powersync/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -33,9 +42,12 @@ import {
   Smartphone,
   Loader2,
   Plus,
-  Trash2
+  Lock,
+  WifiOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { LocalSerialService, LocalSerial } from '@/services/local';
 
 export interface SerialInfo {
   id: string;
@@ -44,20 +56,28 @@ export interface SerialInfo {
   imei?: string;
   mac_address?: string;
   warranty_end_date?: string;
+  reserved_by_device?: string;
+  is_reservation_expired?: boolean;
 }
 
 interface SerialNumberInputProps {
   productId: string;
   productName: string;
+  organizationId: string;
   quantity: number;
   selectedSerials: string[];
-  availableSerials?: SerialInfo[];
+  colorId?: string;
+  sizeId?: string;
+  orderDraftId: string; // معرف مسودة الطلب للحجز
   onSerialsChange: (serials: string[]) => void;
-  onValidateSerial?: (serial: string) => Promise<{ valid: boolean; message?: string; info?: SerialInfo }>;
+  onSerialReserved?: (serialId: string, serialNumber: string) => void;
+  onSerialReleased?: (serialId: string, serialNumber: string) => void;
+  onConflict?: (serialNumber: string, conflictType: 'reserved' | 'sold') => void;
   requireSerial?: boolean;
   supportsIMEI?: boolean;
   disabled?: boolean;
   className?: string;
+  reservationMinutes?: number;
 }
 
 // التحقق من صيغة IMEI (15 رقم)
@@ -88,22 +108,57 @@ const isValidMAC = (mac: string): boolean => {
 const SerialNumberInput = memo<SerialNumberInputProps>(({
   productId,
   productName,
+  organizationId,
   quantity,
   selectedSerials,
-  availableSerials = [],
+  colorId,
+  sizeId,
+  orderDraftId,
   onSerialsChange,
-  onValidateSerial,
+  onSerialReserved,
+  onSerialReleased,
+  onConflict,
   requireSerial = true,
   supportsIMEI = false,
   disabled = false,
   className,
+  reservationMinutes = 30,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [scanMode, setScanMode] = useState(false);
+  const [availableSerials, setAvailableSerials] = useState<LocalSerial[]>([]);
+  const [isLoadingSerials, setIsLoadingSerials] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ⚡ خدمة الأرقام التسلسلية المحلية
+  const powerSync = usePowerSync();
+  const localSerialService = new LocalSerialService(powerSync);
+  const deviceId = localSerialService.getDeviceId();
+
+  // جلب الأرقام التسلسلية المتاحة محلياً
+  const loadAvailableSerials = useCallback(async () => {
+    setIsLoadingSerials(true);
+    try {
+      const serials = await localSerialService.getAvailableSerials(
+        productId,
+        organizationId,
+        { colorId, sizeId }
+      );
+      setAvailableSerials(serials);
+    } catch (error) {
+      console.error('❌ خطأ في جلب الأرقام التسلسلية:', error);
+    } finally {
+      setIsLoadingSerials(false);
+    }
+  }, [productId, organizationId, colorId, sizeId]);
+
+  // جلب الأرقام عند تحميل المكون
+  useEffect(() => {
+    loadAvailableSerials();
+  }, [loadAvailableSerials]);
 
   // التركيز على حقل الإدخال في وضع المسح
   useEffect(() => {
@@ -112,7 +167,7 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
     }
   }, [scanMode]);
 
-  // التحقق من الرقم التسلسلي
+  // التحقق من الرقم التسلسلي وحجزه
   const validateAndAddSerial = useCallback(async (serial: string) => {
     const trimmedSerial = serial.trim().toUpperCase();
 
@@ -141,59 +196,121 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
       }
     }
 
-    // التحقق من القائمة المتاحة إذا وجدت
-    if (availableSerials.length > 0) {
-      const found = availableSerials.find(
-        s => s.serial_number === trimmedSerial ||
-          s.imei === trimmedSerial ||
-          s.mac_address === trimmedSerial
-      );
+    setIsValidating(true);
+    setValidationError(null);
 
-      if (!found) {
+    try {
+      // ⚡ البحث عن الرقم التسلسلي محلياً
+      const serialInfo = await localSerialService.findBySerialNumber(trimmedSerial, organizationId);
+
+      if (!serialInfo) {
         setValidationError('الرقم التسلسلي غير موجود في النظام');
         return false;
       }
 
-      if (found.status !== 'available') {
-        const statusLabels: Record<string, string> = {
-          sold: 'مباع',
-          reserved: 'محجوز',
-          returned: 'مرتجع',
-          defective: 'معيب'
-        };
-        setValidationError(`هذا الرقم ${statusLabels[found.status] || 'غير متاح'}`);
+      // التحقق من الحالة
+      if (serialInfo.status === 'sold') {
+        setValidationError('هذا الرقم التسلسلي مُباع مسبقاً');
+        onConflict?.(trimmedSerial, 'sold');
         return false;
       }
-    }
 
-    // التحقق من الخادم إذا كانت الدالة متوفرة
-    if (onValidateSerial) {
-      setIsValidating(true);
-      try {
-        const result = await onValidateSerial(trimmedSerial);
-        if (!result.valid) {
-          setValidationError(result.message || 'الرقم التسلسلي غير صالح');
-          return false;
+      if (serialInfo.status === 'reserved') {
+        // التحقق: هل انتهى الحجز؟
+        if (!serialInfo.is_reservation_expired) {
+          // هل هذا الجهاز هو من حجزه؟
+          if (serialInfo.reserved_by_device !== deviceId) {
+            setValidationError('هذا الرقم التسلسلي محجوز من جهاز آخر');
+            onConflict?.(trimmedSerial, 'reserved');
+            return false;
+          }
         }
-      } catch (error) {
-        setValidationError('خطأ في التحقق من الرقم التسلسلي');
-        return false;
-      } finally {
-        setIsValidating(false);
       }
+
+      if (serialInfo.status === 'defective') {
+        setValidationError('هذا الرقم التسلسلي معيب');
+        return false;
+      }
+
+      // ⚡ حجز الرقم التسلسلي محلياً
+      console.log(`🔒 [SerialNumberInput] حجز الرقم: ${trimmedSerial}`);
+
+      const reserveResult = await localSerialService.reserveSerial({
+        serial_id: serialInfo.id,
+        organization_id: organizationId,
+        order_draft_id: orderDraftId,
+        reservation_minutes: reservationMinutes
+      });
+
+      if (!reserveResult.success) {
+        if (reserveResult.conflict) {
+          if (reserveResult.conflict.conflict_type === 'already_reserved') {
+            setValidationError('هذا الرقم محجوز من جهاز آخر');
+            onConflict?.(trimmedSerial, 'reserved');
+          } else if (reserveResult.conflict.conflict_type === 'already_sold') {
+            setValidationError('هذا الرقم مُباع مسبقاً');
+            onConflict?.(trimmedSerial, 'sold');
+          }
+        } else {
+          setValidationError(reserveResult.error || 'فشل في حجز الرقم التسلسلي');
+        }
+        return false;
+      }
+
+      // إضافة الرقم للقائمة
+      onSerialsChange([...selectedSerials, trimmedSerial]);
+      onSerialReserved?.(serialInfo.id, trimmedSerial);
+
+      setInputValue('');
+      setValidationError(null);
+
+      toast.success(`تم حجز الرقم التسلسلي: ${trimmedSerial}`, {
+        description: `صالح لمدة ${reservationMinutes} دقيقة`
+      });
+
+      // تحديث قائمة المتاح
+      loadAvailableSerials();
+
+      return true;
+
+    } catch (error: any) {
+      console.error('❌ خطأ في التحقق من الرقم التسلسلي:', error);
+      setValidationError('حدث خطأ أثناء التحقق');
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  }, [
+    selectedSerials, quantity, supportsIMEI, organizationId,
+    orderDraftId, reservationMinutes, deviceId, onSerialsChange,
+    onSerialReserved, onConflict, loadAvailableSerials
+  ]);
+
+  // إزالة رقم تسلسلي وتحرير الحجز
+  const removeSerial = useCallback(async (serial: string) => {
+    console.log(`🔓 [SerialNumberInput] تحرير الرقم: ${serial}`);
+
+    try {
+      // تحرير الحجز محلياً
+      const releaseResult = await localSerialService.releaseSerial(serial, organizationId);
+
+      if (releaseResult.success) {
+        // البحث عن معرف الـ serial
+        const serialInfo = await localSerialService.findBySerialNumber(serial, organizationId);
+        if (serialInfo) {
+          onSerialReleased?.(serialInfo.id, serial);
+        }
+      }
+    } catch (error) {
+      console.error('❌ خطأ في تحرير الحجز:', error);
     }
 
-    // إضافة الرقم
-    onSerialsChange([...selectedSerials, trimmedSerial]);
-    setInputValue('');
-    setValidationError(null);
-    return true;
-  }, [selectedSerials, quantity, supportsIMEI, availableSerials, onValidateSerial, onSerialsChange]);
-
-  // إزالة رقم تسلسلي
-  const removeSerial = useCallback((serial: string) => {
+    // إزالة من القائمة
     onSerialsChange(selectedSerials.filter(s => s !== serial));
-  }, [selectedSerials, onSerialsChange]);
+
+    // تحديث قائمة المتاح
+    loadAvailableSerials();
+  }, [selectedSerials, organizationId, onSerialsChange, onSerialReleased, loadAvailableSerials]);
 
   // معالجة ضغط Enter
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -219,6 +336,19 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
     }
   }, [scanMode, validateAndAddSerial]);
 
+  // اختيار رقم من القائمة المتاحة
+  const selectSerialFromList = useCallback(async (serial: LocalSerial) => {
+    if (selectedSerials.length >= quantity) return;
+
+    const success = await validateAndAddSerial(serial.serial_number);
+    if (success) {
+      // إغلاق الحوار إذا اكتملت الأرقام
+      if (selectedSerials.length + 1 >= quantity) {
+        setIsDialogOpen(false);
+      }
+    }
+  }, [selectedSerials.length, quantity, validateAndAddSerial]);
+
   // عدد الأرقام المتبقية
   const remainingCount = quantity - selectedSerials.length;
   const isComplete = remainingCount === 0;
@@ -235,6 +365,15 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
           )}
           {supportsIMEI ? 'أرقام IMEI' : 'الأرقام التسلسلية'}
           {requireSerial && <span className="text-red-500">*</span>}
+          {/* مؤشر الوضع المحلي */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <WifiOff className="w-3 h-3 text-green-500" />
+              </TooltipTrigger>
+              <TooltipContent>يعمل offline</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </Label>
 
         <Badge variant={isComplete ? 'default' : 'secondary'} className={cn(
@@ -288,7 +427,7 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
           variant="outline"
           size="icon"
           onClick={() => validateAndAddSerial(inputValue)}
-          disabled={disabled || isComplete || !inputValue.trim()}
+          disabled={disabled || isComplete || !inputValue.trim() || isValidating}
         >
           <Plus className="w-4 h-4" />
         </Button>
@@ -302,12 +441,15 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
         </div>
       )}
 
-      {/* الأرقام المضافة */}
+      {/* الأرقام المضافة (المحجوزة) */}
       {selectedSerials.length > 0 && (
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">الأرقام المضافة:</Label>
+          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+            <Lock className="w-3 h-3" />
+            الأرقام المحجوزة:
+          </Label>
           <div className="flex flex-wrap gap-2">
-            {selectedSerials.map((serial, idx) => {
+            {selectedSerials.map((serial) => {
               const serialInfo = availableSerials.find(
                 s => s.serial_number === serial || s.imei === serial
               );
@@ -317,8 +459,9 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
                 <Badge
                   key={serial}
                   variant="secondary"
-                  className="flex items-center gap-1 px-2 py-1"
+                  className="flex items-center gap-1 px-2 py-1 bg-blue-50 border-blue-200"
                 >
+                  <Lock className="w-3 h-3 text-blue-500" />
                   <span className="text-xs font-mono">{serial}</span>
                   {hasWarranty && (
                     <TooltipProvider>
@@ -357,17 +500,23 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
         </div>
       )}
 
-      {/* زر اختيار من القائمة إذا كانت متوفرة */}
-      {availableSerials.length > 0 && !isComplete && (
+      {/* زر اختيار من القائمة */}
+      {!isComplete && (
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="w-full text-xs"
-          onClick={() => setIsDialogOpen(true)}
-          disabled={disabled}
+          onClick={() => {
+            loadAvailableSerials();
+            setIsDialogOpen(true);
+          }}
+          disabled={disabled || isLoadingSerials}
         >
-          اختر من الأرقام المتاحة ({availableSerials.filter(s => s.status === 'available').length})
+          {isLoadingSerials ? (
+            <Loader2 className="w-3 h-3 animate-spin ml-2" />
+          ) : null}
+          اختر من الأرقام المتاحة ({availableSerials.length})
         </Button>
       )}
 
@@ -375,40 +524,63 @@ const SerialNumberInput = memo<SerialNumberInputProps>(({
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>اختر الأرقام التسلسلية</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              اختر الأرقام التسلسلية
+              <Badge variant="outline" className="text-xs">
+                {availableSerials.length} متاح
+              </Badge>
+            </DialogTitle>
           </DialogHeader>
 
           <div className="max-h-[300px] overflow-y-auto space-y-2">
-            {availableSerials
-              .filter(s => s.status === 'available' && !selectedSerials.includes(s.serial_number))
-              .map((serial) => (
-                <div
-                  key={serial.id}
-                  className={cn(
-                    "flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-slate-50 transition-colors",
-                    selectedSerials.length >= quantity && "opacity-50 cursor-not-allowed"
-                  )}
-                  onClick={() => {
-                    if (selectedSerials.length < quantity) {
-                      onSerialsChange([...selectedSerials, serial.serial_number]);
-                    }
-                  }}
-                >
-                  <div className="flex flex-col">
-                    <span className="font-mono text-sm">{serial.serial_number}</span>
-                    {serial.imei && (
-                      <span className="text-xs text-muted-foreground">IMEI: {serial.imei}</span>
+            {isLoadingSerials ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : availableSerials.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                لا توجد أرقام تسلسلية متاحة
+              </div>
+            ) : (
+              availableSerials
+                .filter(s => !selectedSerials.includes(s.serial_number))
+                .map((serial) => (
+                  <div
+                    key={serial.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 border rounded cursor-pointer hover:bg-slate-50 transition-colors",
+                      selectedSerials.length >= quantity && "opacity-50 cursor-not-allowed"
                     )}
-                  </div>
+                    onClick={() => selectSerialFromList(serial)}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-mono text-sm font-medium">{serial.serial_number}</span>
+                      {serial.imei && serial.imei !== serial.serial_number && (
+                        <span className="text-xs text-muted-foreground">IMEI: {serial.imei}</span>
+                      )}
+                      {serial.mac_address && (
+                        <span className="text-xs text-muted-foreground">MAC: {serial.mac_address}</span>
+                      )}
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    {serial.warranty_end_date && (
-                      <Shield className="w-4 h-4 text-green-500" />
-                    )}
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <div className="flex items-center gap-2">
+                      {serial.warranty_end_date && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Shield className="w-4 h-4 text-green-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              ضمان حتى: {new Date(serial.warranty_end_date).toLocaleDateString('ar-DZ')}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+            )}
           </div>
 
           <DialogFooter>

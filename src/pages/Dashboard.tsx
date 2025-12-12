@@ -124,7 +124,7 @@ const SectionLoader = ({ height = "h-48" }: { height?: string }) => (
 
 // مكون التحميل الكامل للصفحة
 const PageLoader = () => (
-  <div className="container px-2 sm:px-4 lg:px-6 mx-auto max-w-6xl">
+  <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-4 md:py-6">
     <div className="space-y-8">
       {/* تحميل الهيدر */}
       <div className="h-16 bg-muted/30 animate-pulse rounded-lg"></div>
@@ -133,9 +133,9 @@ const PageLoader = () => (
       <div className="h-40 bg-muted/30 animate-pulse rounded-lg"></div>
       
       {/* تحميل الروابط السريعة */}
-      <div className="grid grid-cols-5 sm:grid-cols-5 lg:grid-cols-10 gap-3">
+      <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-3">
         {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="h-16 bg-muted/30 animate-pulse rounded-lg"></div>
+          <div key={i} className="h-14 sm:h-16 bg-muted/30 animate-pulse rounded-lg"></div>
         ))}
       </div>
       
@@ -150,7 +150,7 @@ const PageLoader = () => (
 
 // مكون الخطأ العام
 const ErrorBoundary = ({ error, onRetry }: { error: string; onRetry: () => void }) => (
-  <div className="container px-2 sm:px-4 lg:px-6 mx-auto max-w-6xl">
+  <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-4 md:py-6">
     <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-6">
       <div className="p-4 rounded-full bg-red-100 dark:bg-red-900/20">
         <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
@@ -214,7 +214,7 @@ const DashboardContent = () => {
       isRefreshing={false}
       connectionStatus="connected"
     >
-      <div className="container px-2 sm:px-4 lg:px-6 mx-auto max-w-6xl">
+      <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-4 md:py-6" dir="rtl">
         {/* Header القسم */}
         <DashboardHeader 
           toggleSidebar={() => {}} // لم نعد نحتاج sidebar

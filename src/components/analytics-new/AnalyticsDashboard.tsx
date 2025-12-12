@@ -256,7 +256,7 @@ const AnalyticsDashboard: React.FC = () => {
       case 'customers':
         return <CustomerSection filters={filters} customerData={customerData} debtData={debtData} isLoading={customerLoading} />;
       case 'zakat':
-        return <ZakatSection data={zakatData} isLoading={zakatLoading} />;
+        return <ZakatSection data={zakatData} isLoading={zakatLoading} dateRange={dateRange} />;
       default:
         return null;
     }

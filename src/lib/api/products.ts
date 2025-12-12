@@ -1329,9 +1329,43 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       has_variants: productData.has_variants || false,
       use_sizes: productData.use_sizes || false,
       is_active: productData.is_active !== false,
+      // حقول البيع المتقدمة
       sell_by_weight: productData.sell_by_weight,
       sell_by_meter: productData.sell_by_meter,
-      sell_by_box: productData.sell_by_box
+      sell_by_box: productData.sell_by_box,
+      // حقول البيع بالوزن (أسماء PowerSync Schema)
+      weight_unit: productData.weight_unit,
+      price_per_weight_unit: productData.price_per_weight_unit,
+      purchase_price_per_weight_unit: productData.purchase_price_per_weight_unit,
+      min_weight_per_sale: productData.min_weight,
+      max_weight_per_sale: productData.max_weight,
+      average_item_weight: productData.average_item_weight,
+      // حقول البيع بالكرتون
+      units_per_box: productData.units_per_box,
+      box_price: productData.box_price,
+      box_purchase_price: productData.box_purchase_price,
+      box_barcode: productData.box_barcode,
+      allow_single_unit_sale: productData.allow_single_unit_sale,
+      // حقول البيع بالمتر (أسماء PowerSync Schema)
+      meter_unit: productData.meter_unit,
+      price_per_meter: productData.price_per_meter,
+      purchase_price_per_meter: productData.purchase_price_per_meter,
+      min_meters_per_sale: productData.min_meters,
+      roll_length_meters: productData.roll_length,
+      // حقول تتبع الصلاحية
+      track_expiry: productData.track_expiry,
+      default_expiry_days: productData.default_expiry_days,
+      expiry_alert_days: productData.expiry_alert_days,
+      // حقول تتبع الأرقام التسلسلية
+      track_serial_numbers: productData.track_serial_numbers,
+      require_serial_on_sale: productData.require_serial_on_sale,
+      // حقول الضمان
+      has_warranty: productData.has_warranty,
+      warranty_duration_months: productData.warranty_duration_months,
+      warranty_type: productData.warranty_type,
+      // حقول تتبع الدفعات
+      track_batches: productData.track_batches,
+      use_fifo: productData.use_fifo
     } as any;
 
     const colors = productData.colors?.map(c => ({
@@ -1398,9 +1432,43 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
         has_variants: productData.has_variants || false,
         use_sizes: productData.use_sizes || false,
         is_active: productData.is_active !== false,
+        // حقول البيع المتقدمة
         sell_by_weight: productData.sell_by_weight,
         sell_by_meter: productData.sell_by_meter,
-        sell_by_box: productData.sell_by_box
+        sell_by_box: productData.sell_by_box,
+        // حقول البيع بالوزن (أسماء PowerSync Schema)
+        weight_unit: productData.weight_unit,
+        price_per_weight_unit: productData.price_per_weight_unit,
+        purchase_price_per_weight_unit: productData.purchase_price_per_weight_unit,
+        min_weight_per_sale: productData.min_weight,
+        max_weight_per_sale: productData.max_weight,
+        average_item_weight: productData.average_item_weight,
+        // حقول البيع بالكرتون
+        units_per_box: productData.units_per_box,
+        box_price: productData.box_price,
+        box_purchase_price: productData.box_purchase_price,
+        box_barcode: productData.box_barcode,
+        allow_single_unit_sale: productData.allow_single_unit_sale,
+        // حقول البيع بالمتر (أسماء PowerSync Schema)
+        meter_unit: productData.meter_unit,
+        price_per_meter: productData.price_per_meter,
+        purchase_price_per_meter: productData.purchase_price_per_meter,
+        min_meters_per_sale: productData.min_meters,
+        roll_length_meters: productData.roll_length,
+        // حقول تتبع الصلاحية
+        track_expiry: productData.track_expiry,
+        default_expiry_days: productData.default_expiry_days,
+        expiry_alert_days: productData.expiry_alert_days,
+        // حقول تتبع الأرقام التسلسلية
+        track_serial_numbers: productData.track_serial_numbers,
+        require_serial_on_sale: productData.require_serial_on_sale,
+        // حقول الضمان
+        has_warranty: productData.has_warranty,
+        warranty_duration_months: productData.warranty_duration_months,
+        warranty_type: productData.warranty_type,
+        // حقول تتبع الدفعات
+        track_batches: productData.track_batches,
+        use_fifo: productData.use_fifo
       };
 
       const colors = productData.colors?.map(c => ({
@@ -1423,7 +1491,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       }));
 
       const created = await unifiedProductService.createProductWithVariants(basicProduct, colors, sizes);
-      
+
       toast.success('تم إنشاء المنتج محلياً (سيتم المزامنة عند الاتصال)');
       return created as any;
     } catch (offlineError) {
@@ -1461,9 +1529,35 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
           sku: productData.sku,
           barcode: productData.barcode,
           category_id: productData.category_id,
+          subcategory_id: productData.subcategory_id,
           price: productData.price || 0,
+          purchase_price: productData.purchase_price,
+          wholesale_price: productData.wholesale_price,
           stock_quantity: productData.stock_quantity || 0,
-          is_active: true
+          min_stock_level: productData.min_stock_level,
+          thumbnail_image: productData.thumbnail_image,
+          has_variants: productData.has_variants || false,
+          use_sizes: productData.use_sizes || false,
+          is_active: productData.is_active !== false,
+          // حقول البيع المتقدمة
+          sell_by_weight: productData.sell_by_weight,
+          sell_by_meter: productData.sell_by_meter,
+          sell_by_box: productData.sell_by_box,
+          // حقول تتبع الصلاحية
+          track_expiry: productData.track_expiry,
+          default_expiry_days: productData.default_expiry_days,
+          expiry_alert_days: productData.expiry_alert_days,
+          // حقول تتبع الأرقام التسلسلية
+          track_serial_numbers: productData.track_serial_numbers,
+          require_serial_on_sale: productData.require_serial_on_sale,
+          supports_imei: productData.supports_imei,
+          // حقول الضمان
+          has_warranty: productData.has_warranty,
+          warranty_duration_months: productData.warranty_duration_months,
+          warranty_type: productData.warranty_type,
+          // حقول تتبع الدفعات
+          track_batches: productData.track_batches,
+          use_fifo: productData.use_fifo
         };
         const created = await unifiedProductService.createProduct(basicProduct);
         toast.success('تم إنشاء المنتج محلياً (سيتم المزامنة عند الاتصال)');
@@ -1648,10 +1742,48 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     unifiedProductService.setOrganizationId(orgId);
 
     const updateData: any = {};
-    const fields = ['name','description','sku','barcode','price','purchase_price','wholesale_price','stock_quantity','min_stock_level','is_active','sell_by_weight','sell_by_meter','sell_by_box','thumbnail_image','category_id','subcategory_id'];
+    // الأسماء المتطابقة مع PowerSync Schema
+    const fields = [
+      // الحقول الأساسية
+      'name','description','sku','barcode','price','purchase_price','wholesale_price',
+      'stock_quantity','min_stock_level','is_active','thumbnail_image','category_id','subcategory_id',
+      // حقول البيع بالوزن (أسماء PowerSync Schema)
+      'sell_by_weight','weight_unit','price_per_weight_unit','purchase_price_per_weight_unit',
+      'min_weight_per_sale','max_weight_per_sale','average_item_weight','available_weight','total_weight_purchased',
+      // حقول البيع بالكرتون
+      'sell_by_box','units_per_box','box_price','box_purchase_price','box_barcode',
+      'allow_single_unit_sale','available_boxes','total_boxes_purchased',
+      // حقول البيع بالمتر (أسماء PowerSync Schema)
+      'sell_by_meter','meter_unit','price_per_meter','purchase_price_per_meter',
+      'min_meters_per_sale','roll_length_meters','available_length','total_meters_purchased',
+      // حقول تتبع الصلاحية
+      'track_expiry','default_expiry_days','expiry_alert_days',
+      // حقول تتبع الأرقام التسلسلية
+      'track_serial_numbers','require_serial_on_sale',
+      // حقول الضمان
+      'has_warranty','warranty_duration_months','warranty_type',
+      // حقول تتبع الدفعات
+      'track_batches','use_fifo'
+    ];
+
+    // تحويل أسماء الحقول من Form إلى PowerSync Schema
+    const fieldMapping: Record<string, string> = {
+      'min_weight': 'min_weight_per_sale',
+      'max_weight': 'max_weight_per_sale',
+      'min_meters': 'min_meters_per_sale',
+      'roll_length': 'roll_length_meters'
+    };
+
     for (const key of fields) {
       const value = (updates as any)[key];
       if (value !== undefined) updateData[key] = value;
+    }
+
+    // تطبيق تحويل الأسماء إذا جاءت بالأسماء القديمة
+    for (const [oldName, newName] of Object.entries(fieldMapping)) {
+      if ((updates as any)[oldName] !== undefined && updateData[newName] === undefined) {
+        updateData[newName] = (updates as any)[oldName];
+      }
     }
 
     await unifiedProductService.updateProduct(id, updateData);
@@ -1712,7 +1844,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
           await powerSyncService.mutate({
             table: 'product_wholesale_tiers',
             operation: 'DELETE',
-            data: { id: tier.id }
+            where: [{ column: 'id', value: tier.id }]
           });
         }
         console.log('[updateProduct] 🗑️ Deleted', existingTiers.length, 'old tiers');

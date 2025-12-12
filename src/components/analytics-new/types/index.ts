@@ -80,6 +80,8 @@ export interface SalesData {
 
   salesByDay: { date: string; value: number; count: number; label?: string }[];
 
+  topProducts: TopProduct[];
+
   salesByCategory: {
     id: string;
     name: string;

@@ -10,9 +10,16 @@ import { useTenant } from '@/context/TenantContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useWorkSession } from '@/context/WorkSessionContext';
 import { v4 as uuidv4 } from 'uuid';
-// 📦 استيراد خدمات الدفعات والأرقام التسلسلية
-import { consumeFromBatches } from '@/api/batchService';
-import { sellSerial, findBySerialNumber } from '@/api/serialNumberService';
+import { usePowerSync } from '@powersync/react';
+// 📦 استيراد خدمات الدفعات والأرقام التسلسلية المحلية (Offline-First)
+import {
+  LocalBatchService,
+  LocalSerialService,
+  getWarrantyMonths
+} from '@/services/local';
+// Legacy imports للتوافق (سيتم إزالتها لاحقاً)
+// import { consumeFromBatches } from '@/api/batchService';
+// import { sellSerial, findBySerialNumber } from '@/api/serialNumberService';
 
 // واجهة مخصصة لبيانات الطلب من POS
 interface POSOrderDetails extends Partial<Order> {
@@ -134,6 +141,11 @@ export const usePOSOrder = ({
   const { currentOrganization } = useTenant();
   const { currentStaff } = useStaffSession();
   const { activeSession, resumeSession } = useWorkSession();
+
+  // ⚡ خدمات محلية (Offline-First)
+  const powerSync = usePowerSync();
+  const localBatchService = new LocalBatchService(powerSync);
+  const localSerialService = new LocalSerialService(powerSync);
   
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -514,72 +526,97 @@ export const usePOSOrder = ({
           console.log('🔍 [usePOSOrder] ✅ انتهى تحديث المخزون');
 
           // ========================================
-          // 📦 معالجة الدفعات والأرقام التسلسلية
+          // 📦 معالجة الدفعات والأرقام التسلسلية (Offline-First)
           // ========================================
-          console.log('📦 [usePOSOrder] بدء معالجة الدفعات والأرقام التسلسلية...');
+          console.log('📦 [usePOSOrder] بدء معالجة الدفعات والأرقام التسلسلية محلياً...');
 
           // معالجة كل عنصر يحتوي على دفعة أو أرقام تسلسلية
           for (const item of cartItems) {
-            // 1️⃣ معالجة استهلاك الدفعات (FIFO)
-            if (item.product.tracking_type === 'batch' || item.batchId) {
+            // تحديد نوع وحدة البيع
+            const sellingUnit = item.sellingUnit || 'piece';
+            let quantityToConsume = item.quantity;
+
+            // للبيع بالوزن/المتر، استخدم الكمية العشرية
+            if (sellingUnit === 'weight') {
+              quantityToConsume = item.weight || 0;
+            } else if (sellingUnit === 'meter') {
+              quantityToConsume = item.length || 0;
+            } else if (sellingUnit === 'box') {
+              quantityToConsume = (item.boxCount || 0) * (item.unitsPerBox || item.product.units_per_box || 1);
+            }
+
+            // 1️⃣ معالجة استهلاك الدفعات (FEFO - محلياً)
+            const shouldTrackBatch = item.product.track_batches || item.batchId;
+            if (shouldTrackBatch && quantityToConsume > 0) {
               try {
-                console.log(`📦 [usePOSOrder] استهلاك دفعة للمنتج: ${item.product.name}`);
-                const consumeResult = await consumeFromBatches(
-                  item.product.id,
-                  currentOrganization.id,
-                  item.quantity,
-                  {
-                    order_id: result.orderId,
-                    reason: 'sale',
-                    notes: `بيع من الطلب #${result.customerOrderNumber}`
-                  }
-                );
+                console.log(`📦 [usePOSOrder] استهلاك دفعة للمنتج: ${item.product.name} (${quantityToConsume} ${sellingUnit})`);
+
+                const consumeResult = await localBatchService.consumeFromBatches({
+                  product_id: item.product.id,
+                  organization_id: currentOrganization.id,
+                  quantity: quantityToConsume,
+                  unit_type: sellingUnit,
+                  order_id: result.orderId,
+                  reason: 'sale',
+                  notes: `بيع من الطلب #${result.customerOrderNumber}`,
+                  color_id: item.colorId || item.variant_info?.colorId,
+                  size_id: item.sizeId || item.variant_info?.sizeId,
+                  specific_batch_id: item.batchId
+                });
 
                 if (consumeResult.remaining > 0) {
-                  console.warn(`⚠️ [usePOSOrder] تبقى ${consumeResult.remaining} وحدة غير مستهلكة للمنتج: ${item.product.name}`);
+                  console.warn(`⚠️ [usePOSOrder] تبقى ${consumeResult.remaining} ${sellingUnit} غير مستهلكة للمنتج: ${item.product.name}`);
                 } else {
-                  console.log(`✅ [usePOSOrder] تم استهلاك ${item.quantity} وحدة من ${consumeResult.consumed.length} دفعة`);
+                  console.log(`✅ [usePOSOrder] تم استهلاك ${quantityToConsume} ${sellingUnit} من ${consumeResult.consumed.length} دفعة محلياً`);
                 }
               } catch (batchError) {
-                console.error(`❌ [usePOSOrder] خطأ في استهلاك الدفعة:`, batchError);
+                console.error(`❌ [usePOSOrder] خطأ في استهلاك الدفعة محلياً:`, batchError);
                 // لا نوقف العملية - الطلب تم بنجاح
               }
             }
 
-            // 2️⃣ معالجة بيع الأرقام التسلسلية
-            if (item.product.tracking_type === 'serial' && item.serialNumbers && item.serialNumbers.length > 0) {
+            // 2️⃣ معالجة بيع الأرقام التسلسلية (محلياً)
+            const shouldTrackSerial = item.product.track_serial_numbers && item.serialNumbers && item.serialNumbers.length > 0;
+            if (shouldTrackSerial) {
               try {
-                console.log(`🔢 [usePOSOrder] بيع ${item.serialNumbers.length} رقم تسلسلي للمنتج: ${item.product.name}`);
+                console.log(`🔢 [usePOSOrder] بيع ${item.serialNumbers!.length} رقم تسلسلي للمنتج: ${item.product.name}`);
 
-                for (const serialNumber of item.serialNumbers) {
-                  // البحث عن الرقم التسلسلي أولاً
-                  const serialInfo = await findBySerialNumber(serialNumber, currentOrganization.id);
+                for (const serialNumber of item.serialNumbers!) {
+                  // البحث عن الرقم التسلسلي محلياً
+                  const serialInfo = await localSerialService.findBySerialNumber(serialNumber, currentOrganization.id);
 
-                  if (serialInfo && serialInfo.status === 'available') {
+                  if (serialInfo && (serialInfo.status === 'available' || serialInfo.status === 'reserved')) {
                     const unitPrice = item.customPrice || item.variantPrice || item.product.price || 0;
 
-                    await sellSerial({
+                    // استخدام الدالة الموحدة للضمان
+                    const warrantyMonths = getWarrantyMonths(item.product);
+
+                    const sellResult = await localSerialService.sellSerial({
                       serial_id: serialInfo.id,
                       order_id: result.orderId,
                       customer_id: orderDetails.customerId !== 'guest' ? orderDetails.customerId : undefined,
                       sold_price: unitPrice,
                       sold_by_user_id: user.id,
-                      warranty_months: item.product.warranty_months
+                      warranty_months: warrantyMonths
                     });
 
-                    console.log(`✅ [usePOSOrder] تم بيع الرقم التسلسلي: ${serialNumber}`);
+                    if (sellResult.success) {
+                      console.log(`✅ [usePOSOrder] تم بيع الرقم التسلسلي محلياً: ${serialNumber}`);
+                    } else {
+                      console.warn(`⚠️ [usePOSOrder] فشل بيع الرقم التسلسلي ${serialNumber}: ${sellResult.error}`);
+                    }
                   } else {
-                    console.warn(`⚠️ [usePOSOrder] الرقم التسلسلي ${serialNumber} غير متاح للبيع`);
+                    console.warn(`⚠️ [usePOSOrder] الرقم التسلسلي ${serialNumber} غير متاح للبيع (حالته: ${serialInfo?.status || 'غير موجود'})`);
                   }
                 }
               } catch (serialError) {
-                console.error(`❌ [usePOSOrder] خطأ في بيع الرقم التسلسلي:`, serialError);
+                console.error(`❌ [usePOSOrder] خطأ في بيع الرقم التسلسلي محلياً:`, serialError);
                 // لا نوقف العملية - الطلب تم بنجاح
               }
             }
           }
 
-          console.log('📦 [usePOSOrder] ✅ انتهت معالجة الدفعات والأرقام التسلسلية');
+          console.log('📦 [usePOSOrder] ✅ انتهت معالجة الدفعات والأرقام التسلسلية محلياً');
 
           // مسح السلة
           clearCart();

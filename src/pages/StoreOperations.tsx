@@ -9,14 +9,13 @@ import { Store, Settings, Layout, FileText, Truck, Loader2 } from 'lucide-react'
 import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const StoreSettingsTab = React.lazy(() => import('./StoreSettingsPage'));
-const StoreEditorTab = React.lazy(() => import('./admin/StoreEditor'));
 const OrganizationComponentsTab = React.lazy(() => import('./admin/OrganizationComponentsEditor'));
 const StoreThemesTab = React.lazy(() => import('./dashboard/StoreThemes'));
 const LandingPagesTab = React.lazy(() => import('./LandingPagesManager'));
 const ThankYouEditorTab = React.lazy(() => import('./dashboard/ThankYouPageEditor'));
 const DeliveryTab = React.lazy(() => import('./dashboard/DeliveryManagement'));
 
-type TabKey = 'store-settings' | 'store-editor' | 'components' | 'themes' | 'landing-pages' | 'thank-you' | 'delivery';
+type TabKey = 'store-settings' | 'components' | 'themes' | 'landing-pages' | 'thank-you' | 'delivery';
 
 interface TabDefinition {
   id: TabKey;
@@ -33,13 +32,6 @@ const TAB_CONFIG: TabDefinition[] = [
     description: 'إدارة الإعدادات العامة للمتجر الإلكتروني والخيارات الأساسية.',
     icon: Settings,
     loaderMessage: 'جاري تحميل إعدادات المتجر...'
-  },
-  {
-    id: 'store-editor',
-    title: 'تخصيص المتجر',
-    description: 'تخصيص مظهر وتصميم واجهة المتجر الإلكتروني.',
-    icon: Store,
-    loaderMessage: 'جاري تحميل محرر المتجر...'
   },
   {
     id: 'components',
@@ -99,7 +91,6 @@ const StoreOperationsPage: React.FC = () => {
     }
 
     const canStoreSettings = perms.ready ? perms.anyOf(['manageSettings', 'canViewStoreSettings', 'canManageStoreSettings']) : false;
-    const canStoreEditor = perms.ready ? perms.anyOf(['manageSettings', 'canManageStoreEditor', 'canViewStoreEditor']) : false;
     const canComponents = perms.ready ? perms.anyOf(['manageSettings', 'canManageComponents', 'canViewComponents']) : false;
     const canThemes = perms.ready ? perms.anyOf(['manageSettings', 'canManageThemes', 'canViewThemes']) : false;
     const canLandingPages = perms.ready ? perms.anyOf(['manageSettings', 'canManageLandingPages', 'canViewLandingPages']) : false;
@@ -108,7 +99,6 @@ const StoreOperationsPage: React.FC = () => {
 
     return TAB_CONFIG.filter(t =>
       (t.id === 'store-settings' && canStoreSettings) ||
-      (t.id === 'store-editor' && canStoreEditor) ||
       (t.id === 'components' && canComponents) ||
       (t.id === 'themes' && canThemes) ||
       (t.id === 'landing-pages' && canLandingPages) ||
@@ -209,39 +199,33 @@ const StoreOperationsPage: React.FC = () => {
             <StoreSettingsTab useStandaloneLayout={false} />
           </Suspense>
         );
-      case 'store-editor':
-        return (
-          <Suspense key="store-editor" fallback={<LoadingView message={TAB_CONFIG[1].loaderMessage} />}>
-            <StoreEditorTab useStandaloneLayout={false} />
-          </Suspense>
-        );
       case 'components':
         return (
-          <Suspense key="components" fallback={<LoadingView message={TAB_CONFIG[2].loaderMessage} />}>
+          <Suspense key="components" fallback={<LoadingView message={TAB_CONFIG[1].loaderMessage} />}>
             <OrganizationComponentsTab useStandaloneLayout={false} />
           </Suspense>
         );
       case 'themes':
         return (
-          <Suspense key="themes" fallback={<LoadingView message={TAB_CONFIG[3].loaderMessage} />}>
+          <Suspense key="themes" fallback={<LoadingView message={TAB_CONFIG[2].loaderMessage} />}>
             <StoreThemesTab useStandaloneLayout={false} />
           </Suspense>
         );
       case 'landing-pages':
         return (
-          <Suspense key="landing-pages" fallback={<LoadingView message={TAB_CONFIG[4].loaderMessage} />}>
+          <Suspense key="landing-pages" fallback={<LoadingView message={TAB_CONFIG[3].loaderMessage} />}>
             <LandingPagesTab useStandaloneLayout={false} />
           </Suspense>
         );
       case 'thank-you':
         return (
-          <Suspense key="thank-you" fallback={<LoadingView message={TAB_CONFIG[5].loaderMessage} />}>
+          <Suspense key="thank-you" fallback={<LoadingView message={TAB_CONFIG[4].loaderMessage} />}>
             <ThankYouEditorTab useStandaloneLayout={false} />
           </Suspense>
         );
       case 'delivery':
         return (
-          <Suspense key="delivery" fallback={<LoadingView message={TAB_CONFIG[6].loaderMessage} />}>
+          <Suspense key="delivery" fallback={<LoadingView message={TAB_CONFIG[5].loaderMessage} />}>
             <DeliveryTab useStandaloneLayout={false} />
           </Suspense>
         );
@@ -260,7 +244,7 @@ const StoreOperationsPage: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
+        <TabsList className="grid w-full grid-cols-6 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
           {TAB_CONFIG.map((tab) => {
             const Icon = tab.icon;
             return (

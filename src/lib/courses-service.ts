@@ -207,37 +207,42 @@ export const CoursesService = {
   },
 
   /**
-   * جلب جميع معلومات الوصول للدورات في استدعاء واحد
+   * جلب جميع معلومات الوصول للدورات في استدعاء واحد (محسنة)
    */
-  async getAllCourseAccessInfo(organizationId: string): Promise<Map<string, CourseAccessInfo>> {
+  async getAllCourseAccessInfo(organizationId: string, courses?: Course[]): Promise<Map<string, CourseAccessInfo>> {
+    const cacheKey = `course_access_${organizationId}`;
+
+    // تحقق من الـ Cache أولاً
+    const cachedData = coursesCache.get<Map<string, CourseAccessInfo>>(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
     try {
-      // جلب جميع معلومات الوصول المباشر للدورات
-      const { data: directAccess, error: directError } = await supabase
-        .from('organization_course_access')
-        .select('*')
-        .eq('organization_id', organizationId);
-      
-      if (directError) throw directError;
-      
-      // جلب معلومات الاشتراك
-      const { data: subscription, error: subError } = await supabase
-        .from('organization_subscriptions')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('status', 'active')
-        .single();
-      
-      if (subError && subError.code !== 'PGRST116') {
-        throw subError;
-      }
-      
+      // جلب الوصول المباشر والاشتراك بالتوازي
+      const [directAccessResult, subscriptionResult] = await Promise.all([
+        supabase
+          .from('organization_course_access')
+          .select('*')
+          .eq('organization_id', organizationId),
+        supabase
+          .from('organization_subscriptions')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .eq('status', 'active')
+          .single()
+      ]);
+
+      const directAccess = directAccessResult.data;
+      const subscription = subscriptionResult.data;
+
       const accessMap = new Map<string, CourseAccessInfo>();
-      
+
       // معالجة الوصول المباشر
       if (directAccess) {
         for (const access of directAccess) {
           const is_expired = access.expires_at ? new Date(access.expires_at) < new Date() : false;
-          
+
           accessMap.set(access.course_id, {
             course_id: access.course_id,
             access_type: access.access_type as CoursesAccessType,
@@ -248,20 +253,18 @@ export const CoursesService = {
           });
         }
       }
-      
-      // معالجة الوصول عبر الاشتراك
-      if (subscription) {
+
+      // معالجة الوصول عبر الاشتراك (بدون استدعاء إضافي)
+      if (subscription && courses) {
         const subscriptionAccess: CourseAccessInfo = {
-          course_id: '', // سيتم تعيينه لكل دورة
+          course_id: '',
           access_type: subscription.lifetime_courses_access ? CoursesAccessType.LIFETIME : CoursesAccessType.STANDARD,
           is_accessible: new Date(subscription.end_date) > new Date(),
           expires_at: subscription.end_date,
           is_lifetime: subscription.lifetime_courses_access || false,
           granted_at: subscription.start_date
         };
-        
-        // تطبيق الوصول عبر الاشتراك على جميع الدورات التي ليس لها وصول مباشر
-        const courses = await this.getAllCourses();
+
         for (const course of courses) {
           if (!accessMap.has(course.id)) {
             accessMap.set(course.id, {
@@ -271,7 +274,10 @@ export const CoursesService = {
           }
         }
       }
-      
+
+      // حفظ في الـ Cache
+      coursesCache.set(cacheKey, accessMap, 2 * 60 * 1000); // 2 minutes
+
       return accessMap;
     } catch (error) {
       return new Map();
@@ -364,17 +370,25 @@ export const CoursesService = {
    * جلب جميع الدورات مع معلومات الوصول (محسنة)
    */
   async getCoursesWithAccess(organizationId: string): Promise<CourseWithAccess[]> {
+    const cacheKey = `courses_with_access_${organizationId}`;
+
+    // تحقق من الـ Cache أولاً
+    const cachedData = coursesCache.get<CourseWithAccess[]>(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
     try {
       // جلب جميع الدورات
       const courses = await this.getAllCourses();
-      
-      // جلب جميع معلومات الوصول في استدعاء واحد
-      const accessMap = await this.getAllCourseAccessInfo(organizationId);
-      
+
+      // جلب جميع معلومات الوصول في استدعاء واحد (مع تمرير الدورات)
+      const accessMap = await this.getAllCourseAccessInfo(organizationId, courses);
+
       // دمج المعلومات
-      return courses.map(course => {
+      const result = courses.map(course => {
         const access = accessMap.get(course.id);
-        
+
         return {
           ...course,
           access_type: access?.access_type,
@@ -383,6 +397,11 @@ export const CoursesService = {
           is_lifetime: access?.is_lifetime || false
         };
       });
+
+      // حفظ في الـ Cache
+      coursesCache.set(cacheKey, result, 2 * 60 * 1000); // 2 minutes
+
+      return result;
     } catch (error) {
       return [];
     }

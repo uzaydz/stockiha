@@ -49,6 +49,8 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { cn } from '@/lib/utils';
+
 interface Feature {
   title: string;
   description: string;
@@ -277,117 +279,144 @@ const HRComingSoonPage: React.FC = () => {
       connectionStatus="connected"
       isRefreshing={false}
     >
-      <div className="space-y-6 p-6" dir="rtl">
-        {/* Header */}
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl blur-lg opacity-40" />
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl">
-                <Users className="h-8 w-8 text-white" />
+      <div className="min-h-full bg-zinc-50 dark:bg-zinc-950" dir="rtl">
+        <header className="bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="px-4 sm:px-6 py-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-xl font-bold text-zinc-900 dark:text-white">نظام الموارد البشرية</h1>
+                  <Badge className="bg-orange-500 text-white border-0 gap-1">
+                    <Sparkles className="h-3 w-3" />
+                    قريباً
+                  </Badge>
+                </div>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  نظام متكامل لإدارة الحضور، الإجازات، الرواتب، والأداء
+                </p>
               </div>
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold">نظام الموارد البشرية</h1>
-                <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 gap-1">
-                  <Sparkles className="h-3 w-3" />
-                  قريباً
-                </Badge>
-              </div>
-              <p className="text-muted-foreground mt-1">
-                نظام متكامل لإدارة الحضور، الإجازات، الرواتب، والأداء
-              </p>
-            </div>
-          </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200/50 dark:border-blue-800/50">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-500/30">
-                  <Zap className="h-5 w-5 text-white" />
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-500/10 rounded-xl">
+                  <Users className="h-4 w-4 text-orange-500" />
+                  <span className="text-xs font-medium text-orange-600 dark:text-orange-400 hidden sm:inline">
+                    {HR_FEATURES.length} وحدات
+                  </span>
                 </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{HR_FEATURES.length}</div>
-                  <div className="text-xs text-muted-foreground">وحدات رئيسية</div>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200/50 dark:border-emerald-800/50">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 shadow-lg shadow-emerald-500/30">
-                  <CheckCircle2 className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalFeatures}+</div>
-                  <div className="text-xs text-muted-foreground">ميزة متقدمة</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200/50 dark:border-purple-800/50">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500 shadow-lg shadow-purple-500/30">
-                  <Rocket className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">100%</div>
-                  <div className="text-xs text-muted-foreground">أتمتة كاملة</div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/50 dark:to-orange-900/30 border-orange-200/50 dark:border-orange-800/50">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 shadow-lg shadow-orange-500/30">
-                  <Lock className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">آمن</div>
-                  <div className="text-xs text-muted-foreground">حماية البيانات</div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Category Tabs */}
-        <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
-          <TabsList className="w-full h-auto flex-wrap gap-2 bg-muted/50 p-2 rounded-xl">
-            <TabsTrigger
-              value="all"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-4"
-            >
-              <BarChart3 className="h-4 w-4 ml-2" />
-              جميع الوحدات
-            </TabsTrigger>
-            {HR_FEATURES.map((category) => {
-              const Icon = category.icon;
-              return (
-                <TabsTrigger
-                  key={category.id}
-                  value={category.id}
-                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-4"
+                <Button
+                  size="sm"
+                  className="gap-2"
                 >
-                  <Icon className="h-4 w-4 ml-2" />
-                  {category.title}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </Tabs>
+                  <Bell className="h-4 w-4" />
+                  <span className="hidden sm:inline">تفعيل الإشعارات</span>
+                </Button>
+              </div>
+            </div>
+          </div>
 
-        {/* Features Content */}
-        <ScrollArea className="h-[calc(100vh-420px)]">
-          <div className="space-y-8 pb-6">
+          <div className="px-4 sm:px-6 pb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                    <Zap className="h-5 w-5 text-zinc-700 dark:text-zinc-300" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-zinc-900 dark:text-white">{HR_FEATURES.length}</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">وحدات رئيسية</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                    <CheckCircle2 className="h-5 w-5 text-zinc-700 dark:text-zinc-300" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-zinc-900 dark:text-white">{totalFeatures}+</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">ميزة متقدمة</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                    <Rocket className="h-5 w-5 text-zinc-700 dark:text-zinc-300" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-zinc-900 dark:text-white">100%</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">أتمتة كاملة</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                    <Lock className="h-5 w-5 text-zinc-700 dark:text-zinc-300" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-zinc-900 dark:text-white">آمن</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">حماية البيانات</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <div className="px-4 sm:px-6">
+            <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
+              <TabsList className="w-full h-auto p-0 bg-transparent">
+                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide border-t border-zinc-100 dark:border-zinc-800 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-3">
+                  <TabsTrigger
+                    value="all"
+                    className={cn(
+                      'relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all',
+                      activeCategory === 'all'
+                        ? 'bg-orange-500 text-white'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+                    )}
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span>جميع الوحدات</span>
+                  </TabsTrigger>
+                  {HR_FEATURES.map((category) => {
+                    const Icon = category.icon;
+                    const isActive = activeCategory === category.id;
+                    return (
+                      <TabsTrigger
+                        key={category.id}
+                        value={category.id}
+                        className={cn(
+                          'relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all',
+                          isActive
+                            ? 'bg-orange-500 text-white'
+                            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{category.title}</span>
+                      </TabsTrigger>
+                    );
+                  })}
+                </div>
+              </TabsList>
+            </Tabs>
+          </div>
+        </header>
+
+        <main className="p-4 sm:p-6">
+          <ScrollArea className="h-[calc(100vh-420px)]">
+            <div className="space-y-8 pb-6">
             {filteredCategories.map((category) => {
               const CategoryIcon = category.icon;
               return (
                 <div key={category.id} className="space-y-4">
                   {/* Category Header */}
-                  <div className="flex items-center gap-3 sticky top-0 bg-background/95 backdrop-blur-sm py-2 z-10">
+                  <div className="flex items-center gap-3 sticky top-0 bg-zinc-50/95 dark:bg-zinc-950/95 backdrop-blur-sm py-2 z-10">
                     <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${category.bgColor} shadow-lg`}>
                       <CategoryIcon className="h-6 w-6 text-white" />
                     </div>
@@ -432,33 +461,30 @@ const HRComingSoonPage: React.FC = () => {
                 </div>
               );
             })}
-          </div>
-        </ScrollArea>
-
-        {/* Bottom CTA */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 border-0">
-          <div className="absolute inset-0 bg-grid-white/5" />
-          <div className="absolute top-0 left-0 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-0 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl" />
-          <CardContent className="relative p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4 text-white">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm">
-                <Rocket className="h-7 w-7" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">نعمل على إطلاق النظام قريباً</h3>
-                <p className="text-sm text-white/70">سيتم إشعارك فور إطلاق نظام إدارة الموارد البشرية</p>
-              </div>
             </div>
-            <Button
-              size="lg"
-              className="bg-white text-slate-900 hover:bg-white/90 shadow-xl gap-2 whitespace-nowrap"
-            >
-              <Bell className="h-4 w-4" />
-              تفعيل الإشعارات
-            </Button>
-          </CardContent>
-        </Card>
+          </ScrollArea>
+
+          <Card className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 mt-6">
+            <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
+                  <Rocket className="h-6 w-6 text-zinc-700 dark:text-zinc-300" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 dark:text-white">نعمل على إطلاق النظام قريباً</h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">سيتم إشعارك فور إطلاق نظام إدارة الموارد البشرية</p>
+                </div>
+              </div>
+              <Button
+                size="lg"
+                className="gap-2 whitespace-nowrap"
+              >
+                <Bell className="h-4 w-4" />
+                تفعيل الإشعارات
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     </POSPureLayout>
   );

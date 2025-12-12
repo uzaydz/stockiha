@@ -87,9 +87,15 @@ interface CartItemComponentProps {
   onUpdateLength?: (index: number, length: number) => void;
   // === props الدفعات والأرقام التسلسلية ===
   onUpdateBatch?: (index: number, batchId: string, batchNumber: string) => void;
-  onUpdateSerialNumbers?: (index: number, serials: string[]) => void;
+  onUpdateSerialNumbers?: (index: number, serials: string[], serialIds?: string[]) => void;
   availableBatches?: BatchInfo[];
   availableSerials?: SerialInfo[];
+  // ⚡ props جديدة للعمل Offline
+  organizationId?: string; // مطلوب لـ SerialNumberInput و BatchSelector الجديدة
+  orderDraftId?: string;   // مطلوب لحجز الأرقام التسلسلية
+  onSerialReserved?: (serialId: string, serialNumber: string) => void;
+  onSerialReleased?: (serialId: string, serialNumber: string) => void;
+  onSerialConflict?: (serialNumber: string, conflictType: 'reserved' | 'sold') => void;
   isReturn?: boolean;
 }
 
@@ -108,6 +114,12 @@ const CartItemComponent: React.FC<CartItemComponentProps> = ({
   onUpdateSerialNumbers,
   availableBatches = [],
   availableSerials = [],
+  // ⚡ props جديدة للعمل Offline
+  organizationId,
+  orderDraftId,
+  onSerialReserved,
+  onSerialReleased,
+  onSerialConflict,
   isReturn = false
 }) => {
   const [isEditingPrice, setIsEditingPrice] = useState(false);
@@ -216,15 +228,16 @@ const CartItemComponent: React.FC<CartItemComponentProps> = ({
     }
   }, [index, onUpdateBatch]);
 
-  // دالة تغيير الأرقام التسلسلية
-  const handleSerialsChange = useCallback((serials: string[]) => {
+  // دالة تغيير الأرقام التسلسلية - ⚡ محدثة لدعم serialIds
+  const handleSerialsChange = useCallback((serials: string[], serialIds?: string[]) => {
     if (onUpdateSerialNumbers) {
-      onUpdateSerialNumbers(index, serials);
+      onUpdateSerialNumbers(index, serials, serialIds);
     }
   }, [index, onUpdateSerialNumbers]);
 
   // التحقق من متطلبات الدفعات والأرقام التسلسلية
-  const requiresBatch = item.product.track_batches && availableBatches.length > 0;
+  // ⚡ محدث: يدعم الجلب المحلي إذا توفر organizationId
+  const requiresBatch = item.product.track_batches && (availableBatches.length > 0 || !!organizationId);
   const requiresSerial = item.product.track_serial_numbers;
   const hasExpiryWarning = item.expiryDate && (() => {
     const daysLeft = Math.ceil((new Date(item.expiryDate!).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -434,15 +447,20 @@ const CartItemComponent: React.FC<CartItemComponentProps> = ({
             {/* === مكونات الدفعات والأرقام التسلسلية === */}
 
             {/* محدد الدفعة - للمنتجات التي تتطلب تتبع الدفعات */}
+            {/* ⚡ محدث: يدعم الجلب المحلي offline إذا توفر organizationId */}
             {requiresBatch && onUpdateBatch && !isReturn && (
               <BatchSelector
                 productId={item.product.id}
                 productName={item.product.name}
+                organizationId={organizationId || ''}
                 batches={availableBatches}
                 selectedBatchId={item.batchId}
                 requiredQuantity={item.quantity}
+                colorId={item.colorId}
+                sizeId={item.sizeId}
+                unitType={currentSellingUnit}
                 onBatchSelect={handleBatchChange}
-                autoSelectFIFO={true}
+                autoSelectFEFO={true}
                 showExpiryWarning={true}
                 className="mt-2"
               />
@@ -470,16 +488,22 @@ const CartItemComponent: React.FC<CartItemComponentProps> = ({
             )}
 
             {/* إدخال الأرقام التسلسلية - للمنتجات التي تتطلب تتبع الأرقام التسلسلية */}
-            {requiresSerial && onUpdateSerialNumbers && !isReturn && (
+            {/* ⚡ محدث: يدعم حجز الأرقام التسلسلية offline */}
+            {requiresSerial && onUpdateSerialNumbers && !isReturn && organizationId && (
               <SerialNumberInput
                 productId={item.product.id}
                 productName={item.product.name}
+                organizationId={organizationId}
                 quantity={item.quantity}
                 selectedSerials={item.serialNumbers || []}
-                availableSerials={availableSerials}
+                orderDraftId={orderDraftId || `draft-${Date.now()}`}
                 onSerialsChange={handleSerialsChange}
+                onSerialReserved={onSerialReserved}
+                onSerialReleased={onSerialReleased}
+                onConflict={onSerialConflict ? (serial, type) => onSerialConflict(serial, type as 'reserved' | 'sold') : undefined}
                 requireSerial={item.product.require_serial_on_sale !== false}
                 supportsIMEI={item.product.supports_imei}
+                reservationMinutes={30}
                 className="mt-2"
               />
             )}

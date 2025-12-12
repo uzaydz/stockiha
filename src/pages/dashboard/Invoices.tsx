@@ -10,6 +10,7 @@ import InvoicesHeader from '@/components/invoices/InvoicesHeader';
 import InvoicesList from '@/components/invoices/InvoicesList';
 import InvoicePrintViewUpdated from '@/components/invoices/InvoicePrintViewUpdated';
 import CreateInvoiceDialogAdvanced from '@/components/invoices/CreateInvoiceDialogAdvanced';
+import InvoicesUserGuide from '@/components/invoices/InvoicesUserGuide';
 import type { Invoice } from '@/lib/api/invoices';
 import { syncPendingInvoices } from '@/api/syncInvoices';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -86,6 +87,7 @@ const Invoices: React.FC<InvoicesProps> = ({
   const [createDialogType, setCreateDialogType] = useState<'new' | 'order' | 'online' | 'service' | 'combined' | 'proforma' | 'bon_commande'>('new');
   const [selectOrderDialogOpen, setSelectOrderDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [showUserGuide, setShowUserGuide] = useState(false);
 
   // السماح لمن يملك مفاتيح عرض الفواتير الحديثة أو بدائل قديمة
   // الجديد: canViewInvoices
@@ -268,6 +270,7 @@ const Invoices: React.FC<InvoicesProps> = ({
             onCreateProforma={handleCreateProforma}
             onCreateBonCommande={handleCreateBonCommande}
             canCreate={canManageInvoices}
+            onOpenUserGuide={() => setShowUserGuide(true)}
           />
 
           {/* قائمة الفواتير */}
@@ -292,6 +295,12 @@ const Invoices: React.FC<InvoicesProps> = ({
           editingInvoice={editingInvoice}
         />
       )}
+
+      {/* دليل الاستخدام */}
+      <InvoicesUserGuide
+        isOpen={showUserGuide}
+        onClose={() => setShowUserGuide(false)}
+      />
     </>
   );
 

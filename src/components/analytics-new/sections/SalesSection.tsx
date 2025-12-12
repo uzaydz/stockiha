@@ -6,25 +6,19 @@
  */
 
 import React, { memo, useMemo, useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ShoppingCart,
-  TrendingUp,
-  TrendingDown,
-  CreditCard,
   Store,
   Package,
   Calendar,
   BarChart3,
   DollarSign,
-  Users,
   Percent,
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
-  Clock,
   Target,
-  Zap,
   Activity,
   Layers,
 } from 'lucide-react';
@@ -48,6 +42,14 @@ interface SalesSectionProps {
   data: SalesData | null;
   isLoading?: boolean;
 }
+
+type SimpleTopProductRow = {
+  productId: string;
+  productName: string;
+  quantitySold: number;
+  revenue: number;
+  profit: number;
+};
 
 // ==================== Animated Number Component ====================
 
@@ -261,7 +263,8 @@ const HorizontalBarChart: React.FC<{
   data: Array<{ name: string; value: number; percentage: number; color?: string }>;
   maxItems?: number;
   showValues?: boolean;
-}> = ({ data, maxItems = 6, showValues = true }) => {
+  valueFormatter?: (value: number) => string;
+}> = ({ data, maxItems = 6, showValues = true, valueFormatter = formatCurrency }) => {
   const items = data.slice(0, maxItems);
   const maxValue = Math.max(...items.map(d => d.value), 1);
   const colors = ['#f97316', '#8b5cf6', '#10b981', '#3b82f6', '#f59e0b', '#ec4899'];
@@ -288,7 +291,7 @@ const HorizontalBarChart: React.FC<{
             </div>
             {showValues && (
               <span className="text-sm font-semibold text-zinc-900 dark:text-white">
-                {formatCurrency(item.value)}
+                {valueFormatter(item.value)}
               </span>
             )}
           </div>
@@ -308,109 +311,6 @@ const HorizontalBarChart: React.FC<{
           </div>
         </motion.div>
       ))}
-    </div>
-  );
-};
-
-// ==================== Donut Chart with Legend ====================
-
-const DonutChartWithLegend: React.FC<{
-  data: Array<{ name: string; value: number; percentage: number }>;
-  size?: number;
-  centerLabel?: string;
-  centerValue?: string;
-}> = ({ data, size = 180, centerLabel, centerValue }) => {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const colors = ['#f97316', '#8b5cf6', '#10b981', '#3b82f6', '#f59e0b', '#ec4899'];
-  const total = data.reduce((sum, d) => sum + d.value, 0);
-
-  const strokeWidth = 24;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-
-  let currentAngle = -90;
-  const arcs = data.map((item, index) => {
-    const percentage = item.value / total;
-    const angle = percentage * 360;
-    const arc = {
-      ...item,
-      startAngle: currentAngle,
-      endAngle: currentAngle + angle,
-      color: colors[index % colors.length],
-    };
-    currentAngle += angle;
-    return arc;
-  });
-
-  return (
-    <div className="flex items-center gap-6">
-      {/* Donut Chart */}
-      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-        <svg width={size} height={size}>
-          {arcs.map((arc, index) => {
-            const percentage = arc.value / total;
-            const strokeDasharray = circumference;
-            const strokeDashoffset = circumference * (1 - percentage);
-            const rotation = arc.startAngle;
-
-            return (
-              <motion.circle
-                key={arc.name}
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                fill="none"
-                stroke={arc.color}
-                strokeWidth={activeIndex === index ? strokeWidth + 4 : strokeWidth}
-                strokeLinecap="round"
-                strokeDasharray={strokeDasharray}
-                strokeDashoffset={strokeDashoffset}
-                transform={`rotate(${rotation} ${size / 2} ${size / 2})`}
-                initial={{ strokeDashoffset: circumference }}
-                animate={{ strokeDashoffset }}
-                transition={{ duration: 1, delay: index * 0.1, ease: 'easeOut' }}
-                className="cursor-pointer transition-all"
-                onMouseEnter={() => setActiveIndex(index)}
-                onMouseLeave={() => setActiveIndex(null)}
-              />
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-zinc-900 dark:text-white">
-            {centerValue || formatCurrency(total)}
-          </span>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            {centerLabel || 'الإجمالي'}
-          </span>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="flex flex-col gap-2 flex-1 min-w-0">
-        {arcs.map((arc, index) => (
-          <motion.div
-            key={arc.name}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className={cn(
-              'flex items-center justify-between gap-2 p-2 rounded-lg transition-colors cursor-pointer',
-              activeIndex === index ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-            )}
-            onMouseEnter={() => setActiveIndex(index)}
-            onMouseLeave={() => setActiveIndex(null)}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: arc.color }} />
-              <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{arc.name}</span>
-            </div>
-            <span className="text-sm font-semibold text-zinc-900 dark:text-white flex-shrink-0">
-              {formatPercent(arc.percentage)}
-            </span>
-          </motion.div>
-        ))}
-      </div>
     </div>
   );
 };
@@ -498,6 +398,8 @@ const SalesSection: React.FC<SalesSectionProps> = ({
   data,
   isLoading = false,
 }) => {
+  const [topProductsMetric, setTopProductsMetric] = useState<'revenue' | 'quantity'>('revenue');
+
   // Extract sparkline data from sales by day
   const sparklineData = useMemo(() => {
     if (!data?.salesByDay) return [];
@@ -521,15 +423,40 @@ const SalesSection: React.FC<SalesSectionProps> = ({
     return Math.min((data?.totalSales || 0) / monthlyTarget, 1) * 100;
   }, [data]);
 
-  // Transform salesByPaymentMethod to include percentage
-  const salesByPaymentMethodWithPercentage = useMemo(() => {
-    if (!data?.salesByPaymentMethod || data.salesByPaymentMethod.length === 0) return [];
-    const total = data.salesByPaymentMethod.reduce((sum, item) => sum + item.value, 0);
-    return data.salesByPaymentMethod.map(item => ({
-      ...item,
-      percentage: total > 0 ? (item.value / total) * 100 : 0,
+  const topProducts = useMemo<SimpleTopProductRow[]>(() => {
+    const products = data?.topProducts || [];
+    return products.slice(0, 10).map((p) => ({
+      productId: p.productId,
+      productName: p.productName,
+      quantitySold: p.quantitySold,
+      revenue: p.revenue,
+      profit: p.profit,
     }));
-  }, [data?.salesByPaymentMethod]);
+  }, [data]);
+
+  const topProductsMaxRevenue = useMemo(() => {
+    return Math.max(...topProducts.map((x) => x.revenue), 1);
+  }, [topProducts]);
+
+  const bestProduct = useMemo(() => {
+    return data?.topProducts?.[0] || null;
+  }, [data]);
+
+  const topProductsBarData = useMemo(() => {
+    const products = data?.topProducts || [];
+    const rows = products.slice(0, 6).map((p) => ({
+      name: p.productName,
+      value: topProductsMetric === 'revenue' ? p.revenue : p.quantitySold,
+      percentage: 0,
+    }));
+
+    const total = rows.reduce((sum, r) => sum + (Number(r.value) || 0), 0);
+    return rows.map((r) => ({
+      ...r,
+      value: Number(r.value) || 0,
+      percentage: total > 0 ? (r.value / total) * 100 : 0,
+    }));
+  }, [data, topProductsMetric]);
 
   // Transform salesBySaleType to include percentage and count
   const salesBySaleTypeWithPercentage = useMemo(() => {
@@ -736,7 +663,7 @@ const SalesSection: React.FC<SalesSectionProps> = ({
           />
         </motion.div>
 
-        {/* Payment Methods Donut */}
+        {/* Sales by Product Type */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -744,13 +671,145 @@ const SalesSection: React.FC<SalesSectionProps> = ({
           className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-100 dark:border-zinc-800"
         >
           <div className="mb-5">
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">طرق الدفع</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">توزيع المبيعات حسب طريقة الدفع</p>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">المبيعات حسب نوع المنتج</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">قطعة • وزن • متر • صندوق</p>
           </div>
-          <DonutChartWithLegend
-            data={salesByPaymentMethodWithPercentage}
-            size={160}
-            centerLabel="الإجمالي"
+          <HorizontalBarChart
+            data={[
+              { name: 'قطعة', value: data?.pieceSales || 0, percentage: 0 },
+              { name: 'وزن', value: data?.weightSales || 0, percentage: 0 },
+              { name: 'متر', value: data?.meterSales || 0, percentage: 0 },
+              { name: 'صندوق', value: data?.boxSales || 0, percentage: 0 },
+            ].map((row) => {
+              const total = (data?.pieceSales || 0) + (data?.weightSales || 0) + (data?.meterSales || 0) + (data?.boxSales || 0);
+              return {
+                ...row,
+                percentage: total > 0 ? (row.value / total) * 100 : 0,
+              };
+            })}
+            maxItems={4}
+            valueFormatter={formatCurrency}
+          />
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-100 dark:border-zinc-800"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">أفضل منتج</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">الأعلى إيراداً خلال الفترة</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-500/10 flex items-center justify-center">
+              <Package className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+
+          {bestProduct ? (
+            <div className="space-y-4">
+              <div className="min-w-0">
+                <div className="text-base font-semibold text-zinc-900 dark:text-white truncate">
+                  {bestProduct.productName}
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  {bestProduct.categoryName || '—'}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400">الإيراد</div>
+                  <div className="text-sm font-semibold text-zinc-900 dark:text-white mt-1 font-mono">
+                    {formatCurrency(bestProduct.revenue)}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400">الكمية</div>
+                  <div className="text-sm font-semibold text-zinc-900 dark:text-white mt-1 font-mono">
+                    {formatNumber(bestProduct.quantitySold)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400">هامش الربح</span>
+                  <span className={cn(
+                    'text-xs font-semibold px-2 py-1 rounded-lg',
+                    bestProduct.profit >= 0
+                      ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10'
+                      : 'text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/10'
+                  )}>
+                    {formatPercent(bestProduct.profitMargin, { decimals: 1 })}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-orange-500 rounded-full"
+                    style={{ width: `${Math.min(100, Math.max(0, (bestProduct.revenue / Math.max(data?.totalSales || 1, 1)) * 100))}%` }}
+                  />
+                </div>
+                <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {formatPercent((bestProduct.revenue / Math.max(data?.totalSales || 1, 1)) * 100, { decimals: 1 })} من إجمالي المبيعات
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-10 text-center text-zinc-400">لا توجد بيانات للعرض</div>
+          )}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-100 dark:border-zinc-800 lg:col-span-2"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">أفضل المنتجات</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">الأعلى أداءً خلال الفترة</p>
+            </div>
+
+            <div className="flex items-center gap-1 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl w-fit">
+              <button
+                onClick={() => setTopProductsMetric('revenue')}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                  topProductsMetric === 'revenue'
+                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                )}
+              >
+                الإيراد
+              </button>
+              <button
+                onClick={() => setTopProductsMetric('quantity')}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                  topProductsMetric === 'quantity'
+                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+                )}
+              >
+                الكمية
+              </button>
+            </div>
+          </div>
+
+          <HorizontalBarChart
+            data={topProductsBarData}
+            maxItems={6}
+            valueFormatter={(v) =>
+              topProductsMetric === 'revenue'
+                ? formatCurrency(v)
+                : `${formatNumber(v)} قطعة`
+            }
           />
         </motion.div>
       </div>
@@ -954,6 +1013,79 @@ const SalesSection: React.FC<SalesSectionProps> = ({
                   </motion.tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
+
+      {/* ===== Top Products Table ===== */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.9 }}
+        className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-100 dark:border-zinc-800"
+      >
+        <div className="mb-5">
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">أفضل المنتجات</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">الأكثر إيراداً خلال الفترة</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-200 dark:border-zinc-700">
+                <th className="text-right py-3 px-4 font-medium text-zinc-500 dark:text-zinc-400">#</th>
+                <th className="text-right py-3 px-4 font-medium text-zinc-500 dark:text-zinc-400">المنتج</th>
+                <th className="text-right py-3 px-4 font-medium text-zinc-500 dark:text-zinc-400">الكمية</th>
+                <th className="text-right py-3 px-4 font-medium text-zinc-500 dark:text-zinc-400">الإيراد</th>
+                <th className="text-right py-3 px-4 font-medium text-zinc-500 dark:text-zinc-400">الربح</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-10 text-center text-zinc-400">لا توجد بيانات للعرض</td>
+                </tr>
+              ) : (
+                topProducts.map((p, index) => {
+                  const revPct = Math.min(100, (p.revenue / topProductsMaxRevenue) * 100);
+                  return (
+                  <tr
+                    key={p.productId}
+                    className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
+                        {index + 1}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="min-w-0">
+                        <div className="font-medium text-zinc-900 dark:text-white truncate">{p.productName}</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="flex-1 max-w-[160px] h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-orange-500 rounded-full" style={{ width: `${revPct}%` }} />
+                          </div>
+                          <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">{Math.round(revPct)}%</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-mono text-xs">
+                        {formatNumber(p.quantitySold)}
+                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400">قطعة</span>
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-white font-mono">{formatCurrency(p.revenue)}</td>
+                    <td className={cn(
+                      'py-3 px-4 font-semibold',
+                      p.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                    )}>
+                      <span className="font-mono">{formatCurrency(p.profit)}</span>
+                    </td>
+                  </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

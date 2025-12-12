@@ -379,8 +379,10 @@ function createMainWindow() {
 
     checkAndLoad();
 
-    // فتح DevTools دائماً في التطوير
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    // فتح DevTools فقط في وضع التطوير
+    if (isDev) {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
   } else {
     // تحميل التطبيق من dist باستخدام file:// URL
     const distPath = path.resolve(__dirname, '../dist');
@@ -462,8 +464,11 @@ function createMainWindow() {
       mainWindow.setMenuBarVisibility(false);
       mainWindow.setAutoHideMenuBar(true);
 
-      // فتح DevTools دائماً للتشخيص
-      mainWindow.webContents.openDevTools({ mode: 'detach' });
+      // ⚠️ أمان: فتح DevTools فقط في وضع التطوير
+      // في الإنتاج: لا يُفتح DevTools لمنع كشف البيانات والتلاعب
+      if (isDev) {
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+      }
     }, remainingTime);
   });
 
@@ -596,6 +601,24 @@ function createMainWindow() {
 
   mainWindow.webContents.on('dom-ready', () => {
     console.log('[Electron] DOM جاهز');
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ⌨️ تمرير مفاتيح الوظائف (F1-F12) للتطبيق ومنع سلوك النظام الافتراضي
+    // ═══════════════════════════════════════════════════════════════════════════
+    // على Mac: F1-F12 عادةً تتحكم في السطوع والصوت وغيرها
+    // هذا الكود يضمن وصول المفاتيح للتطبيق
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      // قائمة المفاتيح التي نريد تمريرها للتطبيق
+      const appShortcuts = [
+        'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+      ];
+
+      if (appShortcuts.includes(input.key)) {
+        // لا نفعل شيء هنا - نترك الحدث يمر للـ renderer
+        // لكن نسجل للتتبع
+        console.log(`[Electron] Function key pressed: ${input.key}`);
+      }
+    });
   });
 
   // إدارة إغلاق النافذة
@@ -637,6 +660,8 @@ function createApp() {
 }
 
 // إنشاء القائمة
+// ⚠️ ملاحظة: تم إزالة الاختصارات المتعارضة مع التطبيق (F1-F12, Ctrl+N, Ctrl+W, etc.)
+// هذه الاختصارات يتم معالجتها في React (useKeyboardShortcuts)
 function createMenu() {
   const template = [
     {
@@ -644,7 +669,7 @@ function createMenu() {
       submenu: [
         {
           label: 'جديد',
-          accelerator: 'CmdOrCtrl+N',
+          // ❌ إزالة accelerator - يتعارض مع اختصار التبويب الجديد في POS
           click: () => {
             mainWindow.webContents.send('menu-new');
           }
@@ -688,7 +713,7 @@ function createMenu() {
         },
         {
           label: isMac ? 'إخفاء الآخرين' : 'إخفاء',
-          accelerator: isMac ? 'Cmd+Alt+H' : 'Ctrl+H',
+          accelerator: isMac ? 'Cmd+Alt+H' : 'Ctrl+Shift+H',
           click: () => {
             if (isMac) {
               Menu.sendActionToFirstResponder('hideOtherApplications:');
@@ -699,7 +724,7 @@ function createMenu() {
         },
         {
           label: 'إغلاق',
-          accelerator: 'CmdOrCtrl+W',
+          // ❌ إزالة accelerator - يتعارض مع إغلاق التبويب في POS
           click: () => {
             mainWindow.close();
           }
@@ -723,21 +748,22 @@ function createMenu() {
       submenu: [
         {
           label: 'إعادة تحميل',
-          accelerator: 'CmdOrCtrl+R',
+          // ❌ إزالة accelerator - يتم التحكم من التطبيق
           click: () => {
             mainWindow.reload();
           }
         },
         {
           label: 'إعادة تحميل قسري',
-          accelerator: 'CmdOrCtrl+Shift+R',
+          accelerator: 'CmdOrCtrl+Shift+Alt+R',
           click: () => {
             mainWindow.webContents.reloadIgnoringCache();
           }
         },
         {
           label: 'تطوير',
-          accelerator: 'F12',
+          // ❌ إزالة F12 - محجوز لـ POS (بيع سريع)
+          accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {
             mainWindow.webContents.toggleDevTools();
           }
@@ -769,7 +795,8 @@ function createMenu() {
         { type: 'separator' },
         {
           label: 'ملء الشاشة',
-          accelerator: isMac ? 'Ctrl+Cmd+F' : 'F11',
+          // ❌ إزالة F11 - محجوز لـ POS (شاشة كاملة من التطبيق)
+          accelerator: isMac ? 'Ctrl+Cmd+F' : 'Alt+Enter',
           click: () => {
             mainWindow.setFullScreen(!mainWindow.isFullScreen());
           }
@@ -788,7 +815,7 @@ function createMenu() {
         },
         {
           label: 'تكبير',
-          accelerator: isMac ? 'Ctrl+Cmd+F' : 'F11',
+          // ❌ إزالة F11
           click: () => {
             if (mainWindow.isMaximized()) {
               mainWindow.unmaximize();
@@ -799,7 +826,7 @@ function createMenu() {
         },
         {
           label: 'إغلاق',
-          accelerator: 'CmdOrCtrl+W',
+          // ❌ إزالة accelerator
           click: () => {
             mainWindow.close();
           }
@@ -1151,6 +1178,57 @@ ipcMain.handle('app-name', () => {
   return app.getName();
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ⌨️ IPC handlers للتحكم في النافذة من التطبيق (للاختصارات)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// التحكم في وضع ملء الشاشة
+ipcMain.handle('window:toggle-fullscreen', () => {
+  if (mainWindow) {
+    mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    return mainWindow.isFullScreen();
+  }
+  return false;
+});
+
+ipcMain.handle('window:is-fullscreen', () => {
+  return mainWindow ? mainWindow.isFullScreen() : false;
+});
+
+// إعادة تحميل التطبيق
+ipcMain.handle('window:reload', () => {
+  if (mainWindow) {
+    mainWindow.reload();
+  }
+});
+
+// تصغير النافذة
+ipcMain.handle('window:minimize', () => {
+  if (mainWindow) {
+    mainWindow.minimize();
+  }
+});
+
+// تكبير/استعادة النافذة
+ipcMain.handle('window:maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+    return mainWindow.isMaximized();
+  }
+  return false;
+});
+
+// فتح DevTools
+ipcMain.handle('window:toggle-devtools', () => {
+  if (mainWindow) {
+    mainWindow.webContents.toggleDevTools();
+  }
+});
+
 ipcMain.handle('show-message-box', async (event, options) => {
   const result = await dialog.showMessageBox(mainWindow, options);
   return result;
@@ -1232,12 +1310,77 @@ ipcMain.handle('db:initialize', async (event, organizationId) => {
   }
 });
 
+// ⚠️ أمان: قائمة بيضاء للاستعلامات المسموح بها في الإنتاج
+// SQL Console الحر متاح فقط في وضع التطوير
+const ALLOWED_QUERIES_PATTERNS = [
+  // استعلامات النظام الأساسية
+  /^SELECT\s+\*\s+FROM\s+products/i,
+  /^SELECT\s+\*\s+FROM\s+pos_orders/i,
+  /^SELECT\s+\*\s+FROM\s+customers/i,
+  /^SELECT\s+\*\s+FROM\s+invoices/i,
+  /^SELECT\s+\*\s+FROM\s+sync_queue/i,
+  /^SELECT\s+\*\s+FROM\s+pending_operations/i,
+  /^SELECT\s+COUNT\(\*\)/i,
+  /^PRAGMA\s+table_info/i,
+  /^PRAGMA\s+page_count/i,
+  /^PRAGMA\s+page_size/i,
+  // FTS search
+  /^SELECT\s+.*FROM\s+products_fts/i,
+  // sqlite_master للحصول على قائمة الجداول (للقراءة فقط)
+  /^SELECT\s+name\s+FROM\s+sqlite_master\s+WHERE\s+type='table'/i,
+];
+
+function isQueryAllowedInProduction(sql) {
+  if (isDev) return true; // كل الاستعلامات مسموحة في التطوير
+
+  const trimmedSql = sql.trim();
+
+  // منع الاستعلامات الخطيرة تماماً
+  const dangerousPatterns = [
+    /DROP\s+TABLE/i,
+    /DELETE\s+FROM/i,
+    /TRUNCATE/i,
+    /ALTER\s+TABLE/i,
+    /CREATE\s+TABLE/i,
+    /INSERT\s+INTO/i,
+    /UPDATE\s+.*SET/i,
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(trimmedSql)) {
+      console.warn('[Security] Blocked dangerous query in production:', trimmedSql.substring(0, 100));
+      return false;
+    }
+  }
+
+  // في الإنتاج، فقط الاستعلامات في القائمة البيضاء مسموحة
+  for (const pattern of ALLOWED_QUERIES_PATTERNS) {
+    if (pattern.test(trimmedSql)) {
+      return true;
+    }
+  }
+
+  console.warn('[Security] Query not in whitelist, blocked in production:', trimmedSql.substring(0, 100));
+  return false;
+}
+
 // استعلام عام
 ipcMain.handle('db:query', async (event, sql, params) => {
   try {
     if (!sqliteManager || !sqliteManager.isInitialized) {
       return { success: false, error: 'Database not initialized', data: [] };
     }
+
+    // ⚠️ أمان: فحص الاستعلام قبل التنفيذ
+    if (!isQueryAllowedInProduction(sql)) {
+      return {
+        success: false,
+        error: 'هذا الاستعلام غير مسموح به في وضع الإنتاج. استخدم وضع التطوير للوصول الكامل لقاعدة البيانات.',
+        data: [],
+        blocked: true
+      };
+    }
+
     return sqliteManager.query(sql, params);
   } catch (error) {
     console.error('[IPC] Query failed:', error);
@@ -1251,6 +1394,17 @@ ipcMain.handle('db:query-one', async (event, sql, params) => {
     if (!sqliteManager || !sqliteManager.isInitialized) {
       return { success: false, error: 'Database not initialized', data: null };
     }
+
+    // ⚠️ أمان: فحص الاستعلام قبل التنفيذ
+    if (!isQueryAllowedInProduction(sql)) {
+      return {
+        success: false,
+        error: 'هذا الاستعلام غير مسموح به في وضع الإنتاج. استخدم وضع التطوير للوصول الكامل لقاعدة البيانات.',
+        data: null,
+        blocked: true
+      };
+    }
+
     return sqliteManager.queryOne(sql, params);
   } catch (error) {
     console.error('[IPC] QueryOne failed:', error);
@@ -1259,11 +1413,25 @@ ipcMain.handle('db:query-one', async (event, sql, params) => {
 });
 
 // تنفيذ عمليات UPDATE/INSERT/DELETE
+// ⚠️ أمان: هذا الـ handler محمي بشكل صارم - فقط في وضع التطوير
 ipcMain.handle('db:execute', async (event, sql, params) => {
   try {
     if (!sqliteManager || !sqliteManager.isInitialized) {
       return { success: false, error: 'Database not initialized', changes: 0 };
     }
+
+    // ⚠️ أمان: عمليات الكتابة المباشرة محظورة تماماً في الإنتاج
+    // يجب استخدام الـ handlers المخصصة (db:upsert, db:delete, إلخ)
+    if (!isDev) {
+      console.warn('[Security] Direct SQL execute blocked in production');
+      return {
+        success: false,
+        error: 'تنفيذ SQL المباشر غير مسموح في وضع الإنتاج. استخدم الوظائف المخصصة.',
+        changes: 0,
+        blocked: true
+      };
+    }
+
     return sqliteManager.execute(sql, params);
   } catch (error) {
     console.error('[IPC] Execute failed:', error);

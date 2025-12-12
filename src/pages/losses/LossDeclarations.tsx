@@ -74,6 +74,7 @@ import { useReactiveLosses, useReactiveLossStats, type LossStatus } from '@/hook
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import LossesUserGuide, { LossesHelpButton } from '@/components/losses/LossesUserGuide';
 
 // ===============================================================================
 // Types
@@ -450,6 +451,7 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLossItems, setSelectedLossItems] = useState<LossItem[]>([]);
   const [loadingLossItems, setLoadingLossItems] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
 
   // Create form hooks
   const {
@@ -793,6 +795,8 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <LossesHelpButton onClick={() => setShowUserGuide(true)} />
+
           <Button
             variant="ghost"
             size="icon"
@@ -1510,6 +1514,12 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* User Guide */}
+      <LossesUserGuide
+        isOpen={showUserGuide}
+        onClose={() => setShowUserGuide(false)}
+      />
     </div>
   );
 

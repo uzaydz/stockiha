@@ -7,6 +7,7 @@
 import { supabase } from '@/lib/supabase';
 import { permissionService } from './PermissionService';
 import { UserPermissionData, UserRole } from '@/types/permissions';
+import { authSingleton } from '@/lib/authSingleton';
 
 // ========================================
 // Constants
@@ -173,9 +174,8 @@ class PermissionSyncService {
     this.isSyncing = true;
 
     try {
-      // الحصول على الجلسة الحالية
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData?.session;
+      // ⚡ الحصول على الجلسة الحالية من authSingleton لتجنب حلقة الاعتراض
+      const session = await authSingleton.getSession();
 
       if (!session?.user?.id && !authUserId) {
         console.warn('[PermissionSyncService] No authenticated user');

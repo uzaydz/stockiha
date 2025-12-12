@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -28,12 +27,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Upload, Wrench, Trash2, Plus, Share2, User, DollarSign } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  Loader2, Wrench, Plus, User, Phone, Smartphone, MapPin,
+  FileText, CreditCard, X, Camera, CheckCircle2, AlertCircle, DollarSign
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // استيراد مدير أماكن التصليح
 import RepairLocationManager from '@/components/pos/RepairLocationManager';
 import { RepairLocation } from '@/components/pos/RepairLocationManager';
-import { 
+import {
   createLocalRepairOrder,
   updateLocalRepairOrder,
   addLocalRepairHistory,
@@ -48,12 +52,12 @@ interface RepairServiceDialogProps {
   onClose: () => void;
   onSuccess: (orderId: string, trackingCode: string) => void;
   editMode?: boolean;
-  repairOrder?: any; // سنستخدم any مؤقتاً لتجنب مشاكل الأنواع
+  repairOrder?: any;
 }
 
 const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, repairOrder }: RepairServiceDialogProps) => {
   const { user, organizationId } = useUser();
-  
+
   // حالة النموذج
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -65,19 +69,19 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState('نقدًا');
   const [priceToBeDetLater, setPriceToBeDetLater] = useState<boolean>(false);
-  
+
   // حالة رفع الصور
   const [fileList, setFileList] = useState<File[]>([]);
   const [filePreview, setFilePreview] = useState<string[]>([]);
-  
+
   // حالة تحميل البيانات
   const [repairLocations, setRepairLocations] = useState<RepairLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // حالة مدير أماكن التصليح
   const [isLocationManagerOpen, setIsLocationManagerOpen] = useState(false);
-  
+
   // جلب قائمة أماكن التصليح
   const fetchRepairLocations = async () => {
     try {
@@ -94,14 +98,13 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
   useEffect(() => {
     if (isOpen) {
       fetchRepairLocations();
-      
+
       // ملء الحقول في حالة التعديل
       if (editMode && repairOrder) {
         setCustomerName(repairOrder.customer_name || '');
         setCustomerPhone(repairOrder.customer_phone || '');
         setDeviceType(repairOrder.device_type || '');
-        
-        // التعامل مع مكان التصليح بشكل صحيح
+
         if (repairOrder.custom_location) {
           setRepairLocation('أخرى');
           setCustomLocation(repairOrder.custom_location);
@@ -112,7 +115,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           setRepairLocation('');
           setCustomLocation('');
         }
-        
+
         setIssueDescription(repairOrder.issue_description || '');
         setTotalPrice(repairOrder.total_price || 0);
         setPaidAmount(repairOrder.paid_amount || 0);
@@ -122,14 +125,12 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
     }
   }, [organizationId, isOpen, editMode, repairOrder]);
 
-  // إعادة تعيين النموذج عند الإغلاق
   useEffect(() => {
     if (!isOpen) {
       resetForm();
     }
   }, [isOpen]);
 
-  // إعادة تعيين النموذج
   const resetForm = () => {
     setCustomerName('');
     setCustomerPhone('');
@@ -145,7 +146,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
     setFilePreview([]);
   };
 
-  // معالجة تغيير الملفات
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -177,61 +177,54 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
     setFilePreview([...filePreview, ...newPreviews]);
   };
 
-  // حذف ملف
   const removeFile = (index: number) => {
     const newFiles = [...fileList];
     const newPreviews = [...filePreview];
-    
-    // تحرير عنوان URL للمعاينة
     URL.revokeObjectURL(newPreviews[index]);
-    
     newFiles.splice(index, 1);
     newPreviews.splice(index, 1);
-    
     setFileList(newFiles);
     setFilePreview(newPreviews);
   };
 
-  // إرسال النموذج
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // التحقق من صحة البيانات
+
     if (!customerName?.trim()) {
       toast.error('يرجى إدخال اسم العميل');
       return;
     }
-    
+
     if (!customerPhone?.trim()) {
       toast.error('يرجى إدخال رقم هاتف العميل');
       return;
     }
-    
+
     if (!deviceType?.trim()) {
       toast.error('يرجى اختيار نوع الجهاز');
       return;
     }
-    
+
     if (!priceToBeDetLater && (!totalPrice || totalPrice <= 0)) {
       toast.error('يرجى إدخال سعر التصليح أو اختيار "السعر يحدد لاحقاً"');
       return;
     }
-    
+
     if (!organizationId) {
       toast.error('خطأ في بيانات المؤسسة. يرجى إعادة تسجيل الدخول');
       return;
     }
-    
+
     if (!repairLocation && repairLocation !== 'أخرى') {
       toast.error('يرجى اختيار مكان التصليح');
       return;
     }
-    
+
     if (repairLocation === 'أخرى' && !customLocation?.trim()) {
       toast.error('يرجى إدخال مكان التصليح المخصص');
       return;
     }
-    
+
     setIsSubmitting(true);
 
     try {
@@ -240,7 +233,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
       let trackingCode: string;
 
       if (editMode && repairOrder) {
-        // تحديث محلي
         repairOrderId = repairOrder.id;
         orderNumber = repairOrder.order_number || '';
         trackingCode = repairOrder.repair_tracking_code || '';
@@ -266,7 +258,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         if (!updated) throw new Error('تعذر تحديث طلبية التصليح محلياً');
         await addLocalRepairHistory({ orderId: repairOrderId, status: 'تم التحديث', notes: 'تم تحديث بيانات طلبية التصليح', createdBy: user?.id });
       } else {
-        // إنشاء محلي
         const ids = generateRepairIdentifiers();
         const created = await createLocalRepairOrder({
           customer_name: customerName,
@@ -290,7 +281,6 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         await addLocalRepairHistory({ orderId: repairOrderId, status: 'قيد الانتظار', notes: 'تم إنشاء طلبية التصليح', createdBy: user?.id });
       }
 
-      // حفظ الصور محلياً للرفع لاحقاً
       if (fileList.length > 0) {
         await Promise.all(
           fileList.map((file) => addLocalRepairImage(repairOrderId, file, { image_type: 'before', description: 'صورة قبل التصليح' }))
@@ -308,430 +298,338 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
     }
   };
 
-  // التعامل مع اختيار إضافة مكان جديد
   useEffect(() => {
     if (repairLocation === 'add_new') {
-      // إعادة تعيين الاختيار وفتح مدير المواقع
       setRepairLocation('');
       setIsLocationManagerOpen(true);
     }
   }, [repairLocation]);
 
-  // التعامل مع اختيار مكان من مدير المواقع
   const handleLocationSelect = (location: RepairLocation) => {
     setRepairLocation(location.id);
     setIsLocationManagerOpen(false);
-    
-    // تحديث قائمة الأماكن إذا لم يكن المكان موجودًا بالفعل
+
     if (!repairLocations.some(loc => loc.id === location.id)) {
       setRepairLocations(prev => [location, ...prev]);
     }
   };
 
-  // تحديث قائمة الأماكن عند إغلاق مدير الأماكن
   const handleLocationManagerClose = () => {
     setIsLocationManagerOpen(false);
     fetchRepairLocations();
   };
 
+  const remainingAmount = (totalPrice || 0) - (paidAmount || 0);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Wrench className="h-5 w-5" />
-            {editMode ? 'تعديل طلبية التصليح' : 'إضافة طلبية تصليح جديدة'}
-          </DialogTitle>
-          <DialogDescription>
-            {editMode ? 'قم بتعديل بيانات طلبية التصليح' : 'أدخل بيانات طلبية التصليح الجديدة'}
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="space-y-6">
-          <form id="repair-form" onSubmit={handleSubmit} className="space-y-6 py-4">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] p-0 gap-0 overflow-hidden bg-background" dir="rtl">
+        {/* Header - بسيط */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-3">
+            <div>
+              <DialogTitle className="text-lg font-semibold text-left">
+                {editMode ? 'تعديل طلبية التصليح' : 'طلبية تصليح جديدة'}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground text-left">
+                {editMode ? 'تعديل بيانات الطلبية' : 'إدخال بيانات الجهاز والعميل'}
+              </DialogDescription>
+            </div>
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-orange-500/10">
+              <Wrench className="h-5 w-5 text-orange-500" />
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <ScrollArea className="flex-1 max-h-[calc(90vh-160px)]">
+          <form id="repair-form" onSubmit={handleSubmit} className="p-6 space-y-6">
+
             {/* معلومات العميل */}
-            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
-                <div className="p-1.5 bg-blue-100 dark:bg-blue-900/50 rounded-md">
-                  <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                </div>
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <User className="h-4 w-4" />
                 معلومات العميل
               </h3>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="customer_name" className="text-sm font-medium">
-                    اسم العميل <span className="text-red-500">*</span>
+                  <Label className="text-sm">
+                    اسم العميل <span className="text-orange-500">*</span>
                   </Label>
-                  <Input 
-                    id="customer_name" 
+                  <Input
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="أدخل اسم العميل" 
-                    required
-                    className="h-10"
+                    placeholder="أدخل اسم العميل"
+                    className="h-10 focus-visible:ring-orange-500/20 focus-visible:border-orange-500"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="customer_phone" className="text-sm font-medium">
-                    رقم الهاتف <span className="text-red-500">*</span>
+                  <Label className="text-sm">
+                    رقم الهاتف <span className="text-orange-500">*</span>
                   </Label>
-                  <Input 
-                    id="customer_phone" 
+                  <Input
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="أدخل رقم الهاتف" 
-                    pattern="^[0-9]{10}$"
-                    title="رقم الهاتف يجب أن يتكون من 10 أرقام"
-                    required
-                    className="h-10"
+                    placeholder="05xxxxxxxx"
+                    className="h-10 focus-visible:ring-orange-500/20 focus-visible:border-orange-500"
+                    dir="ltr"
                   />
                 </div>
               </div>
             </div>
-            
+
             {/* معلومات الجهاز */}
-            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
-                <div className="p-1.5 bg-purple-100 dark:bg-purple-900/50 rounded-md">
-                  <svg className="h-4 w-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                </div>
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Smartphone className="h-4 w-4" />
                 معلومات الجهاز
               </h3>
-              
               <div className="space-y-2">
-                <Label htmlFor="device_type" className="text-sm font-medium">
-                  نوع الجهاز <span className="text-red-500">*</span>
+                <Label className="text-sm">
+                  نوع الجهاز <span className="text-orange-500">*</span>
                 </Label>
-                <Input 
-                  id="device_type" 
+                <Input
                   value={deviceType}
                   onChange={(e) => setDeviceType(e.target.value)}
-                  placeholder="أدخل نوع الجهاز (مثل: آيفون 14، لابتوب HP، سامسونغ A54، إلخ)" 
-                  required
-                  className="h-10"
+                  placeholder="مثال: آيفون 14 برو، سامسونغ S24"
+                  className="h-10 focus-visible:ring-orange-500/20 focus-visible:border-orange-500"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  أدخل نوع الجهاز بالتفصيل (العلامة التجارية والموديل إن أمكن)
-                </p>
               </div>
             </div>
-            
-            {/* معلومات التصليح */}
-            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
-                <div className="p-1.5 bg-green-100 dark:bg-green-900/50 rounded-md">
-                  <Wrench className="h-4 w-4 text-green-600 dark:text-green-400" />
-                </div>
-                معلومات التصليح
+
+            {/* تفاصيل التصليح */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Wrench className="h-4 w-4" />
+                تفاصيل التصليح
               </h3>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="repair_location" className="text-sm font-medium">
-                      مكان التصليح <span className="text-red-500">*</span>
-                    </Label>
-                    <Select 
-                      value={repairLocation} 
-                      onValueChange={setRepairLocation}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue placeholder="اختر مكان التصليح" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>أماكن التصليح</SelectLabel>
-                          {repairLocations.map(location => (
-                            <SelectItem key={location.id} value={location.id}>
-                              {location.name}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                        <SelectSeparator />
-                        <SelectGroup>
-                          <SelectItem value="أخرى">مكان آخر (أدخل الاسم)</SelectItem>
-                          <SelectItem value="add_new" className="text-primary flex items-center gap-1">
-                            <Plus className="h-4 w-4" /> إضافة مكان جديد
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm">
+                    مكان التصليح <span className="text-orange-500">*</span>
+                  </Label>
+                  <Select value={repairLocation} onValueChange={setRepairLocation}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="اختر مكان التصليح" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {repairLocations.map(location => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                            {location.is_default && " (افتراضي)"}
                           </SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {repairLocation === 'أخرى' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="custom_location" className="text-sm font-medium">
-                        حدد مكان التصليح <span className="text-red-500">*</span>
-                      </Label>
-                      <Input 
-                        id="custom_location" 
-                        value={customLocation}
-                        onChange={(e) => setCustomLocation(e.target.value)}
-                        placeholder="أدخل مكان التصليح" 
-                        required={repairLocation === 'أخرى'}
-                        className="h-10"
-                      />
-                    </div>
-                  )}
+                        ))}
+                      </SelectGroup>
+                      <SelectSeparator />
+                      <SelectItem value="أخرى">مكان آخر...</SelectItem>
+                      <SelectItem value="add_new">
+                        <span className="text-orange-500 flex items-center gap-1">
+                          <Plus className="h-3 w-3" />
+                          إضافة مكان جديد
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="issue_description" className="text-sm font-medium">
-                    وصف العطل
-                  </Label>
-                  <Textarea 
-                    id="issue_description" 
-                    value={issueDescription}
-                    onChange={(e) => setIssueDescription(e.target.value)}
-                    placeholder="أدخل وصف العطل" 
-                    className="min-h-[100px] resize-none"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="repair_images" className="text-sm font-medium">
-                    صور للجهاز
-                  </Label>
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-200">
-                    <Input
-                      id="repair_images"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <Label htmlFor="repair_images" className="w-full h-full cursor-pointer flex flex-col items-center justify-center">
-                      <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full mb-3">
-                        <Upload className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-                      </div>
-                      <span className="text-gray-700 dark:text-gray-200 font-medium">اضغط لإضافة صور</span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">أو اسحب الصور وأفلتها هنا</span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 mt-2">PNG, JPG, JPEG حتى 10MB</span>
+
+                {repairLocation === 'أخرى' && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">
+                      اسم المكان <span className="text-orange-500">*</span>
                     </Label>
+                    <Input
+                      value={customLocation}
+                      onChange={(e) => setCustomLocation(e.target.value)}
+                      placeholder="أدخل اسم المكان"
+                      className="h-10 focus-visible:ring-orange-500/20 focus-visible:border-orange-500"
+                    />
                   </div>
-                  
-                  {filePreview.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
-                      {filePreview.map((url, index) => (
-                        <div key={index} className="relative group">
-                          <img 
-                            src={url} 
-                            alt={`صورة ${index + 1}`} 
-                            className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeFile(index)}
-                            className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                          <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-2 py-1 rounded">
-                            {index + 1}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">وصف العطل</Label>
+                <Textarea
+                  value={issueDescription}
+                  onChange={(e) => setIssueDescription(e.target.value)}
+                  placeholder="اشرح المشكلة..."
+                  className="min-h-[80px] resize-none focus-visible:ring-orange-500/20 focus-visible:border-orange-500"
+                />
+              </div>
+
+              {/* رفع الصور */}
+              <div className="space-y-2">
+                <Label className="text-sm">صور الجهاز</Label>
+                <div className="border border-dashed border-border rounded-lg p-4 text-center hover:border-orange-500/50 transition-colors cursor-pointer">
+                  <Input
+                    id="repair_images"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <Label htmlFor="repair_images" className="cursor-pointer flex flex-col items-center gap-2">
+                    <Camera className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">اضغط لإضافة صور</span>
+                  </Label>
                 </div>
+
+                {filePreview.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mt-3">
+                    {filePreview.map((url, index) => (
+                      <div key={index} className="relative w-16 h-16">
+                        <img
+                          src={url}
+                          alt={`صورة ${index + 1}`}
+                          className="w-full h-full object-cover rounded-lg border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index)}
+                          className="absolute -top-1.5 -right-1.5 p-1 bg-red-500 text-white rounded-full"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-            
+
             {/* معلومات الدفع */}
-            <div className="space-y-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center gap-2">
-                <div className="p-1.5 bg-amber-100 dark:bg-amber-900/50 rounded-md">
-                  <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                </div>
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
                 معلومات الدفع
               </h3>
-              
+
               {/* خيار السعر يحدد لاحقاً */}
-              <div className="relative overflow-hidden">
-                <div className={`
-                  transition-all duration-200 rounded-lg border p-4
-                  ${priceToBeDetLater 
-                    ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-700 shadow-sm' 
-                    : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                  }
-                `}>
-                  {/* أيقونة الخلفية الزخرفية */}
-                  <div className="absolute top-2 right-2 opacity-10 dark:opacity-5">
-                    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                    </svg>
-                  </div>
-                  
-                  <div className="flex items-start gap-3 relative z-10">
-                    <div className="flex-shrink-0 mt-1">
-                      <Checkbox 
-                        id="price_tbd" 
-                        checked={priceToBeDetLater}
-                        onCheckedChange={(checked) => {
-                          setPriceToBeDetLater(checked as boolean);
-                          if (checked) {
-                            setTotalPrice(0);
-                            setPaidAmount(0);
-                          }
-                        }}
-                        className="w-5 h-5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500 dark:data-[state=checked]:bg-amber-600 dark:data-[state=checked]:border-amber-600"
-                      />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <Label 
-                        htmlFor="price_tbd"
-                        className="flex items-center gap-2 text-base font-semibold leading-none cursor-pointer group"
-                      >
-                        <span className={`
-                          transition-colors duration-200
-                          ${priceToBeDetLater 
-                            ? 'text-orange-700 dark:text-orange-300' 
-                            : 'text-gray-700 group-hover:text-gray-900 dark:text-gray-300 dark:group-hover:text-gray-100'
-                          }
-                        `}>
-                          💡 السعر يحدد لاحقاً
-                        </span>
-                        {priceToBeDetLater && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300">
-                            مفعل
-                          </span>
-                        )}
-                      </Label>
-                      
-                      <p className={`
-                        mt-2 text-sm leading-relaxed transition-colors duration-200
-                        ${priceToBeDetLater 
-                          ? 'text-orange-600 dark:text-orange-400' 
-                          : 'text-gray-600 dark:text-gray-400'
-                        }
-                      `}>
-                        <span className="font-medium">اختر هذا الخيار</span> إذا كان السعر سيتم تحديده بعد فحص الجهاز وتشخيص العطل
-                      </p>
-                      
-                      {priceToBeDetLater && (
-                        <div className="mt-3 flex items-center gap-2 text-xs text-orange-600 dark:text-orange-400">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>سيتم تعطيل حقول السعر والدفع حتى يتم تحديد السعر النهائي</span>
-                        </div>
-                      )}
-                    </div>
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-orange-500/50 cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={priceToBeDetLater}
+                  onChange={(e) => setPriceToBeDetLater(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-orange-500 focus:ring-orange-500/20"
+                />
+                <span className="text-sm">السعر يحدد لاحقاً</span>
+              </label>
+
+              {/* حقول الدفع */}
+              <div className={cn(
+                "grid grid-cols-1 md:grid-cols-3 gap-4",
+                priceToBeDetLater && "opacity-50 pointer-events-none"
+              )}>
+                <div className="space-y-2">
+                  <Label className="text-sm">
+                    السعر الكلي {!priceToBeDetLater && <span className="text-orange-500">*</span>}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={totalPrice || ''}
+                      onChange={(e) => setTotalPrice(parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      disabled={priceToBeDetLater}
+                      className="h-10 pl-10 focus-visible:ring-orange-500/20 focus-visible:border-orange-500"
+                      dir="ltr"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">دج</span>
                   </div>
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+
                 <div className="space-y-2">
-                  <Label htmlFor="total_price" className="text-sm font-medium flex items-center gap-1">
-                    <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    سعر التصليح الكلي 
-                    {!priceToBeDetLater && <span className="text-red-500">*</span>}
-                  </Label>
-                  <Input 
-                    id="total_price" 
-                    type="number"
-                    min={0}
-                    step={100}
-                    value={totalPrice || ''}
-                    onChange={(e) => setTotalPrice(parseFloat(e.target.value) || 0)}
-                    placeholder={priceToBeDetLater ? "سيتم تحديده لاحقاً" : "أدخل السعر الكلي"}
-                    disabled={priceToBeDetLater}
-                    required={!priceToBeDetLater}
-                    className="h-10"
-                  />
+                  <Label className="text-sm">المبلغ المدفوع</Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={totalPrice}
+                      step={100}
+                      value={paidAmount || ''}
+                      onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      disabled={priceToBeDetLater}
+                      className="h-10 pl-10 focus-visible:ring-orange-500/20 focus-visible:border-orange-500"
+                      dir="ltr"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">دج</span>
+                  </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="paid_amount" className="text-sm font-medium flex items-center gap-1">
-                    <DollarSign className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    المبلغ المدفوع الآن
-                  </Label>
-                  <Input 
-                    id="paid_amount" 
-                    type="number"
-                    min={0}
-                    max={totalPrice}
-                    step={100}
-                    value={paidAmount || ''}
-                    onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
-                    placeholder={priceToBeDetLater ? "لا يمكن الدفع مسبقاً" : "أدخل المبلغ المدفوع"}
-                    disabled={priceToBeDetLater}
-                    className="h-10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="payment_method" className="text-sm font-medium">
-                    طريقة الدفع
-                  </Label>
-                  <Select 
-                    value={paymentMethod} 
-                    onValueChange={setPaymentMethod}
-                  >
+                  <Label className="text-sm">طريقة الدفع</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                     <SelectTrigger className="h-10">
-                      <SelectValue placeholder="اختر طريقة الدفع" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="نقدًا">نقدًا</SelectItem>
-                      <SelectItem value="تحويل">تحويل</SelectItem>
+                      <SelectItem value="تحويل">تحويل بنكي</SelectItem>
                       <SelectItem value="بطاقة">بطاقة</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              
-              {!priceToBeDetLater && (
-                <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-lg text-center font-medium text-gray-700 dark:text-gray-300">
-                  المبلغ المتبقي: {((totalPrice || 0) - (paidAmount || 0)).toLocaleString()} دج
-                </div>
-              )}
-              
-              {priceToBeDetLater && (
-                <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-700 p-3 rounded-lg text-center font-medium text-orange-700 dark:text-orange-300">
-                  💡 سيتم تحديد السعر والدفع لاحقاً بعد فحص الجهاز
+
+              {/* ملخص الدفع */}
+              {!priceToBeDetLater && totalPrice > 0 && (
+                <div className={cn(
+                  "flex items-center justify-between p-3 rounded-lg text-sm",
+                  remainingAmount > 0 ? "bg-orange-500/10" : "bg-green-500/10"
+                )}>
+                  <span className="text-muted-foreground">
+                    {remainingAmount > 0 ? 'المبلغ المتبقي' : 'تم الدفع بالكامل'}
+                  </span>
+                  <span className={cn(
+                    "font-semibold",
+                    remainingAmount > 0 ? "text-orange-500" : "text-green-500"
+                  )}>
+                    {remainingAmount.toLocaleString()} دج
+                  </span>
                 </div>
               )}
             </div>
-            </form>
+          </form>
+        </ScrollArea>
+
+        {/* Footer - بسيط */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/30">
+          <Button
+            type="submit"
+            form="repair-form"
+            disabled={isSubmitting}
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                جاري الحفظ...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 ml-2" />
+                {editMode ? 'تحديث' : 'حفظ'}
+              </>
+            )}
+          </Button>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
+            إلغاء
+          </Button>
         </div>
-        
-        <DialogFooter className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-6">
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 w-full">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="w-full sm:w-auto"
-            >
-              إلغاء
-            </Button>
-            <Button
-              type="submit"
-              variant="default"
-              form="repair-form"
-              disabled={isSubmitting}
-              className="flex gap-2 items-center w-full sm:w-auto"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  جاري الحفظ...
-                </>
-              ) : (
-                <>
-                  {editMode ? 'تحديث الطلبية' : 'حفظ طلبية التصليح'}
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogFooter>
       </DialogContent>
-      
+
       {/* مدير أماكن التصليح */}
       <RepairLocationManager
         isOpen={isLocationManagerOpen}

@@ -17,6 +17,13 @@ export { default as TitaniumCartWrapper } from './TitaniumCartWrapper';
 export { default as AdvancedItemEditDialog } from './AdvancedItemEditDialog';
 export { default as CustomerSaleDialog } from './CustomerSaleDialog';
 
+// User Guide - دليل الاستخدام
+export { default as POSUserGuide, POSHelpButton } from './POSUserGuide';
+
+// Keyboard Shortcuts Manager - مدير الاختصارات
+export { default as KeyboardShortcutsManager, KeyboardShortcutsButton, useCustomShortcuts } from './KeyboardShortcutsManager';
+
 // Types
 export type { POSMode } from './CommandIsland';
 export type { SaleMode } from './CustomerSaleDialog';
+export type { OmniSearchRef } from './OmniSearch';

@@ -715,7 +715,21 @@ export const mapLocalProductToPOSProduct = (
       return 'piece';
     })(),
     // ⚡ مستويات أسعار الجملة - يتم تعبئتها من product_wholesale_tiers
-    wholesale_tiers: (product as any).wholesale_tiers || []
+    wholesale_tiers: (product as any).wholesale_tiers || [],
+    // ⚡ حقول تتبع الأرقام التسلسلية
+    track_serial_numbers: Boolean((product as any).track_serial_numbers === true || (product as any).track_serial_numbers === 1 || (product as any).track_serial_numbers === '1'),
+    require_serial_on_sale: Boolean((product as any).require_serial_on_sale === true || (product as any).require_serial_on_sale === 1 || (product as any).require_serial_on_sale === '1'),
+    supports_imei: Boolean((product as any).supports_imei === true || (product as any).supports_imei === 1 || (product as any).supports_imei === '1'),
+    // ⚡ حقول الضمان
+    has_warranty: Boolean((product as any).has_warranty === true || (product as any).has_warranty === 1 || (product as any).has_warranty === '1'),
+    warranty_duration_months: Number((product as any).warranty_duration_months ?? 0),
+    warranty_type: (product as any).warranty_type ?? undefined,
+    // ⚡ حقول تتبع الدفعات والصلاحية
+    track_batches: Boolean((product as any).track_batches === true || (product as any).track_batches === 1 || (product as any).track_batches === '1'),
+    use_fifo: Boolean((product as any).use_fifo === true || (product as any).use_fifo === 1 || (product as any).use_fifo === '1'),
+    track_expiry: Boolean((product as any).track_expiry === true || (product as any).track_expiry === 1 || (product as any).track_expiry === '1'),
+    default_expiry_days: Number((product as any).default_expiry_days ?? 0),
+    expiry_alert_days: Number((product as any).expiry_alert_days ?? 30)
   };
 };
 

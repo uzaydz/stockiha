@@ -8,9 +8,24 @@
 import { useMemo } from 'react';
 import { useQuery } from '@powersync/react';
 import { useTenant } from '@/context/tenant';
-import type { FilterState, ProfitData, TimeSeriesDataPoint, CategoryBreakdown } from '../types';
+import type { FilterState, ProfitData } from '../types';
 import { format, parseISO, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
 import { ar } from 'date-fns/locale';
+
+type TimeSeriesDataPoint = {
+  date: string;
+  value: number;
+  count?: number;
+  label?: string;
+};
+
+type CategoryBreakdown = {
+  id: string;
+  name: string;
+  value: number;
+  count: number;
+  percentage: number;
+};
 
 // ==================== Types ====================
 
@@ -58,6 +73,31 @@ const buildProfitQuery = (orgId: string, filters: FilterState) => {
   `;
 
   const params = [orgId, dateRange.start.toISOString(), dateRange.end.toISOString()];
+
+  return { sql, params };
+};
+
+const buildOperatingExpensesQuery = (orgId: string, filters: FilterState) => {
+  const { dateRange } = filters;
+
+  // Use date-only comparison to avoid timezone boundary issues on expense_date
+  const sql = `
+    SELECT
+      COALESCE(SUM(CAST(amount AS REAL)), 0) as total_expenses
+    FROM expenses
+    WHERE organization_id = ?
+      AND (
+        substr(expense_date, 1, 10) >= ?
+        AND substr(expense_date, 1, 10) <= ?
+      )
+      AND (is_deleted IS NULL OR is_deleted = 0)
+  `;
+
+  const params = [
+    orgId,
+    format(dateRange.start, 'yyyy-MM-dd'),
+    format(dateRange.end, 'yyyy-MM-dd'),
+  ];
 
   return { sql, params };
 };
@@ -233,8 +273,16 @@ export function useProfitAnalytics(filters: FilterState): UseProfitAnalyticsRetu
   // Build query
   const query = useMemo(() => buildProfitQuery(orgId, filters), [orgId, filters]);
 
+  const expensesQuery = useMemo(() => buildOperatingExpensesQuery(orgId, filters), [orgId, filters]);
+
   // Execute query
   const { data: itemsData, isLoading, error } = useQuery(query.sql, query.params);
+
+  const {
+    data: operatingExpensesData,
+    isLoading: operatingExpensesLoading,
+    error: operatingExpensesError,
+  } = useQuery(expensesQuery.sql, expensesQuery.params);
 
   // Process data
   const profitData = useMemo((): ProfitData | null => {
@@ -267,9 +315,14 @@ export function useProfitAnalytics(filters: FilterState): UseProfitAnalyticsRetu
       console.log('[useProfitAnalytics] Totals:', { totalRevenue, totalCost, totalProfit, totalItemsSold });
     }
 
+    const operatingExpenses =
+      Number((operatingExpensesData as any[])?.[0]?.total_expenses) || 0;
+
+    const operatingProfit = totalProfit - operatingExpenses;
+
     // Calculate margins
     const grossMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-    const averageMarginPerItem = totalItemsSold > 0 ? totalProfit / totalItemsSold : 0;
+    const operatingMargin = totalRevenue > 0 ? (operatingProfit / totalRevenue) * 100 : 0;
 
     return {
       // ⚡ تم تصحيح الأسماء لتتوافق مع ProfitData interface
@@ -278,28 +331,28 @@ export function useProfitAnalytics(filters: FilterState): UseProfitAnalyticsRetu
       grossProfit: totalProfit,          // إجمالي الربح
       grossMargin,                       // هامش الربح الإجمالي
 
-      operatingExpenses: 0,              // مصاريف التشغيل (تحسب من ExpenseAnalytics)
+      operatingExpenses,                // مصاريف التشغيل (من جدول expenses)
       losses: 0,                         // الخسائر
       returns: 0,                        // المرتجعات
 
-      operatingProfit: totalProfit,      // ربح التشغيل
-      operatingMargin: grossMargin,      // هامش ربح التشغيل
+      operatingProfit,                  // ربح التشغيل
+      operatingMargin,                  // هامش ربح التشغيل
 
       otherIncome: 0,                    // إيرادات أخرى
 
-      netProfit: totalProfit,            // صافي الربح
-      netMargin: grossMargin,            // هامش صافي الربح
+      netProfit: operatingProfit,        // صافي الربح (بعد المصاريف)
+      netMargin: operatingMargin,        // هامش صافي الربح
 
       profitByDay: processProfitTimeSeries(items, filters.dateRange),
       profitByCategory: processProfitByCategory(items),
       profitBySaleType: processProfitBySaleType(items),
     };
-  }, [itemsData, filters.dateRange]);
+  }, [itemsData, operatingExpensesData, filters.dateRange]);
 
   return {
     data: profitData,
-    isLoading,
-    error,
+    isLoading: isLoading || operatingExpensesLoading,
+    error: (error || operatingExpensesError) as Error | null,
   };
 }
 

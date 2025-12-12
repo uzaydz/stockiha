@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef, Suspense, lazy } from 'react';
 import { Minus, Square, X as CloseIcon, ChevronLeft, ChevronRight, Home, Sun, Moon, LogOut, Shield, User, Calculator, MoreHorizontal, Crown } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTitlebar } from '@/context/TitlebarContext';
@@ -6,7 +6,6 @@ import { useTheme } from '@/context/ThemeContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useVirtualNumpad } from '@/context/VirtualNumpadContext';
 import { cn } from '@/lib/utils';
-import { NavbarSyncIndicator } from '@/components/navbar/NavbarSyncIndicator';
 import POSTitleBarActions from '@/components/pos/POSTitleBarActions';
 import ProfileMenu from './ProfileMenu';
 import UpdateButton from './UpdateButton';
@@ -15,6 +14,10 @@ import { SmartAssistantChat } from '@/components/pos/SmartAssistantChat';
 import { TitlebarNotifications } from './TitlebarNotifications';
 import { isElectron as checkElectron, windowControls, getPlatform } from '@/lib/desktop';
 import './DesktopTitlebar.css';
+
+const LazyNavbarSyncIndicator = lazy(() =>
+    import('@/components/navbar/NavbarSyncIndicator').then((module) => ({ default: module.NavbarSyncIndicator }))
+);
 
 
 type Platform = 'darwin' | 'win32' | 'linux' | 'web';
@@ -231,7 +234,9 @@ const DesktopTitlebar: React.FC = () => {
                             {/* المزامنة - تظهر فقط في مسارات اللوحة التي تستخدم PowerSync */}
                             {shouldShowSyncIndicator && (
                                 <div className="flex items-center">
-                                    <NavbarSyncIndicator />
+                                    <Suspense fallback={null}>
+                                        <LazyNavbarSyncIndicator />
+                                    </Suspense>
                                 </div>
                             )}
 

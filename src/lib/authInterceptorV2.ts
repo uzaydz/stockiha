@@ -99,12 +99,17 @@ class AuthInterceptorV2 {
     try {
       // إضافة حماية من الحلقة اللانهائية
       if (this.isInInterception) {
+        // ⚡ بدلاً من إرجاع خطأ، نستخدم الدالة الأصلية مباشرة
+        console.warn('[AuthInterceptorV2] ⚠️ Interception loop detected, using original getSession');
+        if (this.originalGetSession) {
+          return await this.originalGetSession();
+        }
         return {
           data: { session: null },
-          error: new Error('Interception loop detected')
+          error: null
         };
       }
-      
+
       this.isInInterception = true;
       const session = await authSingleton.getSession();
       this.isInInterception = false;

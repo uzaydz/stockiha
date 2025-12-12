@@ -1,12 +1,21 @@
 /**
- * 📦 Batch Selector Component
+ * 📦 Batch Selector Component - محدث للعمل Offline
  *
- * مكون اختيار الدفعة للمنتجات التي تتطلب تتبع الدفعات (FIFO)
+ * مكون اختيار الدفعة للمنتجات التي تتطلب تتبع الدفعات (FEFO/FIFO)
  * يعرض الدفعات المتاحة مع معلومات الصلاحية والكمية
+ *
+ * ⚡ v2.0: يعمل 100% offline مع LocalBatchService
+ * - جلب الدفعات محلياً
+ * - دعم FEFO/FIFO التلقائي
+ * - تنبيهات الدفعات القريبة من الانتهاء
+ * - دعم الكميات العشرية (decimal) للوزن/المتر
+ *
+ * @version 2.0.0
+ * @date 2025-12-12
  */
 
-import { memo, useMemo, useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { memo, useMemo, useState, useEffect, useCallback } from 'react';
+import { usePowerSync } from '@powersync/react';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,8 +31,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Package, Calendar, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Package, Calendar, AlertTriangle, CheckCircle2, Clock, WifiOff, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LocalBatchService, LocalBatch } from '@/services/local';
 
 export interface BatchInfo {
   id: string;
@@ -38,13 +48,17 @@ export interface BatchInfo {
 interface BatchSelectorProps {
   productId: string;
   productName: string;
-  batches: BatchInfo[];
+  organizationId: string; // ⚡ جديد - مطلوب للجلب المحلي
+  batches?: BatchInfo[]; // اختياري - إذا تم تمريره يستخدمه، وإلا يجلب محلياً
   selectedBatchId?: string;
   requiredQuantity: number;
-  onBatchSelect: (batchId: string, batchNumber: string) => void;
+  colorId?: string; // ⚡ جديد - لفلترة حسب اللون
+  sizeId?: string;  // ⚡ جديد - لفلترة حسب المقاس
+  unitType?: 'piece' | 'weight' | 'meter' | 'box'; // ⚡ جديد - نوع الوحدة
+  onBatchSelect: (batchId: string, batchNumber: string, batchData?: LocalBatch) => void;
   disabled?: boolean;
   className?: string;
-  autoSelectFIFO?: boolean;
+  autoSelectFEFO?: boolean; // ⚡ تغيير من FIFO إلى FEFO
   showExpiryWarning?: boolean;
 }
 
@@ -81,19 +95,101 @@ const getDaysUntilExpiry = (expiryDate?: string): number | null => {
   return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 };
 
+// ⚡ تحويل LocalBatch إلى BatchInfo
+const localBatchToBatchInfo = (batch: LocalBatch): BatchInfo => {
+  const status = getBatchStatusFromLocal(batch);
+  return {
+    id: batch.id,
+    batch_number: batch.batch_number,
+    remaining_quantity: batch.quantity_remaining,
+    expiry_date: batch.expiry_date,
+    purchase_price: batch.purchase_price,
+    received_date: batch.created_at,
+    status
+  };
+};
+
+// ⚡ حساب حالة الدفعة من LocalBatch
+const getBatchStatusFromLocal = (batch: LocalBatch): BatchInfo['status'] => {
+  if (batch.is_expired) return 'expired';
+  if (batch.days_until_expiry !== undefined && batch.days_until_expiry <= 30) return 'expiring_soon';
+  if (batch.quantity_remaining <= 5) return 'low';
+  return 'active';
+};
+
+// ⚡ تنسيق الكمية حسب نوع الوحدة
+const formatQuantity = (quantity: number, unitType?: string): string => {
+  if (unitType === 'weight') {
+    return `${quantity.toFixed(2)} كجم`;
+  } else if (unitType === 'meter') {
+    return `${quantity.toFixed(2)} م`;
+  }
+  return `${Math.floor(quantity)}`;
+};
+
 const BatchSelector = memo<BatchSelectorProps>(({
   productId,
   productName,
-  batches,
+  organizationId,
+  batches: propBatches,
   selectedBatchId,
   requiredQuantity,
+  colorId,
+  sizeId,
+  unitType = 'piece',
   onBatchSelect,
   disabled = false,
   className,
-  autoSelectFIFO = true,
+  autoSelectFEFO = true,
   showExpiryWarning = true,
 }) => {
-  // ترتيب الدفعات حسب FIFO (الأقدم أولاً)
+  // ⚡ حالات جديدة للجلب المحلي
+  const [localBatches, setLocalBatches] = useState<LocalBatch[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ⚡ خدمة الدفعات المحلية
+  const powerSync = usePowerSync();
+  const localBatchService = new LocalBatchService(powerSync);
+
+  // ⚡ جلب الدفعات محلياً
+  const loadBatchesFromLocal = useCallback(async () => {
+    if (propBatches) return; // لا تجلب إذا تم تمرير الدفعات
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log(`📦 [BatchSelector] جلب الدفعات محلياً للمنتج: ${productId}`);
+
+      const batches = await localBatchService.getProductBatchesFEFO(
+        productId,
+        organizationId,
+        { colorId, sizeId }
+      );
+
+      setLocalBatches(batches);
+      console.log(`✅ [BatchSelector] تم جلب ${batches.length} دفعة`);
+    } catch (err: any) {
+      console.error('❌ [BatchSelector] خطأ في جلب الدفعات:', err);
+      setError('فشل في جلب الدفعات');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [productId, organizationId, colorId, sizeId, propBatches]);
+
+  // جلب عند تحميل المكون
+  useEffect(() => {
+    loadBatchesFromLocal();
+  }, [loadBatchesFromLocal]);
+
+  // ⚡ تحديد مصدر الدفعات (props أو محلي)
+  const batches = useMemo(() => {
+    if (propBatches) return propBatches;
+    return localBatches.map(localBatchToBatchInfo);
+  }, [propBatches, localBatches]);
+
+  // ترتيب الدفعات حسب FEFO (الأقرب انتهاءً أولاً)
   const sortedBatches = useMemo(() => {
     return [...batches]
       .filter(b => b.remaining_quantity > 0 && getBatchStatus(b) !== 'expired')
@@ -110,13 +206,14 @@ const BatchSelector = memo<BatchSelectorProps>(({
       });
   }, [batches]);
 
-  // اختيار تلقائي للدفعة الأولى (FIFO)
+  // اختيار تلقائي للدفعة الأولى (FEFO)
   useEffect(() => {
-    if (autoSelectFIFO && !selectedBatchId && sortedBatches.length > 0) {
+    if (autoSelectFEFO && !selectedBatchId && sortedBatches.length > 0) {
       const firstBatch = sortedBatches[0];
-      onBatchSelect(firstBatch.id, firstBatch.batch_number);
+      const localBatch = localBatches.find(b => b.id === firstBatch.id);
+      onBatchSelect(firstBatch.id, firstBatch.batch_number, localBatch);
     }
-  }, [autoSelectFIFO, selectedBatchId, sortedBatches, onBatchSelect]);
+  }, [autoSelectFEFO, selectedBatchId, sortedBatches, onBatchSelect, localBatches]);
 
   // الدفعة المحددة حالياً
   const selectedBatch = useMemo(() =>
@@ -129,13 +226,53 @@ const BatchSelector = memo<BatchSelectorProps>(({
     ? selectedBatch.remaining_quantity >= requiredQuantity
     : false;
 
+  // ⚡ حالة التحميل
+  if (isLoading) {
+    return (
+      <div className={cn('p-3 bg-slate-50 border rounded-lg', className)}>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">جاري جلب الدفعات...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ⚡ حالة الخطأ
+  if (error) {
+    return (
+      <div className={cn('p-3 bg-red-50 border border-red-200 rounded-lg', className)}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-red-600">
+            <AlertTriangle className="w-4 h-4" />
+            <span className="text-sm font-medium">{error}</span>
+          </div>
+          <button
+            onClick={() => loadBatchesFromLocal()}
+            className="p-1 hover:bg-red-100 rounded transition-colors"
+          >
+            <RefreshCw className="w-4 h-4 text-red-600" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // إذا لم تكن هناك دفعات متاحة
   if (sortedBatches.length === 0) {
     return (
       <div className={cn('p-3 bg-red-50 border border-red-200 rounded-lg', className)}>
-        <div className="flex items-center gap-2 text-red-600">
-          <AlertTriangle className="w-4 h-4" />
-          <span className="text-sm font-medium">لا توجد دفعات متاحة لهذا المنتج</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-red-600">
+            <AlertTriangle className="w-4 h-4" />
+            <span className="text-sm font-medium">لا توجد دفعات متاحة لهذا المنتج</span>
+          </div>
+          <button
+            onClick={() => loadBatchesFromLocal()}
+            className="p-1 hover:bg-red-100 rounded transition-colors"
+          >
+            <RefreshCw className="w-4 h-4 text-red-500" />
+          </button>
         </div>
       </div>
     );
@@ -153,9 +290,18 @@ const BatchSelector = memo<BatchSelectorProps>(({
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-slate-500" />
             <span className="text-sm font-medium">دفعة: {batch.batch_number}</span>
+            {/* ⚡ مؤشر الوضع المحلي */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <WifiOff className="w-3 h-3 text-green-500" />
+                </TooltipTrigger>
+                <TooltipContent>يعمل offline</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <Badge variant={status === 'expiring_soon' ? 'destructive' : 'secondary'}>
-            متبقي: {batch.remaining_quantity}
+            متبقي: {formatQuantity(batch.remaining_quantity, unitType)}
           </Badge>
         </div>
         {batch.expiry_date && (
@@ -179,6 +325,15 @@ const BatchSelector = memo<BatchSelectorProps>(({
       <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
         <Package className="w-4 h-4" />
         اختر الدفعة
+        {/* ⚡ مؤشر الوضع المحلي */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <WifiOff className="w-3 h-3 text-green-500" />
+            </TooltipTrigger>
+            <TooltipContent>يعمل offline</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </Label>
 
       <Select
@@ -186,7 +341,8 @@ const BatchSelector = memo<BatchSelectorProps>(({
         onValueChange={(value) => {
           const batch = sortedBatches.find(b => b.id === value);
           if (batch) {
-            onBatchSelect(batch.id, batch.batch_number);
+            const localBatch = localBatches.find(b => b.id === value);
+            onBatchSelect(batch.id, batch.batch_number, localBatch);
           }
         }}
         disabled={disabled}
@@ -225,7 +381,7 @@ const BatchSelector = memo<BatchSelectorProps>(({
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>({batch.remaining_quantity} متبقي)</span>
+                    <span>({formatQuantity(batch.remaining_quantity, unitType)} متبقي)</span>
                     {batch.expiry_date && (
                       <span className={cn(
                         daysLeft !== null && daysLeft <= 30 && 'text-orange-600 font-medium'
@@ -246,7 +402,7 @@ const BatchSelector = memo<BatchSelectorProps>(({
         <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
           <AlertTriangle className="w-3 h-3" />
           <span>
-            الكمية المطلوبة ({requiredQuantity}) أكبر من المتبقي ({selectedBatch.remaining_quantity})
+            الكمية المطلوبة ({formatQuantity(requiredQuantity, unitType)}) أكبر من المتبقي ({formatQuantity(selectedBatch.remaining_quantity, unitType)})
           </span>
         </div>
       )}

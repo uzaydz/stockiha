@@ -224,3 +224,8 @@ await powerSyncService.writeTransaction(async () => {
 
 
 
+
+
+
+
+

@@ -40,7 +40,7 @@ const StoreSettingsPage: React.FC<StoreSettingsPageProps> = ({ useStandaloneLayo
     applyTheme
   } = useStoreSettings({
     organizationId: currentOrganization?.id,
-    autoApplyTheme: true
+    autoApplyTheme: false // لا نريد تغيير ألوان لوحة التحكم
   });
 
   // التحقق من جاهزية البيانات

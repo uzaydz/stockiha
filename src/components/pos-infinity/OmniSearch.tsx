@@ -11,7 +11,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, useRef, useEffect, memo, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, memo, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -26,10 +26,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { POSMode } from './CommandIsland';
+import { useCustomShortcuts } from './KeyboardShortcutsManager';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
+
+export interface OmniSearchRef {
+  focus: () => void;
+  clear: () => void;
+}
 
 interface OmniSearchProps {
   value: string;
@@ -47,7 +53,7 @@ interface OmniSearchProps {
 // Component
 // ═══════════════════════════════════════════════════════════════════════════
 
-const OmniSearch = memo<OmniSearchProps>(({
+const OmniSearch = forwardRef<OmniSearchRef, OmniSearchProps>(({
   value,
   onChange,
   onBarcodeSearch,
@@ -57,12 +63,49 @@ const OmniSearch = memo<OmniSearchProps>(({
   categories = [],
   onCategoryChange,
   placeholder
-}) => {
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [barcodeMode, setBarcodeMode] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // ⚡ الاختصارات المخصصة
+  const { shortcuts, reload: reloadShortcuts } = useCustomShortcuts();
+  const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+
+  // ⚡ تعريض دوال للمكون الأب
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+    },
+    clear: () => {
+      onChange('');
+      inputRef.current?.focus();
+    }
+  }), [onChange]);
+
+  // ⚡ الحصول على اختصار البحث الحالي
+  const searchShortcut = useMemo(() => {
+    const s = shortcuts.find(sc => sc.id === 'search');
+    if (!s) return 'F2';
+    const parts = [];
+    if (s.ctrl) parts.push(isMac ? '⌘' : 'Ctrl');
+    if (s.alt) parts.push(isMac ? '⌥' : 'Alt');
+    parts.push(s.key);
+    return parts.join('+');
+  }, [shortcuts, isMac]);
+
+  // ⚡ إعادة تحميل الاختصارات عند تغيير localStorage
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'pos-shortcuts') {
+        reloadShortcuts();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [reloadShortcuts]);
 
   // ⚡ ألوان حسب الوضع - تخزين مؤقت
   // 🎨 اللون البرتقالي هو اللون الأساسي للبيع
@@ -94,24 +137,69 @@ const OmniSearch = memo<OmniSearchProps>(({
     inputRef.current?.focus();
   }, [onChange]);
 
-  // اختصار لوحة المفاتيح
+  // اختصار لوحة المفاتيح - يستخدم الاختصارات المخصصة
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + K للتركيز على البحث
+      // البحث عن اختصار البحث
+      const searchSc = shortcuts.find(sc => sc.id === 'search');
+      const clearSc = shortcuts.find(sc => sc.id === 'clearSearch');
+      const barcodeSc = shortcuts.find(sc => sc.id === 'barcode');
+
+      // التحقق من اختصار البحث
+      if (searchSc) {
+        const keyMatch = e.key.toUpperCase() === searchSc.key.toUpperCase() || e.key === searchSc.key;
+        const ctrlMatch = searchSc.ctrl ? (e.ctrlKey || e.metaKey) : (!e.ctrlKey && !e.metaKey);
+        const altMatch = searchSc.alt ? e.altKey : !e.altKey;
+
+        if (keyMatch && ctrlMatch && altMatch) {
+          e.preventDefault();
+          inputRef.current?.focus();
+          return;
+        }
+      }
+
+      // التحقق من اختصار مسح البحث
+      if (clearSc) {
+        const keyMatch = e.key.toUpperCase() === clearSc.key.toUpperCase() || e.key === clearSc.key;
+        const ctrlMatch = clearSc.ctrl ? (e.ctrlKey || e.metaKey) : (!e.ctrlKey && !e.metaKey);
+        const altMatch = clearSc.alt ? e.altKey : !e.altKey;
+
+        if (keyMatch && ctrlMatch && altMatch) {
+          e.preventDefault();
+          onChange('');
+          inputRef.current?.focus();
+          return;
+        }
+      }
+
+      // التحقق من اختصار الباركود
+      if (barcodeSc) {
+        const keyMatch = e.key.toUpperCase() === barcodeSc.key.toUpperCase() || e.key === barcodeSc.key;
+        const ctrlMatch = barcodeSc.ctrl ? (e.ctrlKey || e.metaKey) : (!e.ctrlKey && !e.metaKey);
+        const altMatch = barcodeSc.alt ? e.altKey : !e.altKey;
+
+        if (keyMatch && ctrlMatch && altMatch) {
+          e.preventDefault();
+          setBarcodeMode(prev => !prev);
+          return;
+        }
+      }
+
+      // Ctrl/Cmd + K للتركيز على البحث (اختصار ثابت إضافي)
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         inputRef.current?.focus();
       }
-      // Ctrl/Cmd + B لوضع الباركود
+      // Ctrl/Cmd + B لوضع الباركود (اختصار ثابت إضافي)
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
         setBarcodeMode(prev => !prev);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [onChange, shortcuts]);
 
   // ⚡ تحسين البحث عن اسم الفئة - تخزين مؤقت
   const selectedCategoryName = useMemo(() =>
@@ -193,7 +281,7 @@ const OmniSearch = memo<OmniSearchProps>(({
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder={placeholder || "بحث عن منتج... (Ctrl+K)"}
+          placeholder={placeholder || `بحث عن منتج... (${searchShortcut})`}
           className={cn(
             "flex-1 h-full border-0 bg-transparent shadow-none px-0",
             "focus-visible:ring-0 focus-visible:ring-offset-0",

@@ -186,6 +186,19 @@ interface ElectronAPI {
   getAppName: () => Promise<string>;
   getSystemInfo: () => Promise<any>;
 
+  // معلومات التطبيق المحسنة (من preload.secure.cjs)
+  app?: {
+    getVersion: () => Promise<string>;
+    getName: () => Promise<string>;
+    getSystemInfo: () => Promise<any>;
+    quit: () => Promise<void>;
+    platform: string;
+    isMac: boolean;
+    isWindows: boolean;
+    isLinux: boolean;
+    isDev: boolean; // ⚠️ أمان: للتحقق من وضع التطوير
+  };
+
   // إدارة النوافذ
   minimizeWindow: () => Promise<void>;
   maximizeWindow: () => Promise<void>;

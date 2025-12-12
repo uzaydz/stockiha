@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '@/components/Layout';
+import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import ModuleNavigation from '@/components/courses/ModuleNavigation';
 import { tiktokAdsModule4Data } from '@/data/tiktokAdsModule4Data';
 import { Play, CheckCircle, Clock, Target, Eye, MousePointer, Video, Heart, Smartphone, Users, ShoppingCart } from 'lucide-react';
@@ -62,8 +62,8 @@ const TikTokAdsModule4: React.FC = () => {
   ];
 
   return (
-    <Layout>
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+    <POSPureLayout>
+      <div className="container mx-auto px-4 py-6 max-w-6xl" dir="rtl">
         {/* Module Header */}
         <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg border border-green-200 dark:border-green-800 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
@@ -268,7 +268,7 @@ const TikTokAdsModule4: React.FC = () => {
           totalVideos={tiktokAdsModule4Data.totalVideos}
         />
       </div>
-    </Layout>
+    </POSPureLayout>
   );
 };
 

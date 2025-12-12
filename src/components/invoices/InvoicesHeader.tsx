@@ -4,10 +4,10 @@ import {
   Plus,
   BarChart3,
   Settings,
-  HelpCircle,
   FileCheck,
   ShoppingCart,
 } from "lucide-react";
+import { InvoicesHelpButton } from './InvoicesUserGuide';
 import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -27,6 +27,7 @@ interface InvoicesHeaderProps {
   onCreateProforma: () => void;
   onCreateBonCommande: () => void;
   canCreate?: boolean;
+  onOpenUserGuide?: () => void;
 }
 
 const InvoicesHeader = ({
@@ -39,6 +40,7 @@ const InvoicesHeader = ({
   onCreateProforma,
   onCreateBonCommande,
   canCreate = true,
+  onOpenUserGuide,
 }: InvoicesHeaderProps) => {
   const { currentOrganization } = useTenant();
 
@@ -101,6 +103,10 @@ const InvoicesHeader = ({
           </DropdownMenu>
         )}
 
+        {onOpenUserGuide && (
+          <InvoicesHelpButton onClick={onOpenUserGuide} />
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon">
@@ -115,11 +121,6 @@ const InvoicesHeader = ({
             <DropdownMenuItem>
               <Settings className="h-4 w-4 ml-2" />
               <span>إعدادات الفواتير</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <HelpCircle className="h-4 w-4 ml-2" />
-              <span>مساعدة</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

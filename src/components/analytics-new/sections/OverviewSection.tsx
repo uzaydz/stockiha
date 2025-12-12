@@ -1046,27 +1046,29 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 
   // Calculate top products from sales data
   const topProducts = useMemo<TopProduct[]>(() => {
-    const categories = salesData?.salesByCategory || [];
-    const inventory = inventoryData;
+    const products = salesData?.topProducts || [];
 
-    if (categories.length === 0) {
+    if (products.length === 0) {
       return [];
     }
+    const topN = products.slice(0, 5);
+    const maxRevenue = topN.reduce((m, p) => Math.max(m, p.revenue || 0), 0) || 1;
 
-    return categories.slice(0, 5).map((cat, i) => {
-      const stock = Math.max(100 - (i * 20), 5);
-      const sales = cat.count || Math.floor(Math.random() * 100) + 10;
+    return topN.map((p, i) => {
+      const avgPrice = p.quantitySold > 0 ? p.revenue / p.quantitySold : 0;
+      const progress = Math.min(100, Math.round(((p.revenue || 0) / maxRevenue) * 100));
+      const stock = 0;
 
       return {
         rank: i + 1,
-        id: cat.id,
-        name: cat.name || `منتج ${i + 1}`,
-        price: cat.count > 0 ? cat.value / cat.count : 0,
-        progress: Math.min(100, Math.round(cat.percentage || 50)),
-        sales,
-        revenue: cat.value || 0,
+        id: p.productId,
+        name: p.productName || `منتج ${i + 1}`,
+        price: avgPrice,
+        progress,
+        sales: p.quantitySold || 0,
+        revenue: p.revenue || 0,
         stock,
-        status: stock > 50 ? 'in_stock' : stock > 10 ? 'low_stock' : 'out_of_stock',
+        status: 'in_stock',
       };
     });
   }, [salesData, inventoryData]);

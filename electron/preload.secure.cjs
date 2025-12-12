@@ -30,6 +30,13 @@ const ALLOWED_CHANNELS = {
   'window-show': true,
   'window-fullscreen': true,
   'window-toggle-devtools': true,
+  // New Window Controls (for shortcuts)
+  'window:toggle-fullscreen': true,
+  'window:is-fullscreen': true,
+  'window:reload': true,
+  'window:minimize': true,
+  'window:maximize': true,
+  'window:toggle-devtools': true,
 
   // Dialog
   'show-message-box': true,
@@ -159,6 +166,11 @@ const electronAPI = {
     isMac: process.platform === 'darwin',
     isWindows: process.platform === 'win32',
     isLinux: process.platform === 'linux',
+
+    // ⚠️ وضع التطوير - للتحقق من إتاحة ميزات debug
+    isDev: process.env.NODE_ENV === 'development' ||
+           process.argv?.includes('--dev') ||
+           process.env.ELECTRON_IS_DEV === 'true',
   },
 
   // ========================================================================
@@ -190,6 +202,12 @@ const electronAPI = {
     show: () => ipcRenderer.invoke('window-show'),
     fullscreen: (enable) => ipcRenderer.invoke('window-fullscreen', Boolean(enable)),
     toggleDevTools: () => ipcRenderer.invoke('window-toggle-devtools'),
+
+    // ⌨️ New: Shortcut-friendly window controls
+    toggleFullscreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
+    isFullscreen: () => ipcRenderer.invoke('window:is-fullscreen'),
+    reload: () => ipcRenderer.invoke('window:reload'),
+    toggleDevToolsNew: () => ipcRenderer.invoke('window:toggle-devtools'),
   },
 
   // ========================================================================

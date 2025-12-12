@@ -11,13 +11,16 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import React, { useState, memo, useMemo } from 'react';
+import React, { useState, memo, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { HelpCircle, Keyboard } from 'lucide-react';
 import StatusCapsule from './StatusCapsule';
 import OmniSearch from './OmniSearch';
 import AppPortal from './AppPortal';
 import { SmartAssistantChat } from '@/components/pos/SmartAssistantChat';
+import POSUserGuide from './POSUserGuide';
+import KeyboardShortcutsManager from './KeyboardShortcutsManager';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -49,6 +52,7 @@ interface CommandIslandProps {
   onOpenCalculator?: () => void;
   onOpenExpense?: () => void;
   onOpenSettings?: () => void;
+  onOpenRepair?: () => void;
   onRefreshData?: () => void;
 
   // أخرى
@@ -74,10 +78,31 @@ const CommandIsland = memo<CommandIslandProps>(({
   onOpenCalculator,
   onOpenExpense,
   onOpenSettings,
+  onOpenRepair,
   onRefreshData,
   className
 }) => {
   const [isSiraOpen, setIsSiraOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  // ⌨️ اختصارات لوحة المفاتيح
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F1 لفتح دليل الاستخدام
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setIsGuideOpen(true);
+      }
+      // Shift+? لفتح مدير الاختصارات
+      if (e.key === '?' && e.shiftKey) {
+        e.preventDefault();
+        setIsShortcutsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // ⚡ تحسين الأداء: تخزين الألوان مؤقتاً
   // 🎨 تصميم "كريستال" نظيف جداً - يعتمد على الحيادية لترك المحتوى يبرز
@@ -106,7 +131,7 @@ const CommandIsland = memo<CommandIslandProps>(({
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       className={cn(
         // Base Layout
-        "relative mx-auto w-full max-w-4xl group",
+        "relative mx-auto w-full max-w-4xl",
         // Shape & Spacing
         "rounded-[24px] p-2.5",
         // Crystal Glass Aesthetic - Twitter/X Dark Theme
@@ -149,7 +174,7 @@ const CommandIsland = memo<CommandIslandProps>(({
         </div>
 
         {/* 3. 🤖 SIRA AI - The Intelligence Core (Premium Redesign) */}
-        <div className="relative group mx-1">
+        <div className="relative group/sira mx-1">
           <motion.button
             whileHover={{ scale: 1.05, y: -1 }}
             whileTap={{ scale: 0.95 }}
@@ -177,11 +202,11 @@ const CommandIsland = memo<CommandIslandProps>(({
             </div>
 
             {/* Subtle Gradient Overlay on Hover */}
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-emerald-100/0 via-transparent to-blue-100/0 group-hover:from-emerald-100/40 group-hover:to-blue-100/20 dark:group-hover:from-emerald-500/15 dark:group-hover:to-blue-500/10 transition-all duration-500" />
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-emerald-100/0 via-transparent to-blue-100/0 group-hover/sira:from-emerald-100/40 group-hover/sira:to-blue-100/20 dark:group-hover/sira:from-emerald-500/15 dark:group-hover/sira:to-blue-500/10 transition-all duration-500" />
           </motion.button>
 
           {/* Elegant Tooltip */}
-          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-1 group-hover:translate-y-0 pointer-events-none">
+          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/sira:opacity-100 transition-all duration-300 transform translate-y-1 group-hover/sira:translate-y-0 pointer-events-none">
             <div className="bg-zinc-900 dark:bg-[#21262d] backdrop-blur-md text-white dark:text-[#e6edf3] text-[10px] font-bold px-3 py-1.5 rounded-full shadow-xl whitespace-nowrap border border-transparent dark:border-[#30363d]">
               SIRA AI
             </div>
@@ -191,11 +216,80 @@ const CommandIsland = memo<CommandIslandProps>(({
         {/* Chat Component */}
         <SmartAssistantChat open={isSiraOpen} onOpenChange={setIsSiraOpen} />
 
-        {/* 4. بوابة التطبيقات */}
+        {/* 4. 📖 زر دليل الاستخدام */}
+        <div className="relative group/guide">
+          <motion.button
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsGuideOpen(true)}
+            className={cn(
+              "relative flex items-center justify-center w-[46px] h-[46px]",
+              "rounded-2xl",
+              "bg-white dark:bg-[#21262d]",
+              "border border-zinc-200 dark:border-[#30363d]",
+              "shadow-md dark:shadow-lg dark:shadow-black/20",
+              "hover:shadow-lg hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20",
+              "transition-all duration-500 ease-out"
+            )}
+          >
+            <HelpCircle className="w-5 h-5 text-zinc-500 group-hover/guide:text-orange-500 dark:text-zinc-400 dark:group-hover/guide:text-orange-400 transition-colors" />
+
+            {/* Subtle Gradient Overlay on Hover */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-orange-100/0 via-transparent to-amber-100/0 group-hover/guide:from-orange-100/40 group-hover/guide:to-amber-100/20 dark:group-hover/guide:from-orange-500/15 dark:group-hover/guide:to-amber-500/10 transition-all duration-500" />
+          </motion.button>
+
+          {/* Elegant Tooltip */}
+          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/guide:opacity-100 transition-all duration-300 transform translate-y-1 group-hover/guide:translate-y-0 pointer-events-none">
+            <div className="bg-zinc-900 dark:bg-[#21262d] backdrop-blur-md text-white dark:text-[#e6edf3] text-[10px] font-bold px-3 py-1.5 rounded-full shadow-xl whitespace-nowrap border border-transparent dark:border-[#30363d] flex items-center gap-1.5">
+              <span>دليل الاستخدام</span>
+              <kbd className="px-1.5 py-0.5 text-[8px] bg-white/20 rounded">F1</kbd>
+            </div>
+          </div>
+        </div>
+
+        {/* User Guide Dialog */}
+        <POSUserGuide open={isGuideOpen} onOpenChange={setIsGuideOpen} />
+
+        {/* 5. ⌨️ زر الاختصارات */}
+        <div className="relative group">
+          <motion.button
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsShortcutsOpen(true)}
+            className={cn(
+              "relative flex items-center justify-center w-[46px] h-[46px]",
+              "rounded-2xl",
+              "bg-white dark:bg-[#21262d]",
+              "border border-zinc-200 dark:border-[#30363d]",
+              "shadow-md dark:shadow-lg dark:shadow-black/20",
+              "hover:shadow-lg hover:shadow-violet-500/10 dark:hover:shadow-violet-500/20",
+              "transition-all duration-500 ease-out"
+            )}
+          >
+            <Keyboard className="w-5 h-5 text-zinc-500 group-hover:text-violet-500 dark:text-zinc-400 dark:group-hover:text-violet-400 transition-colors" />
+
+            {/* Subtle Gradient Overlay on Hover */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-violet-100/0 via-transparent to-purple-100/0 group-hover:from-violet-100/40 group-hover:to-purple-100/20 dark:group-hover:from-violet-500/15 dark:group-hover:to-purple-500/10 transition-all duration-500" />
+          </motion.button>
+
+          {/* Elegant Tooltip */}
+          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-1 group-hover:translate-y-0 pointer-events-none">
+            <div className="bg-zinc-900 dark:bg-[#21262d] backdrop-blur-md text-white dark:text-[#e6edf3] text-[10px] font-bold px-3 py-1.5 rounded-full shadow-xl whitespace-nowrap border border-transparent dark:border-[#30363d] flex items-center gap-1.5">
+              <span>الاختصارات</span>
+              <kbd className="px-1.5 py-0.5 text-[8px] bg-white/20 rounded">?</kbd>
+            </div>
+          </div>
+        </div>
+
+        {/* Keyboard Shortcuts Manager Dialog */}
+        <KeyboardShortcutsManager open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen} />
+
+        {/* 6. بوابة التطبيقات */}
         <AppPortal
           onOpenCalculator={onOpenCalculator}
           onOpenExpense={onOpenExpense}
           onOpenSettings={onOpenSettings}
+          onOpenRepair={onOpenRepair}
           onRefreshData={onRefreshData}
           mode={mode}
         />

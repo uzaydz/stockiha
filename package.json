@@ -68,7 +68,15 @@
     "desktop:dist-win": "npm run desktop:build && electron-builder --win",
     "desktop:dist-linux": "npm run desktop:build && electron-builder --linux",
     "desktop:install": "npm install electron electron-builder concurrently wait-on --save-dev",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+
+    "desktop:build:optimized": "vite build --config vite.config.electron-prod.ts",
+    "desktop:dist:optimized": "npm run desktop:build:optimized && electron-builder --config electron-builder.config.cjs --publish=never",
+    "desktop:dist:optimized-mac": "npm run desktop:build:optimized && electron-builder --config electron-builder.config.cjs --mac",
+    "desktop:dist:optimized-win": "npm run desktop:build:optimized && electron-builder --config electron-builder.config.cjs --win",
+    "desktop:dist:optimized-linux": "npm run desktop:build:optimized && electron-builder --config electron-builder.config.cjs --linux",
+    "analyze:imports": "node scripts/optimize-imports.cjs",
+    "optimize:all": "npm run analyze:imports && npm run desktop:build:optimized"
   },
   "dependencies": {
     "@date-io/date-fns": "^3.2.1",

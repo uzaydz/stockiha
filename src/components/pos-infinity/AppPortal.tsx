@@ -26,7 +26,8 @@ import {
   Users,
   BarChart3,
   Package,
-  X
+  X,
+  Wrench
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ interface AppPortalProps {
   onOpenCalculator?: () => void;
   onOpenExpense?: () => void;
   onOpenSettings?: () => void;
+  onOpenRepair?: () => void;
   onRefreshData?: () => void;
   mode: POSMode;
 }
@@ -67,6 +69,7 @@ const AppPortal = memo<AppPortalProps>(({
   onOpenCalculator,
   onOpenExpense,
   onOpenSettings,
+  onOpenRepair,
   onRefreshData,
   mode
 }) => {
@@ -97,6 +100,13 @@ const AppPortal = memo<AppPortalProps>(({
       onClick: onOpenExpense
     },
     {
+      id: 'repair',
+      label: 'تصليح',
+      icon: Wrench,
+      color: 'text-orange-500 group-hover:bg-orange-50 dark:group-hover:bg-orange-900/20',
+      onClick: onOpenRepair
+    },
+    {
       id: 'refresh',
       label: 'تحديث',
       icon: RefreshCw,
@@ -110,7 +120,7 @@ const AppPortal = memo<AppPortalProps>(({
       color: 'text-slate-500 group-hover:bg-slate-50 dark:group-hover:bg-slate-900/20',
       onClick: onOpenSettings
     },
-    // تطبيقات مستقبلية 
+    // تطبيقات مستقبلية
     {
       id: 'delivery',
       label: 'توصيل',
@@ -128,14 +138,6 @@ const AppPortal = memo<AppPortalProps>(({
       disabled: true
     },
     {
-      id: 'reservations',
-      label: 'حجوزات',
-      icon: Clock,
-      color: 'text-indigo-500',
-      badge: 'قريباً',
-      disabled: true
-    },
-    {
       id: 'customers',
       label: 'زبائن',
       icon: Users,
@@ -143,7 +145,7 @@ const AppPortal = memo<AppPortalProps>(({
       badge: 'قريباً',
       disabled: true
     }
-  ], [onOpenCalculator, onOpenExpense, handleRefresh, onOpenSettings]);
+  ], [onOpenCalculator, onOpenExpense, onOpenRepair, handleRefresh, onOpenSettings]);
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>

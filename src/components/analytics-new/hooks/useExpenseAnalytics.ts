@@ -8,7 +8,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@powersync/react';
 import { useTenant } from '@/context/tenant';
-import type { FilterState } from '../types';
+import type { ExpenseByCategory as ExpenseByCategoryType, ExpenseData, ExpenseTrend, FilterState } from '../types';
 import { format, parseISO, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -37,23 +37,8 @@ export interface TopExpense {
   date: string;
 }
 
-export interface ExpenseAnalyticsData {
-  totalExpenses: number;
-  expenseCount: number;
-  averageExpense: number;
-  monthlyAverage: number;
-  dailyAverage: number;
-  recurringExpenses: number;
-  oneTimeExpenses: number;
-  expensesByDay: TimeSeriesDataPoint[];
-  expensesByCategory: CategoryBreakdown[];
-  expensesByPaymentMethod: CategoryBreakdown[];
-  topExpenses: TopExpense[];
-  expenseGrowth: number;
-}
-
 export interface UseExpenseAnalyticsReturn {
-  data: ExpenseAnalyticsData | null;
+  data: ExpenseData | null;
   isLoading: boolean;
   error: Error | null;
 }
@@ -329,7 +314,7 @@ export function useExpenseAnalytics(filters: FilterState): UseExpenseAnalyticsRe
   }, [categoriesData]);
 
   // معالجة البيانات
-  const expenseData = useMemo((): ExpenseAnalyticsData | null => {
+  const expenseData = useMemo((): ExpenseData | null => {
     const expenses = (expensesData as any[]) || [];
 
     // Check loading only if no data
@@ -354,6 +339,16 @@ export function useExpenseAnalytics(filters: FilterState): UseExpenseAnalyticsRe
 
     // Categories Processing with Lookup
     const expensesByCategory = processExpenseByCategory(expenses, categoryLookup);
+
+    const byCategory: ExpenseByCategoryType[] = expensesByCategory.map((c) => ({
+      categoryId: c.id,
+      categoryName: c.name,
+      categoryColor: '#ef4444',
+      amount: c.value,
+      count: c.count,
+      percentage: c.percentage,
+      trend: 'stable',
+    }));
 
     // Top Expenses mapping
     const topExpenses = expenses
@@ -384,19 +379,36 @@ export function useExpenseAnalytics(filters: FilterState): UseExpenseAnalyticsRe
         };
       });
 
+    const expensesByDay = processExpenseTimeSeries(expenses, filters.dateRange);
+
+    const trend: ExpenseTrend[] = (() => {
+      let cumulative = 0;
+      return expensesByDay.map((p) => {
+        const amount = Number(p.value) || 0;
+        cumulative += amount;
+        return {
+          date: p.date,
+          amount,
+          cumulative,
+        };
+      });
+    })();
+
     return {
       totalExpenses,
       expenseCount,
       averageExpense,
+      byCategory,
+      trend,
       monthlyAverage,
       dailyAverage,
       recurringExpenses,
       oneTimeExpenses: totalExpenses - recurringExpenses,
-      expensesByDay: processExpenseTimeSeries(expenses, filters.dateRange),
+      expensesByDay,
       expensesByCategory,
       expensesByPaymentMethod: processExpenseByPayment(expenses),
       topExpenses,
-      expenseGrowth: 0,
+      expenseToRevenueRatio: 0,
     };
   }, [expensesData, categoryLookup, filters.dateRange, expensesLoading, categoriesLoading]);
 

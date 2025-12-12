@@ -58,7 +58,9 @@ const AdminApp: React.FC = () => {
         <LayoutShiftPrevention>
           <AppCore>
             <SuperUnifiedDataProvider>
-              <SnowEffect className="fixed inset-0 z-[9999] pointer-events-none opacity-40" />
+              {typeof window !== 'undefined' && localStorage.getItem('ui:snow') === '1' && (
+                <SnowEffect className="fixed inset-0 z-[9999] pointer-events-none opacity-40" />
+              )}
               <SyncManagerWrapper />
                 <Routes>
                   <Route

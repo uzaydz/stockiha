@@ -377,6 +377,7 @@ export const ThankYouPageEditor = lazy(() => import('../pages/dashboard/ThankYou
 // ============ SETTINGS & CONFIGURATION ============
 export const SettingsPage = lazy(() => import('../pages/dashboard/settings'));
 export const DomainSettings = lazy(() => import('../pages/dashboard/DomainSettings'));
+export const CustomDomainsPage = lazy(() => import('../pages/dashboard/CustomDomainsPage'));
 export const UnifiedSettingsPage = lazy(() => import('../pages/UnifiedSettingsPage'));
 
 // ============ DATABASE ADMIN (Electron Only) ============
@@ -401,6 +402,7 @@ export const TikTokAdsCourse = lazy(() => import('../pages/courses/TikTokAdsCour
 export const TraditionalBusinessCourse = lazy(() => import('../pages/courses/TraditionalBusinessCourse'));
 export const ServiceProvidersCourse = lazy(() => import('../pages/courses/ServiceProvidersCourse'));
 export const SystemTrainingCourse = lazy(() => import('../pages/courses/SystemTrainingCourse'));
+export const SystemTrainingStudyPage = lazy(() => import('../pages/courses/SystemTrainingStudyPage'));
 
 // ============ COURSE MODULES - Use existing paths ============
 // Digital Marketing Modules

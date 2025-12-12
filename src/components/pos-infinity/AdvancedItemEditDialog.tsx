@@ -7,10 +7,14 @@
  * - الدفعات والصلاحية
  * - الأرقام التسلسلية
  * - الضمان
+ *
+ * ⚡ v2.0: يعمل 100% Offline مع LocalBatchService و LocalSerialService
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { usePowerSync } from '@powersync/react';
+import { LocalBatchService, LocalSerialService, LocalBatch, LocalSerial } from '@/services/local';
 import {
   Dialog,
   DialogContent,
@@ -88,6 +92,12 @@ interface AdvancedItemEditDialogProps {
   availableBatches?: BatchInfo[];
   // بيانات الأرقام التسلسلية (اختياري)
   availableSerials?: string[];
+  // ⚡ Offline Props - للعمل بدون إنترنت
+  organizationId?: string;
+  orderDraftId?: string;
+  onSerialReserved?: (serialId: string, serialNumber: string) => void;
+  onSerialReleased?: (serialId: string, serialNumber: string) => void;
+  onSerialConflict?: (serialNumber: string, conflictType: 'reserved' | 'sold') => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -202,9 +212,20 @@ const AdvancedItemEditDialog: React.FC<AdvancedItemEditDialogProps> = ({
   onSave,
   mode = 'sale',
   availableBatches: externalBatches,
-  availableSerials: externalSerials
+  availableSerials: externalSerials,
+  // ⚡ Offline Props
+  organizationId,
+  orderDraftId,
+  onSerialReserved,
+  onSerialReleased,
+  onSerialConflict
 }) => {
   const colors = MODE_COLORS[mode];
+
+  // ⚡ خدمات محلية للعمل Offline
+  const powerSync = usePowerSync();
+  const localBatchService = useMemo(() => new LocalBatchService(powerSync), [powerSync]);
+  const localSerialService = useMemo(() => new LocalSerialService(powerSync), [powerSync]);
 
   // ═══ State ═══
   const [sellingUnit, setSellingUnit] = useState<SellingUnit>('piece');
@@ -218,10 +239,16 @@ const AdvancedItemEditDialog: React.FC<AdvancedItemEditDialogProps> = ({
   // الدفعات
   const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>();
   const [selectedBatchNumber, setSelectedBatchNumber] = useState<string | undefined>();
+  const [localBatches, setLocalBatches] = useState<LocalBatch[]>([]);
+  const [isLoadingBatches, setIsLoadingBatches] = useState(false);
 
   // الأرقام التسلسلية
   const [serialNumbers, setSerialNumbers] = useState<string[]>([]);
+  const [serialIds, setSerialIds] = useState<string[]>([]); // ⚡ معرفات الأرقام التسلسلية
   const [serialInput, setSerialInput] = useState('');
+  const [localSerials, setLocalSerials] = useState<LocalSerial[]>([]);
+  const [isLoadingSerials, setIsLoadingSerials] = useState(false);
+  const [serialValidationError, setSerialValidationError] = useState<string | null>(null);
 
   // ═══ Computed ═══
   const product = item?.product;
@@ -231,15 +258,76 @@ const AdvancedItemEditDialog: React.FC<AdvancedItemEditDialogProps> = ({
   const remaining = Math.max(0, available - value);
   const suffix = product ? getUnitSuffix(product, sellingUnit) : '';
 
-  // الدفعات المتاحة
+  // ⚡ جلب الدفعات محلياً
+  const loadBatchesFromLocal = useCallback(async () => {
+    if (!organizationId || !product?.id || externalBatches) return;
+
+    setIsLoadingBatches(true);
+    try {
+      const batches = await localBatchService.getProductBatchesFEFO(
+        product.id,
+        organizationId,
+        { colorId: item?.colorId, sizeId: item?.sizeId }
+      );
+      setLocalBatches(batches);
+    } catch (error) {
+      console.error('❌ خطأ في جلب الدفعات:', error);
+    } finally {
+      setIsLoadingBatches(false);
+    }
+  }, [organizationId, product?.id, externalBatches, item?.colorId, item?.sizeId, localBatchService]);
+
+  // ⚡ جلب الأرقام التسلسلية محلياً
+  const loadSerialsFromLocal = useCallback(async () => {
+    if (!organizationId || !product?.id || externalSerials) return;
+
+    setIsLoadingSerials(true);
+    try {
+      const serials = await localSerialService.getAvailableSerials(
+        product.id,
+        organizationId,
+        { colorId: item?.colorId, sizeId: item?.sizeId }
+      );
+      setLocalSerials(serials);
+    } catch (error) {
+      console.error('❌ خطأ في جلب الأرقام التسلسلية:', error);
+    } finally {
+      setIsLoadingSerials(false);
+    }
+  }, [organizationId, product?.id, externalSerials, item?.colorId, item?.sizeId, localSerialService]);
+
+  // جلب البيانات عند فتح النافذة
+  useEffect(() => {
+    if (open && organizationId && product?.id) {
+      if (product?.track_batches && !externalBatches) {
+        loadBatchesFromLocal();
+      }
+      if (product?.track_serial_numbers && !externalSerials) {
+        loadSerialsFromLocal();
+      }
+    }
+  }, [open, organizationId, product?.id, product?.track_batches, product?.track_serial_numbers, externalBatches, externalSerials, loadBatchesFromLocal, loadSerialsFromLocal]);
+
+  // الدفعات المتاحة - ⚡ محدث لدعم الجلب المحلي
   const batches = useMemo(() => {
     if (externalBatches) return externalBatches;
+    // ⚡ تحويل الدفعات المحلية إلى BatchInfo
+    if (localBatches.length > 0) {
+      return localBatches.map(b => ({
+        id: b.id,
+        batch_number: b.batch_number,
+        remaining_quantity: b.quantity_remaining,
+        expiry_date: b.expiry_date,
+        purchase_price: b.purchase_price,
+        received_date: b.created_at
+      }));
+    }
     // محاولة الحصول على الدفعات من المنتج
     return product?.batches || [];
-  }, [externalBatches, product]);
+  }, [externalBatches, localBatches, product]);
 
-  // هل يتطلب دفعة؟
-  const requiresBatch = product?.track_batches && batches.length > 0;
+  // هل يتطلب دفعة؟ - ⚡ محدث
+  const requiresBatch = product?.track_batches && (batches.length > 0 || !!organizationId);
 
   // هل يتطلب رقم تسلسلي؟
   const requiresSerial = product?.track_serial_numbers && product?.require_serial_on_sale !== false;
@@ -347,23 +435,107 @@ const AdvancedItemEditDialog: React.FC<AdvancedItemEditDialogProps> = ({
     setSelectedBatchNumber(batch.batch_number);
   };
 
-  const handleAddSerial = () => {
+  // ⚡ إضافة رقم تسلسلي مع الحجز المحلي
+  const handleAddSerial = useCallback(async () => {
     const trimmed = serialInput.trim().toUpperCase();
-    if (trimmed && !serialNumbers.includes(trimmed)) {
-      const requiredCount = sellingUnit === 'piece' ? value : 1;
-      if (serialNumbers.length < requiredCount) {
-        setSerialNumbers([...serialNumbers, trimmed]);
+    if (!trimmed || serialNumbers.includes(trimmed)) {
+      setSerialValidationError('هذا الرقم مضاف بالفعل');
+      return;
+    }
+
+    const requiredCount = sellingUnit === 'piece' ? value : 1;
+    if (serialNumbers.length >= requiredCount) {
+      setSerialValidationError(`تم إضافة الحد الأقصى (${requiredCount}) من الأرقام التسلسلية`);
+      return;
+    }
+
+    setSerialValidationError(null);
+
+    // ⚡ إذا كان organizationId متوفر، استخدم الحجز المحلي
+    if (organizationId && orderDraftId) {
+      try {
+        // البحث عن الرقم التسلسلي
+        const serialInfo = await localSerialService.findBySerialNumber(trimmed, organizationId);
+
+        if (!serialInfo) {
+          setSerialValidationError('الرقم التسلسلي غير موجود');
+          return;
+        }
+
+        if (serialInfo.status === 'sold') {
+          setSerialValidationError('هذا الرقم مُباع مسبقاً');
+          onSerialConflict?.(trimmed, 'sold');
+          return;
+        }
+
+        if (serialInfo.status === 'reserved' && !serialInfo.is_reservation_expired) {
+          if (serialInfo.reserved_by_device !== localSerialService.getDeviceId()) {
+            setSerialValidationError('هذا الرقم محجوز من جهاز آخر');
+            onSerialConflict?.(trimmed, 'reserved');
+            return;
+          }
+        }
+
+        // حجز الرقم التسلسلي
+        const result = await localSerialService.reserveSerial({
+          serial_id: serialInfo.id,
+          organization_id: organizationId,
+          order_draft_id: orderDraftId,
+          reservation_minutes: 30
+        });
+
+        if (!result.success) {
+          setSerialValidationError(result.error || 'فشل في حجز الرقم');
+          if (result.conflict) {
+            onSerialConflict?.(trimmed, result.conflict.conflict_type === 'already_sold' ? 'sold' : 'reserved');
+          }
+          return;
+        }
+
+        // إضافة الرقم والمعرف
+        setSerialNumbers(prev => [...prev, trimmed]);
+        setSerialIds(prev => [...prev, serialInfo.id]);
         setSerialInput('');
+        onSerialReserved?.(serialInfo.id, trimmed);
+
+        // تحديث قائمة المتاح
+        loadSerialsFromLocal();
+      } catch (error) {
+        console.error('❌ خطأ في حجز الرقم التسلسلي:', error);
+        setSerialValidationError('حدث خطأ أثناء الحجز');
+      }
+    } else {
+      // الوضع القديم بدون حجز
+      setSerialNumbers(prev => [...prev, trimmed]);
+      setSerialInput('');
+    }
+  }, [serialInput, serialNumbers, sellingUnit, value, organizationId, orderDraftId, localSerialService, onSerialReserved, onSerialConflict, loadSerialsFromLocal]);
+
+  // ⚡ إزالة رقم تسلسلي مع تحرير الحجز
+  const handleRemoveSerial = useCallback(async (serial: string) => {
+    const idx = serialNumbers.indexOf(serial);
+
+    // ⚡ تحرير الحجز إذا كان organizationId متوفر
+    if (organizationId && idx !== -1 && serialIds[idx]) {
+      try {
+        await localSerialService.releaseSerial(serialIds[idx], organizationId);
+        onSerialReleased?.(serialIds[idx], serial);
+      } catch (error) {
+        console.error('❌ خطأ في تحرير الحجز:', error);
       }
     }
-  };
 
-  const handleRemoveSerial = (serial: string) => {
-    setSerialNumbers(serialNumbers.filter(s => s !== serial));
-  };
+    setSerialNumbers(prev => prev.filter(s => s !== serial));
+    setSerialIds(prev => prev.filter((_, i) => i !== idx));
+
+    // تحديث قائمة المتاح
+    if (organizationId) {
+      loadSerialsFromLocal();
+    }
+  }, [serialNumbers, serialIds, organizationId, localSerialService, onSerialReleased, loadSerialsFromLocal]);
 
   const handleSave = useCallback(() => {
-    const updates: Partial<CartItem> = {
+    const updates: Partial<CartItem> & { serialIds?: string[] } = {
       sellingUnit,
       quantity: sellingUnit === 'piece' ? value : 1,
       weight: sellingUnit === 'weight' ? value : undefined,
@@ -374,10 +546,12 @@ const AdvancedItemEditDialog: React.FC<AdvancedItemEditDialogProps> = ({
       batchId: requiresBatch ? selectedBatchId : undefined,
       batchNumber: requiresBatch ? selectedBatchNumber : undefined,
       serialNumbers: requiresSerial ? serialNumbers : undefined,
+      // ⚡ إضافة معرفات الأرقام التسلسلية
+      serialIds: requiresSerial && serialIds.length > 0 ? serialIds : undefined,
     };
     onSave(index, updates);
     onOpenChange(false);
-  }, [index, sellingUnit, value, weightUnit, saleType, selectedBatchId, selectedBatchNumber, serialNumbers, onSave, onOpenChange, availableSaleTypes, requiresBatch, requiresSerial]);
+  }, [index, sellingUnit, value, weightUnit, saleType, selectedBatchId, selectedBatchNumber, serialNumbers, serialIds, onSave, onOpenChange, availableSaleTypes, requiresBatch, requiresSerial]);
 
   // التحقق من الصلاحية
   const requiredSerialCount = sellingUnit === 'piece' ? value : 1;

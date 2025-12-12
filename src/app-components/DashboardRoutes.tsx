@@ -464,7 +464,14 @@ export const DashboardRoutes = () => (
             <Route path="settings" element={<Navigate to="/dashboard/settings-operations/settings" replace />} />
             <Route path="settings/:section" element={<Navigate to="/dashboard/settings-operations/settings" replace />} />
 
-            <Route path="custom-domains" element={<Navigate to="/dashboard/settings-operations/custom-domains" replace />} />
+            {/* صفحة النطاقات المخصصة - مباشرة بدون tabs */}
+            <Route path="custom-domains" element={
+              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل النطاقات المخصصة..." />}>
+                  <LazyRoutes.CustomDomainsPage />
+                </Suspense>
+              </PermissionGuard>
+            } />
             <Route path="/docs/custom-domains" element={<Navigate to="/dashboard/settings-operations/domains-docs" replace />} />
 
             {/* مركز إدارة المتجر الإلكتروني */}
@@ -760,6 +767,13 @@ export const DashboardRoutes = () => (
             <Route path="courses/tiktok-marketing/module/8" element={
               <Suspense fallback={<PageLoader message="جاري تحميل البكسل والجماهير المخصصة..." />}>
                 <LazyRoutes.TikTokAdsModule8 />
+              </Suspense>
+            } />
+
+            {/* نظام تعلم شرح النظام الجديد (Unified Player) */}
+            <Route path="courses/system-training/learn/:moduleId/:lessonId?" element={
+              <Suspense fallback={<PageLoader message="جاري تحميل المشغل الموحد..." />}>
+                <LazyRoutes.SystemTrainingStudyPage />
               </Suspense>
             } />
 

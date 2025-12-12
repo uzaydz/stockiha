@@ -1,11 +1,13 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
-import { GraduationCap, BookOpen, Loader2 } from 'lucide-react';
+import {
+  GraduationCap, BookOpen, Loader2, Megaphone, Music2,
+  Store, ShoppingCart, Building2, Wrench, Monitor
+} from 'lucide-react';
 import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const AllCoursesTab = React.lazy(() => import('./courses/CoursesIndex'));
@@ -22,67 +24,85 @@ type TabKey = 'all' | 'digital-marketing' | 'tiktok-marketing' | 'e-commerce-sto
 interface TabDefinition {
   id: TabKey;
   title: string;
+  shortTitle: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   loaderMessage: string;
+  color: string;
 }
 
 const TAB_CONFIG: TabDefinition[] = [
   {
     id: 'all',
     title: 'جميع الدورات',
+    shortTitle: 'الكل',
     description: 'استعراض جميع الدورات التدريبية المتاحة في منصة ستوكيها.',
     icon: GraduationCap,
-    loaderMessage: 'جاري تحميل الدورات...'
-  },
-  {
-    id: 'digital-marketing',
-    title: 'التسويق الإلكتروني',
-    description: 'تعلم استراتيجيات التسويق الرقمي الحديثة لتنمية أعمالك.',
-    icon: BookOpen,
-    loaderMessage: 'جاري تحميل دورة التسويق الإلكتروني...'
-  },
-  {
-    id: 'tiktok-marketing',
-    title: 'التسويق عبر التيك توك',
-    description: 'احترف التسويق عبر منصة تيك توك وزد مبيعاتك.',
-    icon: BookOpen,
-    loaderMessage: 'جاري تحميل دورة التيك توك...'
-  },
-  {
-    id: 'e-commerce-store',
-    title: 'صنع متجر إلكتروني',
-    description: 'تعلم كيفية إنشاء وإدارة متجر إلكتروني احترافي.',
-    icon: BookOpen,
-    loaderMessage: 'جاري تحميل دورة المتجر الإلكتروني...'
-  },
-  {
-    id: 'e-commerce',
-    title: 'التجارة الإلكترونية',
-    description: 'دليل شامل لبدء وتطوير أعمال التجارة الإلكترونية.',
-    icon: BookOpen,
-    loaderMessage: 'جاري تحميل دورة التجارة الإلكترونية...'
-  },
-  {
-    id: 'traditional-business',
-    title: 'التجار التقليديين',
-    description: 'حلول رقمية مبتكرة للتجار التقليديين لتطوير أعمالهم.',
-    icon: BookOpen,
-    loaderMessage: 'جاري تحميل دورة التجار التقليديين...'
-  },
-  {
-    id: 'service-providers',
-    title: 'مقدمي الخدمات',
-    description: 'أدوات وتقنيات لتحسين إدارة وتسويق خدماتك.',
-    icon: BookOpen,
-    loaderMessage: 'جاري تحميل دورة مقدمي الخدمات...'
+    loaderMessage: 'جاري تحميل الدورات...',
+    color: 'text-orange-500'
   },
   {
     id: 'system-training',
     title: 'شرح النظام',
+    shortTitle: 'النظام',
     description: 'دليل شامل لتعلم كيفية استخدام نظام سطوكيها باحترافية.',
-    icon: BookOpen,
-    loaderMessage: 'جاري تحميل شرح النظام...'
+    icon: Monitor,
+    loaderMessage: 'جاري تحميل شرح النظام...',
+    color: 'text-purple-500'
+  },
+  {
+    id: 'digital-marketing',
+    title: 'التسويق الإلكتروني',
+    shortTitle: 'التسويق',
+    description: 'تعلم استراتيجيات التسويق الرقمي الحديثة لتنمية أعمالك.',
+    icon: Megaphone,
+    loaderMessage: 'جاري تحميل دورة التسويق الإلكتروني...',
+    color: 'text-blue-500'
+  },
+  {
+    id: 'tiktok-marketing',
+    title: 'التسويق عبر التيك توك',
+    shortTitle: 'تيك توك',
+    description: 'احترف التسويق عبر منصة تيك توك وزد مبيعاتك.',
+    icon: Music2,
+    loaderMessage: 'جاري تحميل دورة التيك توك...',
+    color: 'text-pink-500'
+  },
+  {
+    id: 'e-commerce-store',
+    title: 'صنع متجر إلكتروني',
+    shortTitle: 'المتجر',
+    description: 'تعلم كيفية إنشاء وإدارة متجر إلكتروني احترافي.',
+    icon: Store,
+    loaderMessage: 'جاري تحميل دورة المتجر الإلكتروني...',
+    color: 'text-emerald-500'
+  },
+  {
+    id: 'e-commerce',
+    title: 'التجارة الإلكترونية',
+    shortTitle: 'التجارة',
+    description: 'دليل شامل لبدء وتطوير أعمال التجارة الإلكترونية.',
+    icon: ShoppingCart,
+    loaderMessage: 'جاري تحميل دورة التجارة الإلكترونية...',
+    color: 'text-green-500'
+  },
+  {
+    id: 'traditional-business',
+    title: 'التجار التقليديين',
+    shortTitle: 'التقليديين',
+    description: 'حلول رقمية مبتكرة للتجار التقليديين لتطوير أعمالهم.',
+    icon: Building2,
+    loaderMessage: 'جاري تحميل دورة التجار التقليديين...',
+    color: 'text-amber-500'
+  },
+  {
+    id: 'service-providers',
+    title: 'مقدمي الخدمات',
+    shortTitle: 'الخدمات',
+    description: 'أدوات وتقنيات لتحسين إدارة وتسويق خدماتك.',
+    icon: Wrench,
+    loaderMessage: 'جاري تحميل دورة مقدمي الخدمات...',
+    color: 'text-cyan-500'
   }
 ];
 
@@ -149,8 +169,8 @@ const CoursesOperationsPage: React.FC = () => {
       const Icon = tab.icon;
       return {
         id: tab.id,
-        title: tab.title,
-        icon: <Icon className="h-3 w-3" />,
+        title: tab.shortTitle,
+        icon: <Icon className={`h-3.5 w-3.5 ${tab.color}`} />,
         onSelect: () => handleTabChange(tab.id),
       };
     });
@@ -161,7 +181,7 @@ const CoursesOperationsPage: React.FC = () => {
     return () => {
       clearTabs();
     };
-  }, [handleTabChange, setTabs, setShowTabs, clearTabs]);
+  }, [handleTabChange, setTabs, setShowTabs, clearTabs, allowedTabs]);
 
   useEffect(() => {
     setTitlebarActiveTab(activeTab);
@@ -251,37 +271,10 @@ const CoursesOperationsPage: React.FC = () => {
   }, [activeTab, handleRegisterRefresh, handleChildLayoutStateChange]);
 
   const layoutContent = (
-    <div className="space-y-6 p-6" dir="rtl">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-foreground">دورات ستوكيها التدريبية</h1>
-        <p className="text-sm text-muted-foreground">
-          منصة تعليمية شاملة لتطوير مهاراتك في التجارة الإلكترونية والتسويق الرقمي.
-        </p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
-          {TAB_CONFIG.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow"
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden lg:inline">{tab.title}</span>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </Tabs>
-
-      <div className="rounded-2xl border border-border/50 bg-card shadow-sm">
-        <div className="border-b border-border/40 px-6 py-4">
-          <p className="text-sm text-muted-foreground">{activeTabMeta.description}</p>
-        </div>
-        <div className="px-2 py-4 sm:px-6">{renderActiveContent}</div>
+    <div className="h-full overflow-y-auto" dir="rtl">
+      {/* المحتوى مباشرة بدون header إضافي - الـ tabs في التايتل بار */}
+      <div className="h-full">
+        {renderActiveContent}
       </div>
     </div>
   );

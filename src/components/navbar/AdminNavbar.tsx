@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, Suspense, lazy } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,6 @@ import { NavbarLogo } from './NavbarLogo';
 import { NavbarUserMenu } from './NavbarUserMenu';
 import { NavbarNotifications } from './NavbarNotifications';
 import { NavbarThemeToggle } from './NavbarThemeToggle';
-import { NavbarSyncIndicator } from './NavbarSyncIndicator';
 import { QuickNavLinks } from './QuickNavLinks';
 import OnlineOrdersCounter from './OnlineOrdersCounter';
 import { useAuth } from '@/context/AuthContext';
@@ -20,6 +19,10 @@ import type { OrganizationSettings } from '@/types/settings';
 
 // استيراد ملف CSS المخصص
 import './admin-navbar.css';
+
+const LazyNavbarSyncIndicator = lazy(() =>
+  import('./NavbarSyncIndicator').then((module) => ({ default: module.NavbarSyncIndicator }))
+);
 
 interface AdminNavbarProps {
   className?: string;
@@ -160,7 +163,9 @@ export function AdminNavbar({
 
             {/* Sync Indicator */}
             <div className="navbar-action-item">
-              <NavbarSyncIndicator />
+              <Suspense fallback={null}>
+                <LazyNavbarSyncIndicator />
+              </Suspense>
             </div>
 
             {/* Theme Toggle */}

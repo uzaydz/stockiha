@@ -61,6 +61,7 @@ interface InfinityHeaderProps {
   onOpenCalculator: () => void;
   onOpenExpense: () => void;
   onOpenSettings: () => void;
+  onOpenRepair: () => void;
   onRefreshData: () => void;
 
   // أخرى
@@ -105,6 +106,7 @@ const InfinityHeader = memo<InfinityHeaderProps>(({
   onOpenCalculator,
   onOpenExpense,
   onOpenSettings,
+  onOpenRepair,
   onRefreshData,
   isMobile = false,
   className
@@ -203,6 +205,7 @@ const InfinityHeader = memo<InfinityHeaderProps>(({
         onOpenCalculator={onOpenCalculator}
         onOpenExpense={onOpenExpense}
         onOpenSettings={onOpenSettings}
+        onOpenRepair={onOpenRepair}
         onRefreshData={onRefreshData}
       />
 

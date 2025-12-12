@@ -16,6 +16,10 @@ import {
 } from '@powersync/web';
 import { supabase } from '@/lib/supabase-unified';
 
+// ⚡ حفظ الدالة الأصلية لـ getSession قبل أي اعتراض
+// هذا ضروري لتجنب حلقة لا نهائية مع authInterceptorV2
+const originalGetSession = supabase.auth.getSession.bind(supabase.auth);
+
 // ⚡ Configuration for batch processing
 const BATCH_CONFIG = {
   /** Maximum records per batch upsert */
@@ -87,11 +91,12 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     console.log('[SupabaseConnector] 📡 PowerSync URL:', import.meta.env.VITE_POWERSYNC_URL || 'NOT SET');
 
     try {
-      // جلب الجلسة الحالية من Supabase
+      // ⚡ جلب الجلسة الحالية من Supabase باستخدام الدالة الأصلية
+      // هذا يتجنب حلقة لا نهائية مع authInterceptorV2
       const {
         data: { session },
         error,
-      } = await supabase.auth.getSession();
+      } = await originalGetSession();
 
       if (error) {
         console.error('[SupabaseConnector] Session error:', error);
@@ -612,8 +617,16 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       keys: Object.keys(recordData).slice(0, 15)
     });
 
+    // ⚡ تحديد مفتاح الـ conflict حسب الجدول
+    // بعض الجداول لها unique constraints أخرى غير id
+    let onConflictKey = 'id';
+    if (table === 'product_wholesale_tiers') {
+      // هذا الجدول له unique constraint على (product_id, min_quantity)
+      onConflictKey = 'product_id,min_quantity';
+    }
+
     const { error } = await supabase.from(supabaseTable).upsert(recordData, {
-      onConflict: 'id',
+      onConflict: onConflictKey,
     });
 
     if (error) {

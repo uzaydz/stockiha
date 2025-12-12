@@ -612,7 +612,7 @@ const ProfitSection: React.FC<ProfitSectionProps> = ({
 }) => {
   // Calculate profit status
   const profitStatus = useMemo(() => {
-    const profit = data?.grossProfit || 0;
+    const profit = (data?.netProfit ?? data?.grossProfit) || 0;
     if (profit > 0) return { status: 'profit' as const, color: '#10b981', bgColor: '#d1fae5' };
     if (profit < 0) return { status: 'loss' as const, color: '#ef4444', bgColor: '#fee2e2' };
     return { status: 'break-even' as const, color: '#6b7280', bgColor: '#f3f4f6' };
@@ -660,10 +660,10 @@ const ProfitSection: React.FC<ProfitSectionProps> = ({
                 profitStatus.status === 'loss' ? 'تحقق خسارة بقيمة' : 'نقطة التعادل'}
             </p>
             <div className="text-4xl lg:text-5xl font-bold mb-2" style={{ color: profitStatus.color }}>
-              <AnimatedValue value={Math.abs(data?.grossProfit || 0)} format="currency" />
+              <AnimatedValue value={Math.abs((data?.netProfit ?? data?.grossProfit) || 0)} format="currency" />
             </div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              بهامش ربح <span className="font-semibold" style={{ color: profitStatus.color }}>{formatPercent(data?.grossMargin || 0)}</span>
+              بهامش ربح <span className="font-semibold" style={{ color: profitStatus.color }}>{formatPercent((data?.netMargin ?? data?.grossMargin) || 0)}</span>
             </p>
           </div>
 
@@ -710,9 +710,9 @@ const ProfitSection: React.FC<ProfitSectionProps> = ({
                 )}
               </div>
               <div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">الربح</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">صافي الربح</p>
                 <p className="text-lg font-bold" style={{ color: profitStatus.color }}>
-                  {formatCurrency(data?.grossProfit || 0)}
+                  {formatCurrency((data?.netProfit ?? data?.grossProfit) || 0)}
                 </p>
               </div>
             </div>
@@ -741,18 +741,18 @@ const ProfitSection: React.FC<ProfitSectionProps> = ({
           description="تكلفة الشراء"
         />
         <StatsCard
-          title="إجمالي الربح"
-          value={data?.grossProfit || 0}
+          title="صافي الربح"
+          value={(data?.netProfit ?? data?.grossProfit) || 0}
           format="currency"
           icon={<PiggyBank className="w-5 h-5" />}
           iconColor={profitStatus.color}
           iconBgColor={profitStatus.bgColor}
-          trend={(data?.grossProfit || 0) >= 0 ? 'up' : 'down'}
-          trendValue={`${formatPercent(data?.grossMargin || 0)} هامش`}
+          trend={(((data?.netProfit ?? data?.grossProfit) || 0) >= 0) ? 'up' : 'down'}
+          trendValue={`${formatPercent((data?.netMargin ?? data?.grossMargin) || 0)} هامش`}
         />
         <StatsCard
           title="هامش الربح"
-          value={data?.grossMargin || 0}
+          value={(data?.netMargin ?? data?.grossMargin) || 0}
           format="percent"
           icon={<Percent className="w-5 h-5" />}
           iconColor="#8b5cf6"

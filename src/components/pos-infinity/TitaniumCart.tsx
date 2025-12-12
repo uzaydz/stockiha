@@ -9,7 +9,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import React, { memo, useMemo, useState, useCallback } from 'react';
+import React, { memo, useMemo, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import {
@@ -44,6 +44,7 @@ import { Badge } from '@/components/ui/badge';
 import type { POSMode } from './CommandIsland';
 import type { SaleType } from '@/lib/pricing/wholesalePricing';
 import { calculateProductPrice, toProductPricingInfo, parseWholesaleTiers, getApplicableTier } from '@/lib/pricing/wholesalePricing';
+import { useCustomShortcuts } from './KeyboardShortcutsManager';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -109,6 +110,10 @@ interface TitaniumCartProps {
   // ⚡ Loss Mode Props - سبب الخسارة
   lossDescription?: string;
   onLossDescriptionChange?: (value: string) => void;
+  // ⚡ Offline Props - للعمل بدون إنترنت
+  organizationId?: string;
+  orderDraftId?: string;
+  onSerialConflict?: (serialNumber: string, conflictType: 'reserved' | 'sold') => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -739,15 +744,42 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
   onSwitchTab,
   onRemoveTab,
   lossDescription = '',
-  onLossDescriptionChange
+  onLossDescriptionChange,
+  // ⚡ Offline Props
+  organizationId,
+  orderDraftId,
+  onSerialConflict
 }) => {
   const theme = THEME[mode];
   const Icon = theme.icon;
   const saleModeConfig = SALE_MODE_CONFIG[saleMode];
 
+  // ⚡ الاختصارات المخصصة
+  const { shortcuts, reload: reloadShortcuts } = useCustomShortcuts();
+  const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+
+  // ⚡ دالة تنسيق الاختصار
+  const formatShortcut = useCallback((id: string) => {
+    const s = shortcuts.find(sc => sc.id === id);
+    if (!s) return '';
+    const parts = [];
+    if (s.ctrl) parts.push(isMac ? '⌘' : 'Ctrl');
+    if (s.alt) parts.push(isMac ? '⌥' : 'Alt');
+    parts.push(s.key);
+    return parts.join('+');
+  }, [shortcuts, isMac]);
+
+  // ⚡ إعادة تحميل الاختصارات عند التحديث
+  useEffect(() => {
+    const handleStorageChange = () => reloadShortcuts();
+    window.addEventListener('shortcuts-updated', handleStorageChange);
+    return () => window.removeEventListener('shortcuts-updated', handleStorageChange);
+  }, [reloadShortcuts]);
+
   const itemsCount = useMemo(() => items.length, [items]);
 
   const checkoutLabel = mode === 'sale' ? 'إتمام البيع' : mode === 'return' ? 'تأكيد الإرجاع' : 'تسجيل الخسارة';
+  const quickLabel = mode === 'sale' ? 'سريع' : mode === 'return' ? 'إرجاع سريع' : 'تسجيل سريع';
 
   // ⚡ التحقق من إمكانية التسجيل في وضع الخسارة
   const canCheckoutLoss = mode !== 'loss' || (lossDescription && lossDescription.trim().length > 0);
@@ -797,19 +829,27 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
           {onHoldCart && (
             <button
               onClick={onHoldCart}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 dark:text-[#8b949e] hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all"
-              title="طلب جديد"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 dark:text-[#8b949e] hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all group relative"
+              title={`سلة جديدة (${formatShortcut('new') || 'Ctrl+N'})`}
             >
               <Plus className="w-4.5 h-4.5" strokeWidth={2} />
+              {/* Tooltip */}
+              <span className="absolute -bottom-8 right-0 bg-zinc-800 dark:bg-zinc-700 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                {formatShortcut('new') || 'Ctrl+N'}
+              </span>
             </button>
           )}
           {items.length > 0 && (
             <button
               onClick={onClearCart}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 dark:text-[#8b949e] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all"
-              title="مسح"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-zinc-500 dark:text-[#8b949e] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all group relative"
+              title={`حذف السلة (${formatShortcut('clearCart') || 'Alt+X'})`}
             >
               <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+              {/* Tooltip */}
+              <span className="absolute -bottom-8 right-0 bg-zinc-800 dark:bg-zinc-700 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                {formatShortcut('clearCart') || 'Alt+X'}
+              </span>
             </button>
           )}
         </div>
@@ -1020,54 +1060,67 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        {/* Primary Button: Solid Color */}
-        <Button
-          onClick={onCheckout}
-          disabled={isSubmitting || items.length === 0 || !canCheckoutLoss || hasItemsWithWarnings}
-          className={cn(
-            "flex-1 h-12 rounded-xl text-white text-base font-bold shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg",
-            theme.solid,
-            "hover:brightness-110",
-            "disabled:opacity-50 disabled:shadow-none disabled:transform-none"
-          )}
-        >
-          {isSubmitting ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>جاري...</span>
+      {/* Action Buttons - تصميم أنظف */}
+      <div className="flex items-center gap-2">
+        {/* زر سريع - دائري على اليمين */}
+        {onQuickCheckout && (
+          <div className="relative shrink-0">
+            {/* شارة الاختصار - فوق الزر */}
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-mono bg-zinc-700 dark:bg-zinc-600 text-white px-1.5 py-0.5 rounded-full z-10 whitespace-nowrap">
+              {formatShortcut('quick') || 'F12'}
             </span>
-          ) : hasItemsWithWarnings ? (
-            <span className="flex items-center justify-center gap-2">
-              <AlertTriangle className="w-5 h-5" strokeWidth={2.5} />
-              <span>أكمل البيانات المطلوبة</span>
-            </span>
-          ) : (
-            <span className="flex items-center justify-center gap-2">
-              <Icon className="w-5 h-5" strokeWidth={2.5} />
-              <span>{checkoutLabel}</span>
-            </span>
-          )}
-        </Button>
-
-        {/* Secondary Button: Outline Colored */}
-        {mode === 'sale' && onQuickCheckout && (
-          <Button
-            onClick={onQuickCheckout}
-            disabled={isSubmitting || items.length === 0}
-            className={cn(
-              "h-12 w-12 rounded-xl p-0 shrink-0 border-2 bg-transparent",
-              theme.border,
-              theme.text,
-              "hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all",
-              "disabled:opacity-50"
-            )}
-            title="بيع سريع (F12)"
-          >
-            <Zap className="w-6 h-6" strokeWidth={2.5} />
-          </Button>
+            <button
+              onClick={onQuickCheckout}
+              disabled={isSubmitting || items.length === 0 || (mode === 'loss' && !canCheckoutLoss)}
+              className={cn(
+                "w-14 h-14 rounded-full flex items-center justify-center transition-all",
+                "bg-zinc-100 dark:bg-zinc-800 border-2",
+                theme.border,
+                theme.text,
+                "hover:scale-105 hover:shadow-md",
+                "disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-none"
+              )}
+              title={`${quickLabel} (${formatShortcut('quick') || 'F12'})`}
+            >
+              <Zap className="w-6 h-6" strokeWidth={2} />
+            </button>
+          </div>
         )}
+
+        {/* Primary Button: إتمام البيع */}
+        <div className="relative flex-1">
+          {/* شارة الاختصار - فوق الزر على اليسار */}
+          <span className="absolute -top-2 left-2 text-[9px] font-mono bg-zinc-700 dark:bg-zinc-600 text-white px-1.5 py-0.5 rounded-full z-10">
+            {formatShortcut('pay') || 'F10'}
+          </span>
+          <Button
+            onClick={onCheckout}
+            disabled={isSubmitting || items.length === 0 || !canCheckoutLoss || hasItemsWithWarnings}
+            className={cn(
+              "w-full h-14 rounded-xl text-white text-base font-bold shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg",
+              theme.solid,
+              "hover:brightness-110",
+              "disabled:opacity-50 disabled:shadow-none disabled:transform-none"
+            )}
+          >
+            {isSubmitting ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>جاري...</span>
+              </span>
+            ) : hasItemsWithWarnings ? (
+              <span className="flex items-center justify-center gap-2">
+                <AlertTriangle className="w-5 h-5" strokeWidth={2.5} />
+                <span>أكمل البيانات المطلوبة</span>
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <Icon className="w-5 h-5" strokeWidth={2.5} />
+                <span>{checkoutLabel}</span>
+              </span>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   </div>
@@ -1077,6 +1130,11 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
 TitaniumCart.displayName = 'TitaniumCart';
 
 export default TitaniumCart;
+
+
+
+
+
 
 
 

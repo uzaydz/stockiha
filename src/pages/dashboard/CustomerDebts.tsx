@@ -45,6 +45,9 @@ import { formatPrice } from '@/lib/utils';
 import DebtPaymentModal from '@/components/debts/DebtPaymentModal';
 import AddDebtModal from '@/components/debts/AddDebtModal';
 
+// 📖 دليل استخدام المديونيات
+import CustomerDebtsUserGuide, { CustomerDebtsHelpButton } from '@/components/debts/CustomerDebtsUserGuide';
+
 // استيراد واجهة الـ API
 import { DebtsData, DebtOrder } from '@/lib/api/debts';
 import { unifiedOrderService } from '@/services/UnifiedOrderService';
@@ -416,6 +419,7 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState<any>(null);
   const [addDebtModalOpen, setAddDebtModalOpen] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
 
   // Stats
   const customersWithDebts = debtsData?.customerDebts?.length || 0;
@@ -611,6 +615,9 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* زر دليل الاستخدام */}
+          <CustomerDebtsHelpButton onClick={() => setShowUserGuide(true)} />
+
           {/* Refresh Button */}
           <Button
             variant="ghost"
@@ -817,6 +824,12 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
         isOpen={addDebtModalOpen}
         onOpenChange={setAddDebtModalOpen}
         onDebtAdded={handleDebtAdded}
+      />
+
+      {/* 📖 دليل استخدام المديونيات */}
+      <CustomerDebtsUserGuide
+        open={showUserGuide}
+        onOpenChange={setShowUserGuide}
       />
     </div>
   );

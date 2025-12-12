@@ -20,8 +20,26 @@ import {
   CustomerSelector,
   CustomerCreateForm,
   PaymentMethodTabs,
-  NotesSection
+  NotesSection,
+  SerialNumbersEntrySection,
+  SerialNumberEntry
 } from './payment-dialog';
+
+// نوع عنصر السلة
+interface CartItem {
+  id: string;
+  product_id?: string;
+  productId?: string;
+  name: string;
+  quantity: number;
+  price: number;
+  track_serial_numbers?: boolean | number;
+  require_serial_on_sale?: boolean | number;
+  thumbnail_image?: string;
+  colorName?: string;
+  sizeName?: string;
+  variantId?: string;
+}
 
 interface POSAdvancedPaymentDialogProps {
   isOpen: boolean;
@@ -34,6 +52,9 @@ interface POSAdvancedPaymentDialogProps {
   total: number;
   // ✅ السعر الأصلي (قبل التعديل اليدوي) لحساب الفرق
   originalTotal?: number;
+
+  // ⚡ عناصر السلة للتحقق من الأرقام التسلسلية
+  cartItems?: CartItem[];
 
   // العملاء
   customers: AppUser[];
@@ -49,6 +70,8 @@ interface POSAdvancedPaymentDialogProps {
     paymentMethod: string;
     isPartialPayment: boolean;
     considerRemainingAsPartial: boolean;
+    // ⚡ الأرقام التسلسلية المدخلة
+    serialNumbers?: SerialNumberEntry[];
   }) => void;
 
   onCustomerAdded?: (customer: AppUser) => void;
@@ -63,6 +86,7 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
   currentDiscountType,
   total,
   originalTotal,
+  cartItems = [],
   customers,
   selectedCustomerId,
   onPaymentComplete,
@@ -82,6 +106,9 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
   
   // حالة الدفع الجزئي
   const [considerRemainingAsPartial, setConsiderRemainingAsPartial] = useState(true);
+
+  // ⚡ حالة الأرقام التسلسلية
+  const [serialEntries, setSerialEntries] = useState<SerialNumberEntry[]>([]);
 
   // حالة إدارة العملاء
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -107,6 +134,56 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
   const hasPriceDifference = priceDifference > 0;
   const differencePercentage = originalTotal && originalTotal > 0 ? ((priceDifference / originalTotal) * 100).toFixed(1) : '0';
 
+  // ⚡ التحقق من اكتمال الأرقام التسلسلية
+  const productsRequiringSerials = useMemo(() => {
+    return cartItems.filter((item: any) => {
+      // التحقق من الحقول المباشرة أو داخل product
+      const trackSerial =
+        item.track_serial_numbers === true ||
+        item.track_serial_numbers === 1 ||
+        item.product?.track_serial_numbers === true ||
+        item.product?.track_serial_numbers === 1;
+
+      const requireSerial =
+        item.require_serial_on_sale === true ||
+        item.require_serial_on_sale === 1 ||
+        item.product?.require_serial_on_sale === true ||
+        item.product?.require_serial_on_sale === 1;
+
+      return trackSerial && requireSerial;
+    });
+  }, [cartItems]);
+
+  const hasProductsRequiringSerials = productsRequiringSerials.length > 0;
+
+  // 🔍 DEBUG: طباعة حالة السلة والمنتجات
+  useEffect(() => {
+    if (isOpen) {
+      console.log('[PaymentDialog] 📦 Cart items received:', cartItems.length);
+      cartItems.forEach((item: any, idx) => {
+        console.log(`[PaymentDialog] 📦 Item ${idx}:`, {
+          name: item.name || item.product?.name,
+          track_serial_numbers: item.track_serial_numbers,
+          product_track_serial: item.product?.track_serial_numbers,
+          require_serial_on_sale: item.require_serial_on_sale,
+          product_require_serial: item.product?.require_serial_on_sale
+        });
+      });
+      console.log('[PaymentDialog] 🔢 Products requiring serials:', productsRequiringSerials.length);
+    }
+  }, [isOpen, cartItems, productsRequiringSerials.length]);
+
+  const allSerialsCompleted = useMemo(() => {
+    if (!hasProductsRequiringSerials) return true;
+
+    const totalRequired = serialEntries.reduce((sum, e) => sum + e.requiredCount, 0);
+    const totalCompleted = serialEntries.reduce((sum, e) =>
+      sum + e.serialNumbers.filter(s => s.trim() !== '').length, 0
+    );
+
+    return totalRequired > 0 && totalRequired === totalCompleted;
+  }, [hasProductsRequiringSerials, serialEntries]);
+
   // حالة نوع معالجة الفرق
   const [priceHandlingType, setPriceHandlingType] = useState<'discount' | 'partial'>('discount');
 
@@ -128,6 +205,8 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
       setShowCreateCustomer(false);
       setShowCustomerList(false);
       setLocalCustomers(customers);
+      // ⚡ إعادة تعيين الأرقام التسلسلية
+      setSerialEntries([]);
     }
   }, [isOpen, finalTotal, selectedCustomerId, customers]);
 
@@ -199,6 +278,16 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
       return;
     }
 
+    // ⚡ التحقق من إدخال الأرقام التسلسلية
+    if (hasProductsRequiringSerials && !allSerialsCompleted) {
+      toast({
+        title: "الأرقام التسلسلية مطلوبة",
+        description: "يجب إدخال جميع الأرقام التسلسلية للمنتجات المحددة",
+        variant: "destructive"
+      });
+      return;
+    }
+
     onPaymentComplete({
       customerId: customerId === 'anonymous' ? undefined : customerId,
       notes,
@@ -207,9 +296,11 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
       amountPaid: paidAmount,
       paymentMethod,
       isPartialPayment,
-      considerRemainingAsPartial
+      considerRemainingAsPartial,
+      // ⚡ إرسال الأرقام التسلسلية
+      serialNumbers: hasProductsRequiringSerials ? serialEntries : undefined
     });
-  }, [isPartialPayment, considerRemainingAsPartial, customerId, notes, currentDiscount, currentDiscountType, paidAmount, paymentMethod, onPaymentComplete, toast]);
+  }, [isPartialPayment, considerRemainingAsPartial, customerId, notes, currentDiscount, currentDiscountType, paidAmount, paymentMethod, onPaymentComplete, toast, hasProductsRequiringSerials, allSerialsCompleted, serialEntries]);
   
   const formatPrice = (price: number) => price.toLocaleString() + ' دج';
   
@@ -256,7 +347,19 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
               considerRemainingAsPartial={considerRemainingAsPartial}
             />
           )}
-          
+
+          {/* ⚡ قسم الأرقام التسلسلية */}
+          {hasProductsRequiringSerials && (
+            <>
+              <Separator />
+              <SerialNumbersEntrySection
+                cartItems={cartItems}
+                serialEntries={serialEntries}
+                onSerialsChange={setSerialEntries}
+              />
+            </>
+          )}
+
           {/* ✅ قسم معالجة فرق السعر (إذا كان هناك تعديل يدوي) */}
           {hasPriceDifference && (
             <>
@@ -352,7 +455,12 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
           </Button>
           <Button
             onClick={handlePaymentComplete}
-            disabled={isProcessing || (isPartialPayment && considerRemainingAsPartial && customerId === 'anonymous') || (hasPriceDifference && priceHandlingType === 'partial' && customerId === 'anonymous')}
+            disabled={
+              isProcessing ||
+              (isPartialPayment && considerRemainingAsPartial && customerId === 'anonymous') ||
+              (hasPriceDifference && priceHandlingType === 'partial' && customerId === 'anonymous') ||
+              (hasProductsRequiringSerials && !allSerialsCompleted)
+            }
             className="min-w-[120px]"
             size="sm"
           >

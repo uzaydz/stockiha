@@ -66,6 +66,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useReactiveReturns, useReactiveReturnStats, type ReturnStatus } from '@/hooks/powersync';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
+import ReturnsUserGuide, { ReturnsHelpButton } from '@/components/returns/ReturnsUserGuide';
 
 // ===============================================================================
 // Types
@@ -441,6 +442,7 @@ const ProductReturns: React.FC<ProductReturnsProps> = ({
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [showUserGuide, setShowUserGuide] = useState(false);
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
   const [loadingReturnItems, setLoadingReturnItems] = useState(false);
 
@@ -767,6 +769,8 @@ const ProductReturns: React.FC<ProductReturnsProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <ReturnsHelpButton onClick={() => setShowUserGuide(true)} />
+
           <Button
             variant="ghost"
             size="icon"
@@ -1352,6 +1356,12 @@ const ProductReturns: React.FC<ProductReturnsProps> = ({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* User Guide */}
+      <ReturnsUserGuide
+        isOpen={showUserGuide}
+        onClose={() => setShowUserGuide(false)}
+      />
     </div>
   );
 

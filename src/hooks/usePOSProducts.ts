@@ -140,7 +140,29 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
         return;
       }
 
+      // 🔍 DEBUG: تسجيل المنتج الخام من PowerSync قبل mapping
+      const dallyRaw = result.products.find((p: any) => p.name === 'Dally');
+      if (dallyRaw) {
+        console.log(`[usePOSProducts] 🔍 RAW Dally from PowerSync:`, {
+          id: dallyRaw.id,
+          name: dallyRaw.name,
+          track_serial_numbers: dallyRaw.track_serial_numbers,
+          require_serial_on_sale: dallyRaw.require_serial_on_sale
+        });
+      }
+
       const mappedProducts = result.products.map(mapLocalProductToPOSProduct);
+
+      // 🔍 DEBUG: تسجيل المنتج بعد mapping
+      const dallyMapped = mappedProducts.find((p: any) => p.name === 'Dally');
+      if (dallyMapped) {
+        console.log(`[usePOSProducts] 🔍 MAPPED Dally:`, {
+          id: dallyMapped.id,
+          name: dallyMapped.name,
+          track_serial_numbers: dallyMapped.track_serial_numbers,
+          require_serial_on_sale: dallyMapped.require_serial_on_sale
+        });
+      }
 
       const duration = Date.now() - startTime;
       console.log(`[usePOSProducts] ⚡ Got ${mappedProducts.length}/${result.totalCount} products in ${duration}ms (page ${params.page}/${result.totalPages})`);

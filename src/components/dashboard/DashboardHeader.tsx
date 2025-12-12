@@ -148,30 +148,30 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
   const activePeriodLabel = PERIODS.find(p => p.value === activeTimeframe)?.label;
 
   return (
-    <div className="w-full mb-8 pt-6 px-1 space-y-8">
+    <div className="w-full mb-4 sm:mb-6 md:mb-8 pt-2 sm:pt-4 md:pt-6 space-y-4 sm:space-y-6 md:space-y-8">
 
       {/* ===== Top Bar: Time & Controls ===== */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         {/* Left: Current Time */}
-        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-50 dark:bg-zinc-900 rounded-full border border-zinc-200 dark:border-zinc-800 shadow-sm">
-          <Clock className="w-4 h-4 text-orange-500" />
-          <span className="text-sm font-bold text-zinc-700 dark:text-zinc-200" dir="ltr">{currentTime}</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-zinc-50 dark:bg-zinc-900 rounded-full border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500" />
+          <span className="text-xs sm:text-sm font-bold text-zinc-700 dark:text-zinc-200" dir="ltr">{currentTime}</span>
         </div>
 
         {/* Right: Timeframe Dropdown */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {activeTimeframe === 'custom' && (
-            <div onClick={() => setShowDatePicker(!showDatePicker)} className="cursor-pointer text-xs font-medium text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-200">
+            <div onClick={() => setShowDatePicker(!showDatePicker)} className="cursor-pointer text-[10px] sm:text-xs font-medium text-orange-600 bg-orange-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-orange-200">
               {format(customDateRange.start, 'dd/MM')} - {format(customDateRange.end, 'dd/MM')}
             </div>
           )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-9 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-medium px-4 gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-full shadow-sm">
-                <Calendar className="w-4 h-4 text-zinc-400" />
-                <span>{activePeriodLabel}</span>
-                <ChevronDown className="w-4 h-4 text-zinc-400 opacity-50" />
+              <Button variant="outline" className="h-8 sm:h-9 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-medium px-2.5 sm:px-4 gap-1.5 sm:gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-full shadow-sm text-xs sm:text-sm">
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-400" />
+                <span className="hidden xs:inline">{activePeriodLabel}</span>
+                <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-400 opacity-50" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
@@ -233,40 +233,40 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
 
 
       {/* ===== Hero Section: Large Greeting & Widget ===== */}
-      <div className="flex flex-col lg:flex-row gap-8 lg:items-center">
+      <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8 lg:items-center">
 
         {/* Left Side: Large Bold Greeting */}
-        <div className="flex-1 space-y-4">
-          <div className="flex items-center gap-5">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-900 dark:bg-zinc-800 border-2 border-orange-100 dark:border-orange-900/50 shadow-xl shadow-orange-500/5 flex items-center justify-center overflow-hidden">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-4">
+            <div className="relative flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl sm:rounded-2xl bg-zinc-900 dark:bg-zinc-800 border-2 border-orange-100 dark:border-orange-900/50 shadow-xl shadow-orange-500/5 flex items-center justify-center overflow-hidden">
                 {user?.avatar_url ? (
                   <img src={user.avatar_url} alt="User" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-2xl font-bold text-orange-500">{user?.full_name?.charAt(0) || 'U'}</span>
+                  <span className="text-lg sm:text-xl md:text-2xl font-bold text-orange-500">{user?.full_name?.charAt(0) || 'U'}</span>
                 )}
               </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-[3px] border-zinc-50 dark:border-zinc-900 rounded-full"></div>
+              <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 bg-emerald-500 border-2 sm:border-[3px] border-zinc-50 dark:border-zinc-900 rounded-full"></div>
             </div>
 
-            <div>
-              <h1 className="text-3xl lg:text-4xl font-black text-zinc-900 dark:text-white tracking-tight leading-tight">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl font-black text-zinc-900 dark:text-white tracking-tight leading-tight truncate">
                 {greeting}، {user?.full_name?.split(' ')[0]}
               </h1>
-              <p className="text-zinc-500 dark:text-zinc-400 font-medium text-base lg:text-lg mt-1">
-                نتمنى لك يوماً مليئاً بالأرباح في {currentOrganization?.name} 🚀
+              <p className="text-zinc-500 dark:text-zinc-400 font-medium text-xs sm:text-sm md:text-base lg:text-lg mt-0.5 sm:mt-1 truncate">
+                نتمنى لك يوماً مليئاً بالأرباح 🚀
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Side: Inspiration Widget */}
-        <div className="lg:w-[450px]">
-          <div className="w-full text-right group relative overflow-hidden rounded-[1.5rem] bg-zinc-900 text-white p-6 shadow-2xl border border-zinc-800 hover:border-orange-500/30 transition-all">
+        {/* Right Side: Inspiration Widget - مخفي على الشاشات الصغيرة جداً */}
+        <div className="hidden sm:block w-full lg:w-[350px] xl:w-[400px] flex-shrink-0">
+          <div className="w-full text-right group relative overflow-hidden rounded-xl sm:rounded-2xl bg-zinc-900 text-white p-4 sm:p-5 shadow-xl border border-zinc-800 hover:border-orange-500/30 transition-all">
 
             {/* Background Gradient & Noise */}
             <div className="absolute inset-0 bg-gradient-to-br from-orange-600/20 via-zinc-900 to-amber-600/10 opacity-60"></div>
-            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-3xl -mr-8 -mt-8 pointer-events-none"></div>
 
             <AnimatePresence mode="wait">
               <motion.div
@@ -275,35 +275,35 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
-                className="relative z-10 space-y-3"
+                className="relative z-10 space-y-2 sm:space-y-3"
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1 sm:mb-2">
                   <span className={cn(
-                    "text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border",
+                    "text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full border",
                     activeContent === 'verse'
                       ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
                       : "bg-orange-500/10 border-orange-500/20 text-orange-400"
                   )}>
                     {activeContent === 'verse' ? 'آية اليوم' : 'نصيحة ذهبية'}
                   </span>
-                  <Star className={cn("w-4 h-4", activeContent === 'verse' ? "text-amber-500" : "text-orange-500")} />
+                  <Star className={cn("w-3.5 h-3.5 sm:w-4 sm:h-4", activeContent === 'verse' ? "text-amber-500" : "text-orange-500")} />
                 </div>
 
                 <p className={cn(
-                  "text-xl font-bold leading-relaxed",
+                  "text-sm sm:text-base lg:text-lg font-bold leading-relaxed line-clamp-2",
                   activeContent === 'verse' ? "font-amiri" : "font-sans"
                 )}>
                   {activeContent === 'verse' ? VERSES[contentIndex].text : MOTIVATIONS[contentIndex].text}
                 </p>
 
-                <p className="text-xs text-zinc-400 font-medium">
+                <p className="text-[10px] sm:text-xs text-zinc-400 font-medium">
                   {activeContent === 'verse' ? VERSES[contentIndex].source : MOTIVATIONS[contentIndex].highlight}
                 </p>
               </motion.div>
             </AnimatePresence>
 
             {/* Progress Bar */}
-            <div className="absolute bottom-0 left-0 h-1 bg-white/5 w-full">
+            <div className="absolute bottom-0 left-0 h-0.5 sm:h-1 bg-white/5 w-full">
               <motion.div
                 className="h-full bg-orange-500"
                 initial={{ width: "0%" }}
@@ -316,32 +316,32 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
       </div>
 
       {/* ===== Quick Navigation & System Switcher ===== */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-2 shadow-sm flex flex-col md:flex-row gap-4 items-center overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl sm:rounded-2xl p-1.5 sm:p-2 shadow-sm flex flex-col gap-2 sm:gap-3 md:flex-row md:gap-4 md:items-center overflow-hidden">
 
         {/* System Switcher */}
-        <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl md:w-auto w-full flex-shrink-0">
+        <div className="flex p-0.5 sm:p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg sm:rounded-xl w-full md:w-auto flex-shrink-0">
           <button
             onClick={() => setSystemMode('full')}
             className={cn(
-              "flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 justify-center",
+              "flex-1 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-2 justify-center",
               systemMode === 'full'
                 ? "bg-white dark:bg-zinc-800 text-orange-600 shadow-sm"
                 : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300"
             )}
           >
-            <Laptop className="w-4 h-4" />
+            <Laptop className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="whitespace-nowrap">النظام الكامل</span>
           </button>
           <button
             onClick={() => setSystemMode('merchant')}
             className={cn(
-              "flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 justify-center",
+              "flex-1 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-2 justify-center",
               systemMode === 'merchant'
                 ? "bg-white dark:bg-zinc-800 text-emerald-600 shadow-sm"
                 : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300"
             )}
           >
-            <StoreIcon className="w-4 h-4" />
+            <StoreIcon className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="whitespace-nowrap">واجهة التاجر</span>
           </button>
         </div>
@@ -353,12 +353,12 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
         <div className="relative flex-1 w-full min-w-0">
 
           {/* Left Fade */}
-          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none lg:hidden"></div>
+          <div className="absolute left-0 top-0 bottom-0 w-6 sm:w-8 bg-gradient-to-r from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none"></div>
 
-          {/* Scroll Container: overflow-x-auto needs explicit constraint from parent */}
+          {/* Scroll Container */}
           <div
             ref={scrollContainerRef}
-            className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0 scrollbar-hide px-1 w-full cursor-grab active:cursor-grabbing"
+            className="flex items-center gap-1.5 sm:gap-2 md:gap-3 overflow-x-auto pb-1 sm:pb-2 md:pb-0 scrollbar-hide px-1 w-full"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             <AnimatePresence mode="popLayout">
@@ -369,15 +369,15 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.2 }}
-                  className="flex-shrink-0" /* Ensure items don't shrink */
+                  className="flex-shrink-0"
                 >
                   <Link
                     to={item.href}
                     draggable="false"
-                    className="flex items-center gap-2 px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700/50 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-orange-50 dark:hover:bg-orange-900/10 hover:border-orange-200 dark:hover:border-orange-500/20 hover:text-orange-600 transition-all whitespace-nowrap group select-none"
+                    className="flex items-center gap-1 sm:gap-1.5 md:gap-2 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700/50 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-orange-50 dark:hover:bg-orange-900/10 hover:border-orange-200 dark:hover:border-orange-500/20 hover:text-orange-600 transition-all whitespace-nowrap group select-none"
                   >
-                    <item.icon className="w-4 h-4 text-zinc-400 group-hover:text-orange-500 transition-colors" />
-                    <span>{item.title}</span>
+                    <item.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-zinc-400 group-hover:text-orange-500 transition-colors" />
+                    <span className="hidden xs:inline">{item.title}</span>
                   </Link>
                 </motion.div>
               ))}
@@ -385,7 +385,7 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
           </div>
 
           {/* Right Fade */}
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none lg:hidden"></div>
+          <div className="absolute right-0 top-0 bottom-0 w-6 sm:w-8 bg-gradient-to-l from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none"></div>
         </div>
 
       </div>

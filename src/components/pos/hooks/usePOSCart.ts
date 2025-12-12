@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
+import { usePowerSync } from '@powersync/react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
 import { useCartTabs } from '@/hooks/useCartTabs';
@@ -17,6 +18,7 @@ import {
   type SellingUnit,
   type PricingResult
 } from '@/lib/pricing/wholesalePricing';
+import { LocalSerialService } from '@/services/local';
 
 // ⚡ دالة مساعدة للتحقق من المخزون المتقدم
 interface AdvancedStockCheckResult {
@@ -127,6 +129,8 @@ interface CartItem {
   expiryDate?: string;
   /** الأرقام التسلسلية المحددة */
   serialNumbers?: string[];
+  /** ⚡ معرفات الأرقام التسلسلية (للحجز/التحرير) */
+  serialIds?: string[];
 }
 
 interface UsePOSCartOptions {
@@ -145,7 +149,17 @@ export const usePOSCart = ({
   getProductStock,
   products
 }: UsePOSCartOptions) => {
-  
+
+  // ⚡ خدمة الأرقام التسلسلية المحلية (للحجز/التحرير)
+  const powerSync = usePowerSync();
+  const localSerialServiceRef = useRef<LocalSerialService | null>(null);
+
+  // تهيئة الخدمة مرة واحدة
+  if (!localSerialServiceRef.current) {
+    localSerialServiceRef.current = new LocalSerialService(powerSync);
+  }
+  const localSerialService = localSerialServiceRef.current;
+
   // إدارة التبويبات
   const {
     tabs,
@@ -357,15 +371,43 @@ export const usePOSCart = ({
   }, [activeTab, addItemToCartTab, updateProductStockInCache]);
 
   // إزالة منتج من السلة
-  const removeItemFromCart = useCallback((index: number) => {
+  const removeItemFromCart = useCallback(async (index: number) => {
     const item = cartItems[index];
-    
+
     // ✅ تم إصلاح المشكلة: لا يتم تحديث المخزون عند حذف المنتج من السلة
     // المخزون سيتم تحديثه فقط عند إتمام/إلغاء الطلب الفعلي
-    
+
+    // ⚡ تحرير حجوزات الأرقام التسلسلية عند إزالة المنتج
+    if (item?.serialIds && item.serialIds.length > 0) {
+      console.log(`🔓 [usePOSCart] تحرير ${item.serialIds.length} حجز serial عند إزالة المنتج`);
+      for (const serialId of item.serialIds) {
+        try {
+          await localSerialService.releaseSerial(serialId);
+        } catch (error) {
+          console.error('❌ خطأ في تحرير حجز serial:', error);
+        }
+      }
+    }
+
+    // أو إذا كان لديه serialNumbers (البحث والتحرير)
+    if (item?.serialNumbers && item.serialNumbers.length > 0 && !item.serialIds) {
+      console.log(`🔓 [usePOSCart] تحرير ${item.serialNumbers.length} حجز serial بالأرقام`);
+      for (const serialNumber of item.serialNumbers) {
+        try {
+          const product = item.product;
+          const orgId = (product as any).organization_id;
+          if (orgId) {
+            await localSerialService.releaseSerial(serialNumber, orgId);
+          }
+        } catch (error) {
+          console.error('❌ خطأ في تحرير حجز serial:', error);
+        }
+      }
+    }
+
     removeItemFromCartTab(activeTabId, index);
     toast.success('تم حذف المنتج من السلة');
-  }, [cartItems, removeItemFromCartTab, activeTabId]);
+  }, [cartItems, removeItemFromCartTab, activeTabId, localSerialService]);
 
   // تحديث كمية المنتج في السلة
   const updateItemQuantity = useCallback((index: number, quantity: number) => {
@@ -443,15 +485,49 @@ export const usePOSCart = ({
   }, [cartItems, activeTabId, updateTab]);
 
   // مسح السلة - محسن مع تنظيف شامل
-  const clearCart = useCallback(() => {
+  const clearCart = useCallback(async () => {
 
     // ✅ تم إصلاح المشكلة: لا يتم تحديث المخزون عند مسح السلة
     // المخزون سيتم تحديثه فقط عند إتمام/إلغاء الطلب الفعلي
-    
+
+    // ⚡ تحرير جميع حجوزات الأرقام التسلسلية
+    const serialReleasePromises: Promise<any>[] = [];
+
+    for (const item of cartItems) {
+      // تحرير بالمعرفات
+      if (item.serialIds && item.serialIds.length > 0) {
+        for (const serialId of item.serialIds) {
+          serialReleasePromises.push(
+            localSerialService.releaseSerial(serialId).catch(err => {
+              console.error('❌ خطأ في تحرير حجز serial:', err);
+            })
+          );
+        }
+      }
+      // تحرير بالأرقام
+      else if (item.serialNumbers && item.serialNumbers.length > 0) {
+        const orgId = (item.product as any).organization_id;
+        if (orgId) {
+          for (const serialNumber of item.serialNumbers) {
+            serialReleasePromises.push(
+              localSerialService.releaseSerial(serialNumber, orgId).catch(err => {
+                console.error('❌ خطأ في تحرير حجز serial:', err);
+              })
+            );
+          }
+        }
+      }
+    }
+
+    if (serialReleasePromises.length > 0) {
+      console.log(`🔓 [usePOSCart] تحرير ${serialReleasePromises.length} حجز serial عند مسح السلة`);
+      await Promise.all(serialReleasePromises);
+    }
+
     clearCartTab(activeTabId);
 
     toast.success('تم مسح السلة');
-  }, [clearCartTab, activeTabId, cartItems.length]);
+  }, [clearCartTab, activeTabId, cartItems, localSerialService]);
 
   // إضافة اشتراك للسلة
   const handleAddSubscription = useCallback((subscription: any, pricing?: any) => {
@@ -842,17 +918,52 @@ export const usePOSCart = ({
   }, [cartItems, activeTabId, updateTab]);
 
   // تحديث الأرقام التسلسلية لعنصر في السلة
-  const updateItemSerialNumbers = useCallback((index: number, serialNumbers: string[]) => {
+  const updateItemSerialNumbers = useCallback((
+    index: number,
+    serialNumbers: string[],
+    serialIds?: string[]
+  ) => {
     const item = cartItems[index];
     if (!item) return;
 
     const updatedItems = [...cartItems];
     updatedItems[index] = {
       ...item,
-      serialNumbers
+      serialNumbers,
+      serialIds: serialIds || item.serialIds
     };
     updateTab(activeTabId, { cartItems: updatedItems });
   }, [cartItems, activeTabId, updateTab]);
+
+  // ⚡ تحرير حجز serial محدد من عنصر (عند إزالة serial من القائمة)
+  const releaseSerialFromItem = useCallback(async (
+    index: number,
+    serialIdOrNumber: string,
+    organizationId?: string
+  ) => {
+    const item = cartItems[index];
+    if (!item) return;
+
+    // تحرير الحجز
+    try {
+      await localSerialService.releaseSerial(serialIdOrNumber, organizationId);
+      console.log(`🔓 [usePOSCart] تم تحرير حجز serial: ${serialIdOrNumber}`);
+    } catch (error) {
+      console.error('❌ خطأ في تحرير حجز serial:', error);
+    }
+
+    // إزالة من القائمة
+    const updatedSerialNumbers = item.serialNumbers?.filter(s => s !== serialIdOrNumber) || [];
+    const updatedSerialIds = item.serialIds?.filter(s => s !== serialIdOrNumber) || [];
+
+    const updatedItems = [...cartItems];
+    updatedItems[index] = {
+      ...item,
+      serialNumbers: updatedSerialNumbers,
+      serialIds: updatedSerialIds
+    };
+    updateTab(activeTabId, { cartItems: updatedItems });
+  }, [cartItems, activeTabId, updateTab, localSerialService]);
 
   // التحقق من اكتمال متطلبات العنصر (الدفعات والأرقام التسلسلية)
   const validateItemRequirements = useCallback((index: number): { valid: boolean; errors: string[] } => {
@@ -955,6 +1066,7 @@ export const usePOSCart = ({
     // دوال الدفعات والأرقام التسلسلية
     updateItemBatch,
     updateItemSerialNumbers,
+    releaseSerialFromItem,
     validateItemRequirements,
     validateCartRequirements
   };

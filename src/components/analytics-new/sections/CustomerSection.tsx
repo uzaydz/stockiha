@@ -27,6 +27,9 @@ import {
   MapPin,
   Calendar
 } from 'lucide-react';
+import { useQuery } from '@powersync/react';
+import { useTenant } from '@/context/tenant';
+import { eachDayOfInterval, format, parseISO } from 'date-fns';
 import {
   AreaChart,
   Area,
@@ -436,23 +439,102 @@ const CustomerSection: React.FC<CustomerSectionProps> = ({
   debtData,
   isLoading = false,
 }) => {
-  // Mock Growth Data (To be replaced with real data logic)
-  const growthData = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => ({
-      date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short' }),
-      new: Math.floor(Math.random() * 20) + 5,
-      returning: Math.floor(Math.random() * 50) + 20,
-    }));
-  }, []);
+  const { currentOrganization } = useTenant();
+  const orgId = currentOrganization?.id || '';
 
-  // Mock Demographics (To be replaced)
-  const segmentsData = useMemo(() => [
-    { name: 'عملاء VIP', value: 15 },
-    { name: 'عملاء دائمون', value: 45 },
-    { name: 'عملاء جدد', value: 25 },
-    { name: 'منقطعون', value: 10 },
-    { name: 'غير نشطين', value: 5 },
-  ], []);
+  const ordersForCustomerClassificationQuery = useMemo(() => {
+    const sql = `
+      SELECT customer_id, created_at
+      FROM orders
+      WHERE organization_id = ?
+        AND status IN ('completed', 'delivered')
+        AND customer_id IS NOT NULL
+        AND created_at <= ?
+      ORDER BY created_at ASC
+    `;
+    const params = [orgId, filters.dateRange.end.toISOString()];
+    return { sql, params };
+  }, [orgId, filters.dateRange.end]);
+
+  const {
+    data: ordersForCustomerClassification,
+    isLoading: ordersLoading,
+  } = useQuery(ordersForCustomerClassificationQuery.sql, ordersForCustomerClassificationQuery.params);
+
+  const growthData = useMemo(() => {
+    const days = eachDayOfInterval({ start: filters.dateRange.start, end: filters.dateRange.end });
+    const base = new Map<string, { new: number; returning: number }>();
+
+    for (const d of days) {
+      const key = format(d, 'yyyy-MM-dd');
+      base.set(key, { new: 0, returning: 0 });
+    }
+
+    const rows = (ordersForCustomerClassification as any[]) || [];
+    const firstOrderDateByCustomer = new Map<string, string>();
+
+    for (const r of rows) {
+      const customerId = r.customer_id;
+      if (!customerId) continue;
+      if (!firstOrderDateByCustomer.has(customerId)) {
+        try {
+          const dayKey = format(parseISO(r.created_at), 'yyyy-MM-dd');
+          firstOrderDateByCustomer.set(customerId, dayKey);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    for (const r of rows) {
+      const customerId = r.customer_id;
+      if (!customerId) continue;
+      let dayKey: string | null = null;
+      try {
+        const ts = parseISO(r.created_at);
+        if (ts < filters.dateRange.start || ts > filters.dateRange.end) continue;
+        dayKey = format(ts, 'yyyy-MM-dd');
+      } catch {
+        continue;
+      }
+
+      if (!dayKey || !base.has(dayKey)) continue;
+      const first = firstOrderDateByCustomer.get(customerId);
+      const bucket = base.get(dayKey)!;
+      if (first && first === dayKey) bucket.new += 1;
+      else bucket.returning += 1;
+    }
+
+    return days.map((d) => {
+      const key = format(d, 'yyyy-MM-dd');
+      const b = base.get(key) || { new: 0, returning: 0 };
+      return {
+        date: format(d, 'EEE'),
+        new: b.new,
+        returning: b.returning,
+      };
+    });
+  }, [ordersForCustomerClassification, filters.dateRange.start, filters.dateRange.end]);
+
+  const segmentsData = useMemo(() => {
+    const rfm = (customerData as any)?.rfmSegments as Record<string, number> | undefined;
+    if (!rfm) return [];
+
+    const labels: Record<string, string> = {
+      champions: 'أفضل العملاء',
+      loyal: 'عملاء أوفياء',
+      potential: 'محتملون',
+      new: 'عملاء جدد',
+      at_risk: 'مهددون',
+      lost: 'مفقودون',
+    };
+
+    return Object.entries(rfm)
+      .map(([k, v]) => ({ name: labels[k] || k, value: Number(v) || 0 }))
+      .filter((x) => x.value > 0);
+  }, [customerData]);
+
+  const computedLoading = isLoading || ordersLoading;
 
   return (
     <div className="space-y-6">
@@ -461,7 +543,6 @@ const CustomerSection: React.FC<CustomerSectionProps> = ({
         <KPICard
           title="إجمالي العملاء"
           value={formatNumber(customerData?.totalCustomers || 0)}
-          trend={12.5}
           icon={<Users className="w-6 h-6" />}
           subValue="قاعدة العملاء المسجلة"
           color="blue"
@@ -470,7 +551,6 @@ const CustomerSection: React.FC<CustomerSectionProps> = ({
         <KPICard
           title="العملاء النشطون"
           value={formatNumber(customerData?.activeCustomers || 0)}
-          trend={5.2}
           icon={<UserCheck className="w-6 h-6" />}
           subValue="نشاط في آخر 30 يوم"
           color="emerald"
@@ -479,7 +559,6 @@ const CustomerSection: React.FC<CustomerSectionProps> = ({
         <KPICard
           title="متوسط قيمة العميل"
           value={formatCurrency(customerData?.averageCustomerValue || 0)}
-          trend={-2.1}
           icon={<Target className="w-6 h-6" />}
           subValue="متوسط الإنفاق لكل عميل"
           color="purple"
@@ -488,7 +567,6 @@ const CustomerSection: React.FC<CustomerSectionProps> = ({
         <KPICard
           title="معدل الاحتفاظ"
           value={`${customerData?.retentionRate || 0}%`}
-          trend={3.4}
           icon={<Crown className="w-6 h-6" />}
           subValue="نسبة العملاء العائدين"
           color="orange"
@@ -499,11 +577,11 @@ const CustomerSection: React.FC<CustomerSectionProps> = ({
       {/* Main Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <CustomerGrowthChart data={growthData} isLoading={isLoading} />
+          <CustomerGrowthChart data={growthData} isLoading={computedLoading} />
         </div>
         <div className="space-y-6">
-          <DebtsOverview data={debtData || {} as DebtData} isLoading={isLoading} />
-          <CustomerSegmentsChart data={segmentsData} isLoading={isLoading} />
+          <DebtsOverview data={debtData || {} as DebtData} isLoading={computedLoading} />
+          <CustomerSegmentsChart data={segmentsData} isLoading={computedLoading} />
         </div>
       </div>
 
@@ -511,7 +589,7 @@ const CustomerSection: React.FC<CustomerSectionProps> = ({
       <div className="grid grid-cols-1 gap-6">
         <TopCustomersTable
           customers={customerData?.topCustomers || []}
-          isLoading={isLoading}
+          isLoading={computedLoading}
         />
       </div>
     </div>

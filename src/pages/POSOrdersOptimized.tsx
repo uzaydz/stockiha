@@ -22,7 +22,8 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  ShieldAlert
+  ShieldAlert,
+  HelpCircle
 } from 'lucide-react';
 
 // PDF Export Utility
@@ -153,6 +154,9 @@ import EditOrderDialog from '../components/pos-orders/EditOrderDialog';
 // ⚡ حوار الإرجاع السريع
 import QuickReturnDialog from '../components/pos/QuickReturnDialog';
 
+// 📖 دليل استخدام الطلبيات
+import POSOrdersUserGuide, { POSOrdersHelpButton } from '../components/pos-orders/POSOrdersUserGuide';
+
 // Hooks
 import { useTitle } from '../hooks/useTitle';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
@@ -169,6 +173,7 @@ interface DialogState {
   showEditItems: boolean;
   showEditOrder: boolean;
   showQuickReturn: boolean;
+  showUserGuide: boolean;
 }
 
 export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
@@ -195,7 +200,8 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
     showOrderActions: false,
     showEditItems: false,
     showEditOrder: false,
-    showQuickReturn: false
+    showQuickReturn: false,
+    showUserGuide: false
   });
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -756,8 +762,14 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
       showEditItems: false,
       showEditOrder: false,
       showQuickReturn: false,
+      showUserGuide: false,
       selectedOrder: null
     });
+  }, []);
+
+  // فتح دليل الاستخدام
+  const handleOpenUserGuide = useCallback(() => {
+    setDialogState(prev => ({ ...prev, showUserGuide: true }));
   }, []);
 
   // ⚡ فتح حوار الإرجاع السريع
@@ -897,6 +909,9 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
             </p>
           </div>
         </div>
+
+        {/* زر دليل الاستخدام */}
+        <POSOrdersHelpButton onClick={handleOpenUserGuide} />
       </div>
 
       {/* الإحصائيات */}
@@ -1072,6 +1087,14 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
           if (isOnline) {
             setTimeout(() => handleRefresh(), 500);
           }
+        }}
+      />
+
+      {/* 📖 دليل استخدام الطلبيات */}
+      <POSOrdersUserGuide
+        open={dialogState.showUserGuide}
+        onOpenChange={(open) => {
+          setDialogState(prev => ({ ...prev, showUserGuide: open }));
         }}
       />
     </div>

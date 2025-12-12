@@ -382,7 +382,8 @@ const inventory_batches = new Table(
 );
 
 // ========================================
-// 9. PRODUCT SERIAL NUMBERS (الأرقام التسلسلية) ✅ جديد
+// 9. PRODUCT SERIAL NUMBERS (الأرقام التسلسلية) ✅ v5.0 محدث
+// ⚡ تم إضافة حقول الحجز (Reservation) لدعم تعدد الأجهزة offline
 // ========================================
 const product_serial_numbers = new Table(
   {
@@ -394,35 +395,56 @@ const product_serial_numbers = new Table(
     serial_number: column.text,
     imei: column.text,
     mac_address: column.text,
-    status: column.text,
+    status: column.text, // 'available' | 'reserved' | 'sold' | 'returned' | 'defective' | 'warranty_claimed'
+    // ⚡ v5.0: حقول الحجز (Reservation) - لمنع البيع المزدوج على أجهزة متعددة
+    reserved_by_device: column.text,         // معرف الجهاز الذي حجز
+    reserved_at: column.text,                // وقت الحجز
+    reservation_expires_at: column.text,     // وقت انتهاء الحجز
+    reservation_order_draft_id: column.text, // معرف مسودة الطلب
+    // الضمان
     warranty_start_date: column.text,
     warranty_end_date: column.text,
     warranty_claimed: column.integer,
     warranty_claim_date: column.text,
     warranty_claim_reason: column.text,
     warranty_claim_resolution: column.text,
+    // الشراء
     purchase_date: column.text,
     purchase_price: column.real,
     purchase_supplier_id: column.text,
     purchase_invoice_number: column.text,
+    // البيع
     sold_at: column.text,
     sold_in_order_id: column.text,
     sold_to_customer_id: column.text,
     sold_price: column.real,
     sold_by_user_id: column.text,
+    // الإرجاع
     returned_at: column.text,
     return_reason: column.text,
     return_condition: column.text,
+    // الموقع
     location: column.text,
     shelf_number: column.text,
     notes: column.text,
     internal_notes: column.text,
+    // التتبع
     created_at: column.text,
     updated_at: column.text,
     created_by: column.text,
     updated_by: column.text,
   },
-  { indexes: { org: ['organization_id'], product: ['product_id'], serial: ['serial_number'], status: ['status'] } }
+  {
+    indexes: {
+      org: ['organization_id'],
+      product: ['product_id'],
+      serial: ['serial_number'],
+      status: ['status'],
+      // ⚡ v5.0: فهارس الحجز
+      device: ['reserved_by_device'],
+      expires: ['reservation_expires_at']
+    }
+  }
 );
 
 // ========================================
@@ -2615,6 +2637,66 @@ const subscription_audit_logs = new Table(
 );
 
 // ========================================
+// 📊 INVENTORY BATCH MOVEMENTS (سجل حركات الدفعات - Ledger)
+// ⚡ v5.0: للتتبع والتدقيق - تُزامن مع السيرفر
+// يُستخدم لتسجيل كل استهلاك/إرجاع من الدفعات
+// ========================================
+const inventory_batch_movements = new Table(
+  {
+    organization_id: column.text,
+    batch_id: column.text,          // معرف الدفعة
+    product_id: column.text,        // معرف المنتج
+    delta_quantity: column.real,    // التغيير (سالب للاستهلاك، موجب للإرجاع) - decimal لدعم الوزن/المتر
+    unit_type: column.text,         // 'piece' | 'weight' | 'meter' | 'box'
+    source: column.text,            // 'sale' | 'return' | 'loss' | 'adjustment' | 'transfer'
+    order_id: column.text,          // معرف الطلب المرتبط (إن وجد)
+    device_id: column.text,         // معرف الجهاز الذي أجرى العملية
+    synced: column.integer,         // 0 = لم يُزامن، 1 = تم المزامنة
+    created_at: column.text,
+  },
+  {
+    localOnly: true, // محلي حتى يتم المزامنة
+    indexes: {
+      org: ['organization_id'],
+      batch: ['batch_id'],
+      product: ['product_id'],
+      order: ['order_id'],
+      synced: ['synced'],
+      time: ['created_at']
+    }
+  }
+);
+
+// ========================================
+// 🔒 SERIAL RESERVATION LOG (سجل حجوزات الأرقام التسلسلية)
+// ⚡ v5.0: لتتبع الحجوزات وحل التعارضات
+// ========================================
+const serial_reservations = new Table(
+  {
+    organization_id: column.text,
+    serial_id: column.text,           // معرف الرقم التسلسلي
+    device_id: column.text,           // الجهاز الذي حجز
+    order_draft_id: column.text,      // معرف مسودة الطلب
+    reserved_at: column.text,         // وقت الحجز
+    expires_at: column.text,          // وقت انتهاء الحجز
+    status: column.text,              // 'active' | 'released' | 'converted' (تحول لبيع)
+    released_at: column.text,         // وقت التحرير (إن حدث)
+    converted_order_id: column.text,  // معرف الطلب النهائي (إذا تم البيع)
+    created_at: column.text,
+  },
+  {
+    localOnly: true,
+    indexes: {
+      org: ['organization_id'],
+      serial: ['serial_id'],
+      device: ['device_id'],
+      status: ['status'],
+      expires: ['expires_at']
+    }
+  }
+);
+
+// ========================================
 // 🖨️ LOCAL PRINTER SETTINGS (إعدادات الطابعة المحلية - لكل جهاز)
 // ⚡ v50: إعدادات خاصة بالجهاز - لا تُزامن
 // ========================================
@@ -2767,6 +2849,9 @@ export const PowerSyncSchema = new Schema({
   subscription_audit_logs,
   // ⚡ v50: Printer Settings (local per device)
   local_printer_settings,
+  // ⚡ v5.0: Batch & Serial Tracking (Ledger + Reservations)
+  inventory_batch_movements,
+  serial_reservations,
 });
 
 // Debug logging

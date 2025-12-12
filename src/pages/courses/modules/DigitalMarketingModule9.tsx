@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '@/components/Layout';
+import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { ArrowRight, PlayCircle, Clock, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,8 +56,8 @@ const DigitalMarketingModule9: React.FC = () => {
   };
 
   return (
-    <Layout>
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <POSPureLayout>
+      <div className="container mx-auto px-4 py-6 max-w-7xl" dir="rtl">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">
@@ -270,7 +270,7 @@ const DigitalMarketingModule9: React.FC = () => {
           totalVideos={module9Data.videos.length}
         />
       </div>
-    </Layout>
+    </POSPureLayout>
   );
 };
 

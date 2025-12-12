@@ -9,6 +9,7 @@ interface PendingOperationsStats {
 }
 
 interface UsePendingOperationsOptions {
+  enabled?: boolean;
   /** فترة التحقق بالميلي ثانية (افتراضي: 10000 = 10 ثواني) */
   checkInterval?: number;
   /** عتبة التحذير (افتراضي: 5 عمليات) */
@@ -41,6 +42,7 @@ interface UsePendingOperationsReturn {
  * عند تراكم العمليات المعلقة
  */
 export const usePendingOperations = ({
+  enabled = true,
   checkInterval = 10000,
   warningThreshold = 5,
   criticalThreshold = 20,
@@ -72,13 +74,6 @@ export const usePendingOperations = ({
       
       // ⚡ PowerSync يتعامل مع المزامنة تلقائياً
       return { pending: 0, sending: 0, failed: 0, total: 0 };
-
-      return {
-        pending: outboxStats.pending || 0,
-        sending: outboxStats.sending || 0,
-        failed: outboxStats.failed || 0,
-        total: outboxStats.total || 0
-      };
     } catch (error) {
       console.warn('[usePendingOperations] فشل جلب الإحصائيات:', error);
       return { pending: 0, sending: 0, failed: 0, total: 0 };
@@ -87,6 +82,9 @@ export const usePendingOperations = ({
 
   // تحديث الإحصائيات
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      return;
+    }
     setIsLoading(true);
     try {
       const newStats = await fetchStats();
@@ -128,10 +126,14 @@ export const usePendingOperations = ({
     } finally {
       setIsLoading(false);
     }
-  }, [fetchStats, showNotifications, warningThreshold, criticalThreshold]);
+  }, [fetchStats, showNotifications, warningThreshold, criticalThreshold, enabled]);
 
   // بدء المراقبة الدورية
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     // جلب أولي
     refresh();
 
@@ -143,7 +145,7 @@ export const usePendingOperations = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [refresh, checkInterval]);
+  }, [refresh, checkInterval, enabled]);
 
   // حساب الحالة
   const status: 'normal' | 'warning' | 'critical' =

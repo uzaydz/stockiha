@@ -171,14 +171,14 @@ const QuickAccessSection: React.FC<QuickAccessSectionProps> = ({ maxItems = 10 }
     <DataReadyWrapper
       requireUserProfile={true}
       fallback={
-        <div className="grid grid-cols-5 sm:grid-cols-5 lg:grid-cols-10 gap-3">
+        <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-3">
           {Array.from({ length: Math.min(maxItems, 8) }).map((_, index) => (
             <div
               key={index}
-              className="flex flex-col items-center p-3 rounded-lg border border-gray-200 animate-pulse"
+              className="flex flex-col items-center p-2 sm:p-3 rounded-lg border border-gray-200 animate-pulse"
             >
-              <div className="w-8 h-8 bg-gray-300 rounded mb-2"></div>
-              <div className="w-16 h-3 bg-gray-300 rounded"></div>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-300 rounded mb-1.5 sm:mb-2"></div>
+              <div className="w-12 sm:w-16 h-3 bg-gray-300 rounded"></div>
             </div>
           ))}
         </div>
@@ -228,18 +228,18 @@ const QuickAccessContent: React.FC<{ maxItems: number }> = ({ maxItems }) => {
   }, [user?.id, userProfile?.id, maxItems, isPOSEnabled, isRepairServicesEnabled]);
 
   return (
-    <div className="grid grid-cols-5 sm:grid-cols-5 lg:grid-cols-10 gap-3">
+    <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-3">
       {filteredPages.map((page, index) => (
-        <Link 
-          key={index} 
+        <Link
+          key={index}
           to={page.href}
-          className="group flex flex-col items-center p-2 rounded-lg bg-background/80 border border-border/30 hover:border-primary/20 hover:shadow-sm transition-all duration-200 hover:scale-[1.01] text-center"
+          className="group flex flex-col items-center p-2 sm:p-3 rounded-lg bg-background/80 border border-border/30 hover:border-primary/20 hover:shadow-sm transition-all duration-200 hover:scale-[1.01] text-center"
           title={page.description}
         >
-          <div className={`w-8 h-8 rounded-md ${page.color} text-white flex items-center justify-center mb-1.5 transition-transform duration-200 group-hover:scale-110`}>
-            <page.icon className="h-4 w-4" />
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md ${page.color} text-white flex items-center justify-center mb-1 sm:mb-1.5 transition-transform duration-200 group-hover:scale-110`}>
+            <page.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </div>
-          <h3 className="text-xs text-muted-foreground group-hover:text-foreground transition-colors truncate w-full">
+          <h3 className="text-[10px] sm:text-xs text-muted-foreground group-hover:text-foreground transition-colors truncate w-full">
             {page.title}
           </h3>
         </Link>

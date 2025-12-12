@@ -15,7 +15,7 @@ import {
   Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2,
   FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database, UserCircle, Shield,
   Clock, RefreshCw, CreditCard, PieChart, MoreVertical, LayoutDashboard, ScanBarcode, ClipboardList,
-  Globe, Crown, Gift, UserCog
+  Globe, Crown, Gift, UserCog, Link2
 } from 'lucide-react';
 import { ShoppingBag, Wrench } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -237,6 +237,15 @@ export const posSidebarItems: POSSidebarItem[] = [
     href: '/dashboard/sales-operations/onlineOrders',
     isOnlineOnly: true,
     permissions: ['manageOrders', 'viewOrders'],
+  },
+  {
+    id: 'custom-domains',
+    title: 'النطاقات المخصصة',
+    icon: Link2,
+    href: '/dashboard/custom-domains',
+    badge: 'مميز',
+    isOnlineOnly: true,
+    permissions: ['manageOrganizationSettings'],
   },
   {
     id: 'store-operations',
@@ -476,8 +485,66 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
             )}
           </div>
 
+          {/* Mode Switcher - Minimal Design */}
+          <div className={cn("mt-5 w-full transition-all duration-300")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggleOnlineMode}
+                  className={cn(
+                    "group relative flex items-center rounded-xl transition-all duration-200",
+                    "hover:bg-white/5",
+                    isExpanded ? "w-full px-3 py-2.5 gap-3" : "h-11 w-11 justify-center mx-auto"
+                  )}
+                >
+                  {/* Icon */}
+                  <div className={cn(
+                    "flex items-center justify-center rounded-lg transition-all duration-200",
+                    isExpanded ? "w-9 h-9" : "w-full h-full",
+                    isOnlineMode
+                      ? "bg-orange-500/15 text-orange-400"
+                      : "bg-slate-700/50 text-slate-400"
+                  )}>
+                    {isOnlineMode ? <Globe className="h-5 w-5" /> : <ScanBarcode className="h-5 w-5" />}
+                  </div>
+
+                  {/* Text - Only when expanded */}
+                  {isExpanded && (
+                    <div className="flex-1 min-w-0 text-right">
+                      <p className="text-sm font-medium text-white">
+                        {isOnlineMode ? 'المتجر الإلكتروني' : 'الوضع العام'}
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        اضغط للتبديل
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Switch indicator - Only when expanded */}
+                  {isExpanded && (
+                    <div className={cn(
+                      "w-8 h-5 rounded-full transition-all duration-200 relative",
+                      isOnlineMode ? "bg-orange-500" : "bg-slate-600"
+                    )}>
+                      <div className={cn(
+                        "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200",
+                        isOnlineMode ? "right-0.5" : "left-0.5"
+                      )} />
+                    </div>
+                  )}
+                </button>
+              </TooltipTrigger>
+              {!isExpanded && (
+                <TooltipContent side="right" className="bg-[#161b22] border-[#30363d] text-white ml-2">
+                  <p className="font-medium">{isOnlineMode ? 'المتجر الإلكتروني' : 'الوضع العام'}</p>
+                  <p className="text-[10px] text-slate-400">اضغط للتبديل</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </div>
+
           {/* Store Link Button */}
-          <div className={cn("mt-6 w-full transition-all duration-300")}>
+          <div className={cn("mt-4 w-full transition-all duration-300")}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <a
@@ -518,131 +585,118 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
           ))}
         </div>
 
-        {/* --- Footer Section (Unified Compact) --- */}
-        <div className="p-2 mt-auto space-y-2 border-t border-[#30363d] bg-[#0f1419]/50 backdrop-blur-sm">
-
-          {/* 1. قائمة المستخدم الموحدة (Unified User Menu) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className={cn(
-                "flex items-center rounded-xl transition-all duration-300 outline-none group",
-                "hover:bg-[#21262d] border border-transparent hover:border-[#30363d]",
-                isExpanded ? "w-full px-2 py-2 gap-3" : "h-11 w-11 justify-center mx-auto"
+        {/* --- Footer Section --- */}
+        <div className="p-2 mt-auto border-t border-white/5">
+          {isExpanded ? (
+            /* Expanded: Profile row with actions */
+            <div className="flex items-center gap-2 px-1 py-1">
+              {/* Avatar */}
+              <div className={cn(
+                "relative flex items-center justify-center rounded-lg w-8 h-8 shrink-0",
+                isAdminMode ? "bg-orange-500/15 text-orange-400" : "bg-slate-700/50 text-slate-400"
               )}>
-                {/* Avatar */}
-                <div className={cn(
-                  "relative flex items-center justify-center rounded-lg shadow-sm transition-transform group-hover:scale-105",
-                  isAdminMode ? "bg-orange-500/10 text-orange-400" : "bg-blue-500/10 text-blue-400",
-                  isExpanded ? "w-10 h-10" : "w-10 h-10"
-                )}>
-                  {isAdminMode ? <Shield className="h-5 w-5" /> : <UserCircle className="h-5 w-5" />}
-                  {/* Online Indicator Dot */}
-                  {isOnlineMode && (
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 border-2 border-[#0f1419]"></span>
-                    </span>
-                  )}
-                </div>
+                {isAdminMode ? <Shield className="h-4 w-4" /> : <UserCircle className="h-4 w-4" />}
+              </div>
 
-                {/* Text Info (Expanded Only) */}
-                {isExpanded && (
-                  <div className="flex flex-col items-start flex-1 min-w-0">
-                    <span className="text-sm font-bold text-[#e6edf3] truncate w-full text-right">
-                      {unifiedPerms.displayName}
-                    </span>
-                    <span className="text-[10px] text-[#8b949e] truncate w-full text-right">
-                      {isAdminMode ? 'مدير النظام' : userProfile?.role || 'موظف'}
-                    </span>
+              {/* Name */}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white truncate">{unifiedPerms.displayName}</p>
+                <p className="text-[10px] text-slate-500">{isAdminMode ? 'مدير' : 'موظف'}</p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-1">
+                {(currentStaff || isAdminMode) && (
+                  <QuickStaffSwitchModern
+                    iconOnly={true}
+                    variant="ghost"
+                    className="w-8 h-8 text-slate-500 hover:text-orange-400 hover:bg-white/5 rounded-lg"
+                  />
+                )}
+                <button
+                  onClick={handleSignOut}
+                  className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+                {onToggleExpand && (
+                  <button
+                    onClick={onToggleExpand}
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-orange-400 hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Collapsed: Single icon with dropdown */
+            <div className="flex flex-col items-center gap-2">
+              {/* User Menu - Single Icon */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className={cn(
+                    "flex items-center justify-center rounded-xl w-11 h-11 transition-all duration-200",
+                    "hover:scale-105 active:scale-95",
+                    isAdminMode
+                      ? "bg-gradient-to-br from-orange-500/20 to-amber-500/10 text-orange-400 hover:from-orange-500/30 hover:to-amber-500/20"
+                      : "bg-gradient-to-br from-slate-700/60 to-slate-800/40 text-slate-300 hover:from-slate-600/60 hover:to-slate-700/40"
+                  )}>
+                    {isAdminMode ? <Shield className="h-5 w-5" /> : <UserCircle className="h-5 w-5" />}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="left"
+                  align="end"
+                  sideOffset={8}
+                  className="w-48 bg-[#161b22] border-[#30363d] text-slate-200 p-1.5 shadow-xl rounded-xl"
+                >
+                  {/* User Info */}
+                  <div className="px-3 py-2 border-b border-[#30363d]/50 mb-1">
+                    <p className="text-sm font-medium text-white truncate">{unifiedPerms.displayName}</p>
+                    <p className="text-[10px] text-slate-500">{isAdminMode ? 'مدير النظام' : 'موظف'}</p>
                   </div>
-                )}
 
-                {/* Menu Icon (Expanded Only) */}
-                {isExpanded && (
-                  <MoreVertical className="h-4 w-4 text-slate-500 group-hover:text-slate-300" />
-                )}
-              </button>
-            </DropdownMenuTrigger>
-
-            <DropdownMenuContent
-              side="left"
-              align="end"
-              sideOffset={10}
-              collisionPadding={16}
-              className="w-64 bg-[#050b15]/95 backdrop-blur-xl border-slate-700 text-slate-200 p-2 shadow-2xl"
-            >
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none text-white">{unifiedPerms.displayName}</p>
-                  <p className="text-xs leading-none text-slate-400">{userProfile?.email || 'No Email'}</p>
-                  {unifiedPerms.sessionDuration > 0 && (
-                    <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full w-fit">
-                      <Clock className="w-3 h-3" />
-                      <span>نشط منذ {Math.floor(unifiedPerms.sessionDuration / 60)} ساعة</span>
+                  {/* Staff Switch */}
+                  {(currentStaff || isAdminMode) && (
+                    <div className="py-0.5">
+                      <QuickStaffSwitchModern
+                        iconOnly={false}
+                        variant="ghost"
+                        className="w-full justify-start h-9 px-3 text-sm text-slate-300 hover:bg-white/5 hover:text-white rounded-lg"
+                      />
                     </div>
                   )}
-                </div>
-              </DropdownMenuLabel>
 
-              <DropdownMenuSeparator className="bg-slate-700/50" />
+                  {/* Logout */}
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-red-400 hover:bg-red-500/10 focus:bg-red-500/10 mt-1"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-sm">تسجيل الخروج</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-              {/* خيارات الوضع */}
-              <DropdownMenuItem
-                onClick={toggleOnlineMode}
-                className="flex items-center gap-2 cursor-pointer focus:bg-slate-800 focus:text-white rounded-lg p-2"
-              >
-                <div className={cn(
-                  "p-1.5 rounded-md",
-                  isOnlineMode ? "bg-blue-500/20 text-blue-400" : "bg-slate-700 text-slate-400"
-                )}>
-                  <ShoppingCart className="w-4 h-4" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-medium">المتجر الإلكتروني</span>
-                  <span className="text-[10px] text-slate-500">{isOnlineMode ? 'مفعل (Online)' : 'معطل (Offline)'}</span>
-                </div>
-                {isOnlineMode && <div className="mr-auto w-2 h-2 rounded-full bg-blue-500" />}
-              </DropdownMenuItem>
-
-              {/* تبديل الموظف */}
-              {(currentStaff || isAdminMode) && (
-                <div className="p-1">
-                  <QuickStaffSwitchModern
-                    iconOnly={false}
-                    variant="ghost"
-                    className="w-full justify-start h-9 px-2 text-sm font-normal text-slate-200 hover:bg-slate-800 hover:text-white"
-                  />
-                </div>
+              {/* Expand Button */}
+              {onToggleExpand && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={onToggleExpand}
+                      className="w-11 h-9 flex items-center justify-center text-slate-600 hover:text-orange-400 hover:bg-white/5 rounded-xl transition-all duration-200"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="bg-[#161b22] border-[#30363d] text-white ml-2">
+                    توسيع القائمة
+                  </TooltipContent>
+                </Tooltip>
               )}
-
-              <DropdownMenuSeparator className="bg-slate-700/50" />
-
-              {/* تسجيل الخروج */}
-              <DropdownMenuItem
-                onClick={handleSignOut}
-                className="flex items-center gap-2 cursor-pointer focus:bg-red-950/30 focus:text-red-400 text-red-400 p-2 rounded-lg"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>تسجيل الخروج</span>
-              </DropdownMenuItem>
-
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* 2. زر التصغير/التوسيع */}
-          {onToggleExpand && (
-            <button
-              onClick={onToggleExpand}
-              className={cn(
-                "w-full flex items-center justify-center rounded-xl transition-all duration-300",
-                "hover:bg-slate-800/50 text-slate-500 hover:text-white h-8"
-              )}
-              title={isExpanded ? "تصغير القائمة" : "توسيع القائمة"}
-            >
-              {isExpanded ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            </button>
+            </div>
           )}
-
         </div>
       </div>
     </TooltipProvider>

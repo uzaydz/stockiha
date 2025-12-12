@@ -34,6 +34,7 @@ import { formatCurrency, formatDate } from '../utils/formatters';
 interface ZakatSectionProps {
   data: ZakatData | null;
   isLoading?: boolean;
+  dateRange?: { start: Date; end: Date };
 }
 
 // ==================== Helper Components ====================
@@ -143,6 +144,7 @@ const AssetBreakdownCard: React.FC<{
 const ZakatSection: React.FC<ZakatSectionProps> = ({
   data,
   isLoading = false,
+  dateRange,
 }) => {
   // Memoized Chart Data
   const chartData = useMemo(() => {
@@ -176,6 +178,14 @@ const ZakatSection: React.FC<ZakatSectionProps> = ({
 
   return (
     <div className="space-y-6">
+
+      <div className="bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-2xl px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
+        <span className="font-semibold">ملاحظة:</span>
+        <span className="mr-2">حساب الزكاة هنا يعتمد على الأرصدة الحالية (المخزون/النقد/الديون) وليس على حركة الفترة المختارة</span>
+        {dateRange && (
+          <span className="text-zinc-500 dark:text-zinc-400">({formatDate(dateRange.start.toISOString(), 'short')} - {formatDate(dateRange.end.toISOString(), 'short')})</span>
+        )}
+      </div>
 
       {/* 1. Main Zakat Status Card */}
       <motion.div

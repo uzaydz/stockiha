@@ -55,6 +55,9 @@ import { CustomersTableSimple } from '@/components/customers/CustomersTableSimpl
 const AddCustomerDialog = React.lazy(() => import('@/components/customers/AddCustomerDialog'));
 const EditCustomerDialog = React.lazy(() => import('@/components/customers/EditCustomerDialog'));
 
+// 📖 دليل استخدام العملاء
+import CustomersUserGuide, { CustomersHelpButton } from '@/components/customers/CustomersUserGuide';
+
 // Hooks
 import { useTitle } from '@/hooks/useTitle';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
@@ -73,6 +76,7 @@ interface DialogState {
   showEditCustomer: boolean;
   showDeleteConfirm: boolean;
   showCustomerDetails: boolean;
+  showUserGuide: boolean;
 }
 
 // ===============================================================================
@@ -106,6 +110,7 @@ const Customers: React.FC<CustomersProps> = ({
     showEditCustomer: false,
     showDeleteConfirm: false,
     showCustomerDetails: false,
+    showUserGuide: false,
   });
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -521,8 +526,14 @@ const Customers: React.FC<CustomersProps> = ({
       showEditCustomer: false,
       showDeleteConfirm: false,
       showCustomerDetails: false,
+      showUserGuide: false,
       selectedCustomer: null,
     });
+  }, []);
+
+  // فتح دليل الاستخدام
+  const handleOpenUserGuide = useCallback(() => {
+    setDialogState(prev => ({ ...prev, showUserGuide: true }));
   }, []);
 
   // ===============================================================================
@@ -643,6 +654,9 @@ const Customers: React.FC<CustomersProps> = ({
             </p>
           </div>
         </div>
+
+        {/* زر دليل الاستخدام */}
+        <CustomersHelpButton onClick={handleOpenUserGuide} />
       </div>
 
       {/* Stats */}
@@ -861,6 +875,14 @@ const Customers: React.FC<CustomersProps> = ({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 📖 دليل استخدام العملاء */}
+      <CustomersUserGuide
+        open={dialogState.showUserGuide}
+        onOpenChange={(open) => {
+          setDialogState(prev => ({ ...prev, showUserGuide: open }));
+        }}
+      />
     </div>
   );
 

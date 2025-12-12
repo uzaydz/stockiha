@@ -36,6 +36,14 @@ const CourseModules: React.FC<CourseModulesProps> = ({ modules, courseSlug = 'di
       return;
     }
 
+    // Handle System Training (New Unified Player)
+    if (courseSlug === 'system-training') {
+      startTransition(() => {
+        navigate(`/dashboard/courses/system-training/learn/${moduleId}`);
+      });
+      return;
+    }
+
     // Handle digital marketing course modules (existing logic)
     if (moduleId >= 1 && moduleId <= 12) {
       startTransition(() => {
@@ -73,11 +81,10 @@ const CourseModules: React.FC<CourseModulesProps> = ({ modules, courseSlug = 'di
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     {/* Module number */}
                     <div className="flex-shrink-0">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
-                        module.level === 'مبتدئ' ? 'bg-green-600' :
-                        module.level === 'متوسط' ? 'bg-yellow-600' :
-                        'bg-red-600'
-                      }`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm ${module.level === 'مبتدئ' ? 'bg-green-600' :
+                          module.level === 'متوسط' ? 'bg-yellow-600' :
+                            'bg-red-600'
+                        }`}>
                         {module.id}
                       </div>
                     </div>
@@ -88,11 +95,10 @@ const CourseModules: React.FC<CourseModulesProps> = ({ modules, courseSlug = 'di
                         <h3 className="text-sm font-bold text-foreground">
                           {module.title}
                         </h3>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          module.level === 'مبتدئ' ? 'bg-green-100 text-green-700' :
-                          module.level === 'متوسط' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
-                        }`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${module.level === 'مبتدئ' ? 'bg-green-100 text-green-700' :
+                            module.level === 'متوسط' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                          }`}>
                           {module.level}
                         </span>
                       </div>
