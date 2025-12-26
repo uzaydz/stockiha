@@ -1,8 +1,34 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" class="light">
+<html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Base URL: ./ للتطبيق المكتبي و / للويب حتى تعمل المسارات داخل /tenant/* -->
+    <base id="app-base" href="./" />
+    <script nonce="{{CSP_NONCE}}">
+      (function () {
+        try {
+          var base = document.getElementById('app-base');
+          if (!base) return;
+
+          // لا تعتمد على window.electronAPI وحدها لأن بعض إضافات المتصفح قد تضيفها.
+          // Electron الحقيقي يضيف دائماً "Electron" داخل userAgent.
+          var ua = (typeof navigator !== 'undefined' && String(navigator.userAgent || '')) || '';
+          var isElectron = ua.includes('Electron');
+
+          var isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+
+          // Web: use absolute paths so deep routes like /dashboard/... work.
+          // Desktop (Electron/file/custom protocol): keep relative paths (./).
+          if (isHttp && !isElectron) {
+            base.setAttribute('href', '/');
+          }
+        } catch (e) {
+          // ignore
+        }
+      })();
+    </script>
 
     <!-- تحسينات للتطبيق المكتبي -->
     <meta name="format-detection" content="telephone=no" />
@@ -52,76 +78,8 @@
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192x192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="./icon-512x512.png">
     
-    <!-- 🚀 تحميل الخطوط المحلية محسن للأداء -->
-    <!-- استخدام prefetch بدلاً من preload لتجنب التحذيرات عند عدم الاستخدام الفوري -->
-    <link rel="prefetch" href="/fonts/tajawal-regular.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="prefetch" href="/fonts/tajawal-medium.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="prefetch" href="/fonts/tajawal-bold.woff2" as="font" type="font/woff2" crossorigin>
-    
     <!-- تحميل CSS الرئيسي - ضروري للتطبيق -->
     <link rel="stylesheet" href="./src/index.css">
-    
-    <!-- تحسين إضافي: تحميل الخطوط الإضافية عند الحاجة -->
-    <script nonce="{{CSP_NONCE}}">
-      // Smart font loading strategy - محسن لتجنب التحميل المتكرر
-      (function() {
-        try {
-          // تحقق من وجود الخطوط في الكاش (مع حماية من خطأ localStorage)
-          var fontsAlreadyLoaded = false;
-          try {
-            fontsAlreadyLoaded = sessionStorage.getItem('fonts_loaded') === 'true';
-          } catch(e) {
-            // sessionStorage غير متاح
-          }
-
-          if (fontsAlreadyLoaded) {
-            return;
-          }
-
-          var fontsLoaded = false;
-
-          // Function to load additional fonts
-          function loadAdditionalFonts() {
-            if (fontsLoaded) return;
-            fontsLoaded = true;
-
-            // تحميل الخطوط الإضافية عند الحاجة فقط
-            var fontsBase = './fonts/';
-            var additionalFonts = [
-              fontsBase + 'tajawal-medium.woff2',
-              fontsBase + 'tajawal-bold.woff2'
-            ];
-
-            additionalFonts.forEach(function(fontUrl) {
-              try {
-                var link = document.createElement('link');
-                link.rel = 'prefetch';
-                link.as = 'font';
-                link.type = 'font/woff2';
-                link.href = fontUrl;
-                document.head.appendChild(link);
-              } catch(e) {}
-            });
-
-            // حفظ في sessionStorage لتجنب التحميل المتكرر
-            try {
-              sessionStorage.setItem('fonts_loaded', 'true');
-            } catch(e) {}
-          }
-
-          // Load additional fonts on user interaction or after delay
-          var events = ['mousedown', 'touchstart', 'keydown', 'wheel'];
-          events.forEach(function(event) {
-            document.addEventListener(event, loadAdditionalFonts, { once: true, passive: true });
-          });
-
-          // Fallback: load after 1 second if no interaction
-          setTimeout(loadAdditionalFonts, 1000);
-        } catch(e) {
-          // تجاهل أي خطأ في تحميل الخطوط
-        }
-      })();
-    </script>
     
     <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
     <script nonce="{{CSP_NONCE}}">
@@ -193,6 +151,20 @@
     
     <!-- 🚀 CRITICAL CSS INLINE (مصغّر جداً: الأساسيات واللودر فقط) -->
     <style>
+      /* تعريف متغيرات الألوان حسب الثيم */
+      :root {
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+        --primary: 271.5 81.3% 55.9%;
+        --muted: 210 40% 96.1%;
+      }
+      .dark {
+        --background: 222 47% 6%;
+        --foreground: 210 40% 96%;
+        --primary: 271.5 81.3% 55.9%;
+        --muted: 217.2 32.6% 17.5%;
+      }
+
       html {
         font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
         line-height: 1.5;
@@ -205,9 +177,10 @@
         direction: rtl;
         text-align: right;
         min-height: 100vh;
-        background: #ffffff;
-        color: #000000;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
         overflow-x: hidden;
+        transition: background-color 0.3s ease, color 0.3s ease;
       }
       #root { min-height: 100vh; }
       .loading-container {
@@ -218,13 +191,14 @@
         z-index: 9999;
         padding: 1rem;
         border-radius: 0.5rem;
-        background: #ffffff;
+        background: hsl(var(--background));
+        border: 1px solid hsl(var(--muted));
       }
       .loading-spinner {
         width: 32px;
         height: 32px;
-        border: 2px solid #e5e7eb;
-        border-top-color: #6b21a8;
+        border: 2px solid hsl(var(--muted));
+        border-top-color: hsl(var(--primary));
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
       }

@@ -93,6 +93,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { getProvinceName, getMunicipalityName } from '@/utils/addressHelpers';
 import { useOrderDetails, prefetchOrderDetails } from '@/hooks/useOrderDetails';
+import CallConfirmationDropdown from '@/components/orders/CallConfirmationDropdown';
 
 import type { Order } from './OrderTableTypes';
 
@@ -113,6 +114,9 @@ interface AdvancedOrdersTableProps {
   hasCancelPermission?: boolean;
   shippingProviders?: Array<{ code: string; name: string }>;
   callConfirmationStatuses?: Array<{ id: number; name: string; color?: string | null }>;
+  onAddCallConfirmationStatus?: (name: string, color: string, icon?: string) => Promise<number>;
+  onDeleteCallConfirmationStatus?: (id: number) => Promise<void>;
+  showManageCallConfirmationStatuses?: boolean;
 }
 
 // ============================================
@@ -124,6 +128,66 @@ const formatCurrency = (amount: number) => {
     style: 'decimal',
     minimumFractionDigits: 0,
   }).format(amount) + ' د.ج';
+};
+
+const toNumber = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (raw === '') return 0;
+
+    // Normalize formatted amounts like "8.500", "8,500", "8 500", "8.500 د.ج"
+    // - Treat "." as thousand separator when pattern matches groups of 3.
+    // - Treat "," as decimal separator when no thousand-grouping pattern.
+    const cleaned = raw
+      .replace(/[^\d.,\-]/g, '') // keep digits, dot, comma, minus
+      .replace(/\s+/g, '');
+
+    if (cleaned === '' || cleaned === '-' || cleaned === '.' || cleaned === ',') return 0;
+
+    let normalized = cleaned;
+
+    const hasDot = normalized.includes('.');
+    const hasComma = normalized.includes(',');
+
+    if (hasDot && !hasComma) {
+      // "8.500" or "1.234.567"
+      if (/^\-?\d{1,3}(\.\d{3})+$/.test(normalized)) {
+        normalized = normalized.replace(/\./g, '');
+      }
+    } else if (hasComma && !hasDot) {
+      // "8,500" (could be thousand grouping) OR "12,5" (decimal)
+      if (/^\-?\d{1,3}(,\d{3})+$/.test(normalized)) {
+        normalized = normalized.replace(/,/g, '');
+      } else {
+        normalized = normalized.replace(',', '.');
+      }
+    } else if (hasDot && hasComma) {
+      // Decide which is decimal separator by the last occurrence.
+      const lastDot = normalized.lastIndexOf('.');
+      const lastComma = normalized.lastIndexOf(',');
+      if (lastComma > lastDot) {
+        // "1.234,56" => "1234.56"
+        normalized = normalized.replace(/\./g, '').replace(',', '.');
+      } else {
+        // "1,234.56" => "1234.56"
+        normalized = normalized.replace(/,/g, '');
+      }
+    }
+
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+};
+
+const getFormDataNumber = (formData: any, keys: string[]): number => {
+  if (!formData || typeof formData !== 'object') return 0;
+  for (const key of keys) {
+    const n = toNumber((formData as any)[key]);
+    if (n > 0) return n;
+  }
+  return 0;
 };
 
 const copyToClipboard = (text: string) => {
@@ -179,6 +243,46 @@ const ExpandedRowContent: React.FC<{
 
   const isLoadingItems = detailsStatus === 'loading' && items.length === 0;
   const formData = order.form_data || {};
+
+  const itemsSubtotal = useMemo(() => {
+    return items.reduce((sum: number, it: any) => {
+      const lineTotal =
+        toNumber(it.total_price) ||
+        (toNumber(it.quantity) * (toNumber(it.unit_price) || toNumber(it.price)));
+      return sum + (Number.isFinite(lineTotal) ? lineTotal : 0);
+    }, 0);
+  }, [items]);
+
+  const subtotal = useMemo(() => {
+    const explicit = toNumber((order as any).subtotal);
+    return explicit > 0 ? explicit : itemsSubtotal;
+  }, [itemsSubtotal, order]);
+
+  const discount = useMemo(() => toNumber((order as any).discount), [order]);
+  const tax = useMemo(() => toNumber((order as any).tax), [order]);
+
+  const shippingCost = useMemo(() => {
+    const explicit = toNumber((order as any).shipping_cost);
+    if (explicit > 0) return explicit;
+
+    const fromFormData = getFormDataNumber(formData, [
+      'shipping_cost',
+      'shippingFee',
+      'shipping_fee',
+      'deliveryFee',
+      'delivery_fee',
+      'calculated_delivery_fee',
+      'deliveryPrice',
+      'delivery_price',
+      'home_delivery_fee',
+      'desk_delivery_fee',
+    ]);
+    if (fromFormData > 0) return fromFormData;
+
+    const total = toNumber((order as any).total);
+    const inferred = total - subtotal - tax + discount;
+    return inferred > 0 ? inferred : 0;
+  }, [discount, formData, order, subtotal, tax]);
 
   // استخراج معلومات العميل من مصادر متعددة
   const customerName = order.customer?.name || formData.fullName || formData.full_name || '-';
@@ -345,22 +449,22 @@ const ExpandedRowContent: React.FC<{
           <div className="bg-background rounded-lg p-4 space-y-2.5 border">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">المجموع الفرعي:</span>
-              <span className="font-medium">{formatCurrency(order.subtotal || 0)}</span>
+              <span className="font-medium">{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">تكلفة التوصيل:</span>
-              <span className="font-medium">{formatCurrency(order.shipping_cost || 0)}</span>
+              <span className="font-medium">{formatCurrency(shippingCost)}</span>
             </div>
-            {order.tax && order.tax > 0 && (
+            {tax > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">الضريبة:</span>
-                <span className="font-medium">{formatCurrency(order.tax)}</span>
+                <span className="font-medium">{formatCurrency(tax)}</span>
               </div>
             )}
-            {order.discount && parseFloat(order.discount.toString()) > 0 && (
+            {discount > 0 && (
               <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
                 <span>الخصم:</span>
-                <span>-{formatCurrency(order.discount)}</span>
+                <span>-{formatCurrency(discount)}</span>
               </div>
             )}
             <div className="border-t pt-3 flex justify-between">
@@ -447,6 +551,9 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
   hasCancelPermission = false,
   shippingProviders = [],
   callConfirmationStatuses = [],
+  onAddCallConfirmationStatus,
+  onDeleteCallConfirmationStatus,
+  showManageCallConfirmationStatuses = false,
 }) => {
   // States
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -533,7 +640,7 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
           </div>
         );
       },
-      size: 140,
+      size: 150,
     },
 
     // Customer
@@ -558,7 +665,7 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
 
         return (
           <div className="space-y-1">
-            <span className="font-medium text-sm block truncate max-w-[180px]">{name}</span>
+            <span className="font-medium text-sm block truncate max-w-[240px]">{name}</span>
             {phone && (
               <button
                 onClick={(e) => { e.stopPropagation(); copyToClipboard(phone); }}
@@ -577,24 +684,7 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
           </div>
         );
       },
-      size: 200,
-    },
-
-    // Items Count
-    {
-      id: 'items',
-      accessorFn: (row) => row.order_items?.length || 0,
-      header: 'المنتجات',
-      cell: ({ row }) => {
-        const count = row.original.order_items?.length || 0;
-        return (
-          <Badge variant="secondary" className="font-normal">
-            <Package className="h-3 w-3 ml-1" />
-            {count} منتج
-          </Badge>
-        );
-      },
-      size: 100,
+      size: 260,
     },
 
     // Status
@@ -648,7 +738,7 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
           </span>
         );
       },
-      size: 130,
+      size: 140,
     },
 
     // Call Confirmation
@@ -659,62 +749,30 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
       cell: ({ row }) => {
         const order = row.original;
         const statusId = (order as any).call_confirmation_status_id;
-        const currentStatus = callConfirmationStatuses.find(s => s.id === statusId);
-
-        if (!callConfirmationStatuses.length) {
-          return <span className="text-xs text-muted-foreground">-</span>;
-        }
-
-        if (hasUpdatePermission) {
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors"
-                  style={{
-                    backgroundColor: currentStatus?.color ? `${currentStatus.color}15` : undefined,
-                    borderColor: currentStatus?.color ? `${currentStatus.color}30` : undefined,
-                    color: currentStatus?.color || undefined,
-                  }}
-                >
-                  <PhoneCall className="h-3 w-3" />
-                  {currentStatus?.name || 'لم يتم'}
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {callConfirmationStatuses.map((s) => (
-                  <DropdownMenuItem
-                    key={s.id}
-                    onClick={() => onUpdateCallConfirmation?.(order.id, s.id)}
-                  >
-                    <div
-                      className="w-2 h-2 rounded-full ml-2"
-                      style={{ backgroundColor: s.color || '#94a3b8' }}
-                    />
-                    {s.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        }
+        if (!callConfirmationStatuses.length) return <span className="text-xs text-muted-foreground">-</span>;
 
         return (
-          <span
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border"
-            style={{
-              backgroundColor: currentStatus?.color ? `${currentStatus.color}15` : undefined,
-              borderColor: currentStatus?.color ? `${currentStatus.color}30` : undefined,
-              color: currentStatus?.color || undefined,
+          <CallConfirmationDropdown
+            orderId={order.id}
+            currentStatusId={statusId ?? null}
+            onUpdateStatus={async (oid, sid, notes) => {
+              await onUpdateCallConfirmation?.(oid, sid, notes);
             }}
-          >
-            <PhoneCall className="h-3 w-3" />
-            {currentStatus?.name || 'لم يتم'}
-          </span>
+            statuses={callConfirmationStatuses.map((s) => ({
+              id: s.id,
+              name: s.name,
+              color: s.color || '#6366F1',
+              icon: null,
+              is_default: false,
+            }))}
+            disabled={!hasUpdatePermission}
+            showAddNew={showManageCallConfirmationStatuses}
+            onAddCallConfirmationStatus={onAddCallConfirmationStatus}
+            onDeleteCallConfirmationStatus={onDeleteCallConfirmationStatus}
+          />
         );
       },
-      size: 120,
+      size: 160,
     },
 
     // Delivery Type
@@ -735,7 +793,7 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
           </span>
         );
       },
-      size: 100,
+      size: 110,
     },
 
     // Shipping/Tracking
@@ -787,9 +845,28 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
           );
         }
 
+        // إذا لم تكن هناك شركات توصيل مفعّلة، نظهر قائمة مع رسالة واضحة بدل قائمة فارغة.
+        if (order.status === 'pending' && hasUpdatePermission && shippingProviders.length === 0) {
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 text-xs">
+                  <Truck className="h-3 w-3 ml-1" />
+                  إرسال
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem disabled>
+                  لا توجد شركات توصيل مفعّلة
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        }
+
         return <span className="text-xs text-muted-foreground">-</span>;
       },
-      size: 130,
+      size: 160,
     },
 
     // Total
@@ -827,7 +904,7 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
           </div>
         );
       },
-      size: 130,
+      size: 150,
     },
 
     // Actions
@@ -889,9 +966,23 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
           </DropdownMenu>
         );
       },
-      size: 60,
+      size: 70,
     },
-  ], [hasUpdatePermission, hasCancelPermission, shippingProviders, callConfirmationStatuses, onUpdateStatus, onUpdateCallConfirmation, onSendToProvider, onOrderView, onOrderEdit, onOrderPrint]);
+  ], [
+    hasUpdatePermission,
+    hasCancelPermission,
+    shippingProviders,
+    callConfirmationStatuses,
+    onAddCallConfirmationStatus,
+    onDeleteCallConfirmationStatus,
+    showManageCallConfirmationStatuses,
+    onUpdateStatus,
+    onUpdateCallConfirmation,
+    onSendToProvider,
+    onOrderView,
+    onOrderEdit,
+    onOrderPrint,
+  ]);
 
   // Table Instance
   const table = useReactTable({
@@ -979,7 +1070,6 @@ export const AdvancedOrdersTable: React.FC<AdvancedOrdersTableProps> = ({
                   >
                     {column.id === 'orderNumber' ? 'رقم الطلب' :
                      column.id === 'customer' ? 'العميل' :
-                     column.id === 'items' ? 'المنتجات' :
                      column.id === 'status' ? 'الحالة' :
                      column.id === 'callConfirmation' ? 'التأكيد' :
                      column.id === 'deliveryType' ? 'التوصيل' :

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 import { Package, Edit, Eye, BarChart3 } from 'lucide-react';
 import StockUpdateModern from './StockUpdateModern';
 import type { InventoryProduct } from '@/lib/api/inventory-optimized';
@@ -326,7 +327,7 @@ function ProductCard({ item, onClick, isMobile = false }: ProductCardProps) {
         {/* Product Image - ⚡ دعم thumbnail_base64 للعمل Offline */}
         <div className="flex-shrink-0">
           {(() => {
-            const imageSrc = (item as any).thumbnail_base64 || item.thumbnail_image;
+            const imageSrc = resolveProductImageSrc(item as any);
             return imageSrc && !imageError ? (
               <img
                 src={imageSrc}
@@ -432,4 +433,3 @@ function ProductCard({ item, onClick, isMobile = false }: ProductCardProps) {
     </Card>
   );
 }
-

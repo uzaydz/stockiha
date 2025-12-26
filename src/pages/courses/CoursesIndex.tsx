@@ -16,6 +16,7 @@ import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 import CourseCover from '@/components/courses/CourseCover';
 import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { getCourseEntryPath } from '@/lib/courseRoutes';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -170,7 +171,7 @@ const CoursesIndex: React.FC<CoursesIndexProps> = ({ useStandaloneLayout = true 
                     "group relative bg-white dark:bg-[#121214] border border-slate-200 dark:border-slate-800 hover:border-orange-500/30 dark:hover:border-orange-500/30 transition-all duration-300 overflow-hidden cursor-pointer",
                     viewMode === 'grid' ? "rounded-2xl hover:shadow-2xl hover:-translate-y-1 flex flex-col" : "rounded-xl flex flex-row h-48 hover:shadow-lg"
                   )}
-                  onClick={() => !isLocked && navigate(`/dashboard/courses/${course.slug}`)}
+                  onClick={() => !isLocked && navigate(getCourseEntryPath(course.slug))}
                 >
                   {/* Visual Header */}
                   <div className={cn(

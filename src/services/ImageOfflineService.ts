@@ -1,4 +1,5 @@
 import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 
 /**
  * خدمة لإدارة الصور في وضع عدم الاتصال (v2.0)
@@ -14,7 +15,9 @@ export class ImageOfflineService {
     private processingQueue: string[] = [];
     private isProcessing = false;
     private MAX_CONCURRENT_DOWNLOADS = 3;
-    private MAX_IMAGE_SIZE_KB = 300; // ⚡ تقليل الحد الأقصى للصورة من 500KB إلى 300KB
+    private MAX_IMAGE_SIZE_KB = 120; // ⚡ حد صغير جداً لتقليل حجم التخزين المحلي
+    private TARGET_MAX_DIM = 480; // ⚡ أبعاد أصغر لصور أوفلاين خفيفة
+    private TARGET_QUALITY = 0.62; // ⚡ جودة أقل لتقليل الحجم قدر الإمكان
     private MAX_CACHED_IMAGES = 200; // ⚡ حد أقصى للصور المخزنة
     private AUTO_CLEANUP_DAYS = 7; // ⚡ تنظيف الصور أقدم من 7 أيام
     private cleanupIntervalId: NodeJS.Timeout | null = null;
@@ -99,25 +102,103 @@ export class ImageOfflineService {
     /**
      * تحويل رابط صورة إلى Base64
      */
-    public async urlToBase64(url: string): Promise<string | null> {
+    private async urlToBase64(url: string): Promise<string | null> {
         try {
             const response = await fetch(url, { mode: 'cors' });
             if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
 
             const blob = await response.blob();
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64 = reader.result as string;
-                    resolve(base64);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
+            return await this.compressBlobToDataUrl(blob);
         } catch (error) {
             console.warn(`[ImageOfflineService] Failed to convert URL to Base64: ${url}`, error);
             return null;
         }
+    }
+
+    private async dataUrlToBlob(dataUrl: string): Promise<Blob> {
+        const response = await fetch(dataUrl);
+        return await response.blob();
+    }
+
+    private async blobToDataUrl(blob: Blob): Promise<string> {
+        return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    private supportsWebp(): boolean {
+        try {
+            const canvas = document.createElement('canvas');
+            return canvas.toDataURL('image/webp').startsWith('data:image/webp');
+        } catch {
+            return false;
+        }
+    }
+
+    private async compressBlobToDataUrl(blob: Blob): Promise<string | null> {
+        try {
+            const bitmap = await createImageBitmap(blob);
+            const maxDim = this.TARGET_MAX_DIM;
+            const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+            const targetWidth = Math.max(1, Math.round(bitmap.width * scale));
+            const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d', { alpha: false });
+            if (!ctx) {
+                return await this.blobToDataUrl(blob);
+            }
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+
+            const preferredType = this.supportsWebp() ? 'image/webp' : 'image/jpeg';
+            const attempts = [
+                { quality: this.TARGET_QUALITY, maxDim: this.TARGET_MAX_DIM },
+                { quality: 0.5, maxDim: Math.round(this.TARGET_MAX_DIM * 0.85) },
+                { quality: 0.45, maxDim: Math.round(this.TARGET_MAX_DIM * 0.75) },
+                { quality: 0.4, maxDim: Math.round(this.TARGET_MAX_DIM * 0.65) }
+            ];
+
+            for (const attempt of attempts) {
+                const scaledWidth = Math.max(1, Math.round(bitmap.width * Math.min(1, attempt.maxDim / Math.max(bitmap.width, bitmap.height))));
+                const scaledHeight = Math.max(1, Math.round(bitmap.height * Math.min(1, attempt.maxDim / Math.max(bitmap.width, bitmap.height))));
+                if (scaledWidth !== canvas.width || scaledHeight !== canvas.height) {
+                    canvas.width = scaledWidth;
+                    canvas.height = scaledHeight;
+                    ctx.drawImage(bitmap, 0, 0, scaledWidth, scaledHeight);
+                }
+
+                const dataUrl = canvas.toDataURL(preferredType, attempt.quality);
+                const sizeKB = (dataUrl.length * 0.75) / 1024;
+                if (sizeKB <= this.MAX_IMAGE_SIZE_KB) {
+                    return dataUrl;
+                }
+            }
+
+            return canvas.toDataURL(preferredType, 0.35);
+        } catch (error) {
+            console.warn('[ImageOfflineService] Failed to compress image, using original', error);
+            return await this.blobToDataUrl(blob);
+        }
+    }
+
+    private async normalizeImageToBase64(imageUrl: string): Promise<string | null> {
+        if (imageUrl.startsWith('data:')) {
+            try {
+                const blob = await this.dataUrlToBlob(imageUrl);
+                return await this.compressBlobToDataUrl(blob);
+            } catch (error) {
+                console.warn('[ImageOfflineService] Failed to compress data URL, using original', error);
+                return imageUrl;
+            }
+        }
+
+        return await this.urlToBase64(imageUrl);
     }
 
     /**
@@ -147,7 +228,7 @@ export class ImageOfflineService {
      */
     public async cacheProductImage(product: any): Promise<void> {
         // تخطي إذا لم يكن هناك رابط صورة
-        const imageUrl = product.thumbnail_image || product.image_thumbnail;
+        const imageUrl = resolveProductImageSrc(product as any, '');
         if (!imageUrl) return;
 
         try {
@@ -170,7 +251,7 @@ export class ImageOfflineService {
             });
             if (existing) return;
 
-            const base64 = await this.urlToBase64(imageUrl);
+            const base64 = await this.normalizeImageToBase64(imageUrl);
             if (base64) {
                 // التحقق من حجم الصورة
                 const sizeKB = (base64.length * 0.75) / 1024;

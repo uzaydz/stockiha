@@ -156,9 +156,20 @@ const Orders = () => {
 
   // Handle order status update with optimistic updates
   const handleUpdateStatus = useCallback(async (orderId: string, newStatus: string) => {
+    // ✅ Optimistic update: حدّث الواجهة فوراً (ثم rollback عند الفشل)
+    const previous = orders.find(o => o.id === orderId);
+    const nowIso = new Date().toISOString();
+    updateOrderLocally?.(orderId, { status: newStatus, updated_at: nowIso } as any);
+
     const result = await updateOrderStatus(orderId, newStatus);
-    // التحديث المحلي يتم تلقائياً داخل updateOrderStatus
-  }, [updateOrderStatus]);
+
+    if (!result?.success && previous) {
+      updateOrderLocally?.(orderId, {
+        status: previous.status,
+        updated_at: previous.updated_at,
+      } as any);
+    }
+  }, [updateOrderStatus, orders, updateOrderLocally]);
 
   // Handle bulk status update
   const handleBulkUpdateStatus = useCallback(async (orderIds: string[], newStatus: string) => {
@@ -341,6 +352,18 @@ const Orders = () => {
                 onUpdateStatus={handleUpdateStatus}
                 onUpdateCallConfirmation={async (orderId, statusId, notes, userId) => {
                   try {
+                    // ✅ Optimistic update: حدّث الواجهة فوراً مع كائن الحالة (Badge يعتمد عليه)
+                    const nowIso = new Date().toISOString();
+                    const statusObj = (callConfirmationStatuses || []).find((s: any) => s.id === statusId) || null;
+                    updateOrderLocally?.(orderId, {
+                      call_confirmation_status_id: statusId,
+                      call_confirmation_notes: notes,
+                      call_confirmation_status: statusObj,
+                      call_confirmation_updated_at: nowIso,
+                      call_confirmation_updated_by: userId,
+                      updated_at: nowIso,
+                    } as any);
+
                     // Update in database only - no fetch required
                     const { error } = await supabase
                       .from('online_orders')
@@ -356,22 +379,23 @@ const Orders = () => {
 
                     if (error) throw error;
 
-                    // تحديث البيانات محلياً
-                    if (updateOrderLocally) {
-                      updateOrderLocally(orderId, {
-                        call_confirmation_status_id: statusId,
-                        call_confirmation_notes: notes,
-                        call_confirmation_updated_at: new Date().toISOString(),
-                        call_confirmation_updated_by: userId,
-                        updated_at: new Date().toISOString()
-                      });
-                    }
-
                     toast({
                       title: "تم التحديث",
                       description: "تم تحديث حالة تأكيد الاتصال بنجاح"
                     });
                   } catch (error) {
+                    // Rollback optimistic update
+                    const previous = orders.find(o => o.id === orderId) as any;
+                    if (previous) {
+                      updateOrderLocally?.(orderId, {
+                        call_confirmation_status_id: previous.call_confirmation_status_id ?? null,
+                        call_confirmation_notes: previous.call_confirmation_notes ?? null,
+                        call_confirmation_status: previous.call_confirmation_status ?? null,
+                        call_confirmation_updated_at: previous.call_confirmation_updated_at ?? null,
+                        call_confirmation_updated_by: previous.call_confirmation_updated_by ?? null,
+                        updated_at: previous.updated_at,
+                      } as any);
+                    }
                     toast({
                       variant: "destructive",
                       title: "خطأ في التحديث",

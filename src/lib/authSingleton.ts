@@ -4,9 +4,13 @@
  * الهدف: تقليل استدعاءات auth/v1/user إلى 1-2 فقط
  */
 
+// ⚡ v3.0: Module-level deduplication
+let _authLoopWarningLogged = false;
+
 import { supabase } from '@/lib/supabase';
 import { isSupabaseReady } from '@/lib/supabase-unified';
 import { Session, User } from '@supabase/supabase-js';
+import { saveSecureSession } from '@/context/auth/utils/secureSessionStorage';
 
 // ⚡ تخزين الدوال الأصلية قبل أي اعتراض لتجنب الحلقة اللانهائية
 const originalGetSession = supabase.auth.getSession.bind(supabase.auth);
@@ -49,6 +53,27 @@ class AuthSingleton {
   private readonly MAX_CONCURRENT_REQUESTS = 1;
   private readonly REQUEST_TIMEOUT = 15000; // 15 ثانية
 
+  // إخفاء التوكنات عند تسجيلها لتجنب تسريب كامل القيمة
+  private maskToken(token?: string | null): string {
+    if (!token) return 'null';
+    const tail = token.slice(-6);
+    return `***${tail}`;
+  }
+
+  /**
+   * ✅ قراءة الجلسة "الحقيقية" مباشرة من Supabase storage (بدون اعتراض AuthInterceptorV2)
+   * مفيد عند بدء التشغيل لتجنب الاعتماد على SecureSession قديمة.
+   */
+  public async getRawSessionFromSupabaseStorage(): Promise<Session | null> {
+    try {
+      const { data: { session }, error } = await originalGetSession();
+      if (error) return null;
+      return session ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   private constructor() {
   }
 
@@ -57,6 +82,95 @@ class AuthSingleton {
       AuthSingleton.instance = new AuthSingleton();
     }
     return AuthSingleton.instance;
+  }
+
+  /**
+   * ⚡ فحص انتهاء صلاحية JWT Token
+   * يتحقق من expires_at مع buffer 60 ثانية
+   */
+  private isTokenExpired(session: Session | null): boolean {
+    if (!session?.expires_at) return true;
+
+    // فحص مع buffer 60 ثانية قبل الانتهاء الفعلي
+    const expiresAt = session.expires_at * 1000; // تحويل إلى milliseconds
+    const now = Date.now();
+    const buffer = 60 * 1000; // 1 دقيقة buffer
+
+    const isExpired = now >= (expiresAt - buffer);
+
+    if (isExpired) {
+      console.log('[AuthSingleton] ⚠️ JWT Token expired or expiring soon');
+    }
+
+    return isExpired;
+  }
+
+  /**
+   * ⚡ تجديد JWT Token إذا كان منتهياً أو قريباً من الانتهاء
+   */
+  private async refreshTokenIfNeeded(session: Session | null): Promise<Session | null> {
+    if (!session || !this.isTokenExpired(session)) {
+      return session; // لا حاجة للتجديد
+    }
+
+    console.log('[AuthSingleton] 🔄 Attempting to refresh expired token...');
+    console.log('[AuthSingleton] 🔎 Refresh context:', {
+      expiresAt: session?.expires_at,
+      expiredAtMs: session?.expires_at ? session.expires_at * 1000 : null,
+      nowMs: Date.now(),
+      refreshTokenTail: this.maskToken(session?.refresh_token),
+    });
+
+    try {
+      // ✅ لا نعتمد على refresh_token من cache (قد يكون stale بعد rotation)
+      // Supabase SDK يستخدم refresh_token المخزّن داخلياً (storageKey) إن كان متاحاً
+      const { data, error } = await supabase.auth.refreshSession();
+
+      if (error) throw error;
+
+      console.log('[AuthSingleton] ✅ refreshSession returned', {
+        hasSession: Boolean(data.session),
+        newAccessTokenTail: this.maskToken(data.session?.access_token),
+        newRefreshTokenTail: this.maskToken(data.session?.refresh_token),
+        expiresAt: data.session?.expires_at,
+      });
+
+      // تحديث الـ cache بالـ session الجديدة
+      if (data.session) {
+        console.log('[AuthSingleton] ✅ Token refreshed successfully');
+
+        this.cache = {
+          data: {
+            session: data.session,
+            user: data.session.user || null,
+            timestamp: Date.now()
+          },
+          expiresAt: Date.now() + this.CACHE_TTL,
+          requestId: 'token_refresh'
+        };
+
+        // ✅ تحديث SecureSession للأوفلاين حتى لا يبقى refresh_token قديم
+        try {
+          await saveSecureSession(data.session);
+        } catch { }
+
+        this.saveToLocalStorage(this.cache);
+        this.notifySubscribers();
+      }
+
+      return data.session;
+    } catch (error) {
+      console.error('[AuthSingleton] ❌ Token refresh failed:', {
+        message: (error as any)?.message,
+        status: (error as any)?.status,
+        name: (error as any)?.name,
+      });
+
+      // في حالة فشل التجديد، نمسح الـ cache
+      this.clearAuth();
+
+      return null;
+    }
   }
 
   /**
@@ -125,6 +239,7 @@ class AuthSingleton {
 
   /**
    * جلب بيانات المصادقة مع حماية من التكرار
+   * ⚡ محسّن: يتحقق من صلاحية JWT ويجدده إذا لزم الأمر
    */
   private async fetchAuthData(requestId: string): Promise<AuthData> {
     // التحقق من وجود طلب مماثل
@@ -135,6 +250,14 @@ class AuthSingleton {
     // التحقق من cache
     if (this.cache && this.isCacheValid(this.cache)) {
       this.cacheHits++;
+
+      // ⚡ حتى لو كان الـ cache صالحاً، تحقق من JWT وجدده إذا لزم الأمر
+      const refreshedSession = await this.refreshTokenIfNeeded(this.cache.data.session);
+      if (refreshedSession && refreshedSession !== this.cache.data.session) {
+        // تم التجديد - استخدم البيانات الجديدة
+        return this.cache.data;
+      }
+
       return this.cache.data;
     }
 
@@ -160,7 +283,11 @@ class AuthSingleton {
     try {
       // إضافة حماية من الحلقة اللانهائية
       if (this.isInAuthLoop) {
-        console.warn('[AuthSingleton] ⚠️ Auth loop detected, returning cached session');
+        // ⚡ v3.0: سجل التحذير مرة واحدة فقط
+        if (!_authLoopWarningLogged && process.env.NODE_ENV === 'development') {
+          _authLoopWarningLogged = true;
+          console.log('[AuthSingleton] ℹ️ Auth loop detected - using cached session (this is normal)');
+        }
         // ⚡ بدلاً من إرجاع خطأ، نعيد البيانات المخزنة مؤقتاً
         if (this.cache?.data?.session) {
           return { data: { session: this.cache.data.session }, error: null };
@@ -257,9 +384,29 @@ class AuthSingleton {
 
   /**
    * التحقق من صحة cache
+   * ⚡ محسّن: يفحص كل من cache TTL وصلاحية JWT Token
    */
   private isCacheValid(cache: AuthCache): boolean {
-    return Date.now() < cache.expiresAt;
+    const timeValid = Date.now() < cache.expiresAt;
+    const tokenValid = !this.isTokenExpired(cache.data.session);
+
+    let shouldLog = false;
+    try {
+      shouldLog = (import.meta as any).env?.DEV || localStorage.getItem('debug_auth_singleton') === '1';
+    } catch {
+      shouldLog = (import.meta as any).env?.DEV;
+    }
+
+    if (shouldLog) {
+      if (!timeValid) {
+        console.log('[AuthSingleton] ⏰ Cache expired (TTL)');
+      }
+      if (!tokenValid) {
+        console.log('[AuthSingleton] 🔑 JWT Token expired in cache');
+      }
+    }
+
+    return timeValid && tokenValid;
   }
 
   /**
@@ -330,6 +477,14 @@ class AuthSingleton {
           expiresAt: Date.now() + this.CACHE_TTL,
           requestId: 'auth_change'
         };
+
+        // ✅ الأهم: عند TOKEN_REFRESHED أو أي تحديث Session، خزّن SecureSession
+        // هذا يمنع الرجوع إلى refresh_token قديم بعد إعادة تشغيل التطبيق
+        if (session) {
+          try {
+            void saveSecureSession(session);
+          } catch { }
+        }
 
         // حفظ في localStorage
         this.saveToLocalStorage(this.cache);

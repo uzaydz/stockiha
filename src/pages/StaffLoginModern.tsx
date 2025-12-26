@@ -83,32 +83,9 @@ const StaffLoginModern: React.FC = () => {
     setPinError(false);
 
     try {
-      // إذا كنا أوفلاين
-      if (!isOnline && organization?.id) {
-        console.log('[StaffLogin] 📱 وضع أوفلاين - محاولة التحقق محلياً فقط...');
-        const offlineResult = await verifyStaffPinOffline({
-          organizationId: organization.id,
-          pin: pinCode
-        });
-
-        console.log('[StaffLogin] 📊 نتيجة التحقق الأوفلاين:', {
-          success: offlineResult.success,
-          hasStaff: !!offlineResult.staff,
-        });
-
-        if (offlineResult.success && offlineResult.staff) {
-          console.log('%c[StaffLogin] ✅ نجح التحقق الأوفلاين!', 'color: #4CAF50; font-weight: bold');
-          handleSuccess(offlineResult.staff as any, true);
-          return;
-        } else {
-          console.log('%c[StaffLogin] ❌ فشل التحقق الأوفلاين', 'color: #f44336; font-weight: bold');
-          throw new Error('لم يتم العثور على بيانات الدخول. يجب تسجيل الدخول أونلاين مرة واحدة.');
-        }
-      }
-
-      // أونلاين: تحقق من السيرفر (مع Offline-First في staffService)
-      console.log('[StaffLogin] 🌐 وضع أونلاين - استخدام staffService.verifyPin...');
-      const result = await staffService.verifyPin(pinCode);
+      // ✅ Offline-first دائماً: يتحقق محلياً أولاً عبر localStaffService
+      console.log('[StaffLogin] 🔄 استخدام staffService.verifyPin (Offline-First)...');
+      const result = await staffService.verifyPin(pinCode, organization?.id);
 
       console.log('[StaffLogin] 📊 نتيجة staffService.verifyPin:', {
         success: result.success,
@@ -120,8 +97,8 @@ const StaffLoginModern: React.FC = () => {
       if (result.success && result.staff) {
         console.log('%c[StaffLogin] ✅ نجح التحقق!', 'color: #4CAF50; font-weight: bold');
 
-        // حفظ للأوفلاين
-        if (organization?.id && result.staff?.id) {
+        // حفظ للأوفلاين (كـ staff_pins) لتحسين السرعة/العمل بدون انتظار مزامنة
+        if (organization?.id && result.staff?.id && navigator.onLine) {
           console.log('[StaffLogin] 💾 حفظ PIN للأوفلاين...');
           try {
             await saveStaffPinOffline({
@@ -130,6 +107,7 @@ const StaffLoginModern: React.FC = () => {
               staffName: result.staff.staff_name,
               pin: pinCode,
               permissions: result.staff.permissions,
+              isActive: result.staff.is_active,
             });
             console.log('[StaffLogin] ✅ تم حفظ PIN للأوفلاين');
           } catch (err) {
@@ -137,7 +115,7 @@ const StaffLoginModern: React.FC = () => {
           }
         }
 
-        handleSuccess(result.staff, false);
+        handleSuccess(result.staff, !isOnline);
       } else {
         console.log('%c[StaffLogin] ❌ فشل التحقق', 'color: #f44336; font-weight: bold');
         console.log('[StaffLogin] 📋 سبب الفشل:', result.error);
@@ -182,12 +160,7 @@ const StaffLoginModern: React.FC = () => {
     const staffWithPermissions = {
       ...staff,
       organization_id: staff.organization_id || organization?.id,
-      permissions: staff.permissions || {
-        canAccessPOS: true,
-        canViewProducts: true,
-        canViewCustomers: true,
-        canViewPosOrders: true,
-      },
+      permissions: staff.permissions || {},
       created_at: staff.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
       last_login: new Date().toISOString(),

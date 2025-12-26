@@ -26,6 +26,15 @@ export const POSAdvancedGlobalScanner: React.FC<POSAdvancedGlobalScannerProps> =
   handleProductWithVariants,
   getProductById
 }) => {
+  const blurScannerInputs = () => {
+    if (typeof document === 'undefined') return;
+    const active = document.activeElement as HTMLElement | null;
+    if (!active) return;
+    if (active.dataset?.posSearchInput === 'true' || active.dataset?.posBarcodeInput === 'true') {
+      active.blur();
+    }
+  };
+
   // السكانر العالمي - يعمل في أي مكان في الصفحة مع البحث المحلي
   const globalScanner = useGlobalBarcodeScanner({
     onBarcodeScanned: useCallback(async (barcode, product) => {
@@ -86,6 +95,9 @@ export const POSAdvancedGlobalScanner: React.FC<POSAdvancedGlobalScannerProps> =
         }
       } catch (error) {
         toast.error(`💥 خطأ أثناء البحث عن الباركود: ${barcode}`, { id: toastId });
+      } finally {
+        // Prevent auto-focus staying on search inputs after scan
+        setTimeout(blurScannerInputs, 0);
       }
     }, [products, isReturnMode, scanBarcode, addItemToCart, addItemToReturnCart, handleProductWithVariants, getProductById]),
     enableGlobalScanning: true,

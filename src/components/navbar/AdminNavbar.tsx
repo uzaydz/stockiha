@@ -133,14 +133,17 @@ export function AdminNavbar({
           className
         )}
       >
-        <div className="flex items-center justify-between h-16 px-6 mx-auto w-full max-w-7xl">
-          
+        <div className={cn(
+          "flex items-center justify-between mx-auto w-full max-w-7xl",
+          "h-14 sm:h-16 px-3 sm:px-6"
+        )}>
+
           {/* Left Section - Clean Logo */}
-          <div className="flex items-center">
-            <NavbarLogo 
-              orgLogo={orgLogo} 
-              siteName={siteName} 
-              displayTextWithLogo={displayTextWithLogo} 
+          <div className="flex items-center shrink-0">
+            <NavbarLogo
+              orgLogo={orgLogo}
+              siteName={siteName}
+              displayTextWithLogo={displayTextWithLogo}
               isAdminPage={true}
             />
           </div>
@@ -153,10 +156,10 @@ export function AdminNavbar({
           )}
 
           {/* Right Section - Clean Actions */}
-          <div className="flex items-center gap-3">
-            {/* Online Orders Counter (skip on store-editor) */}
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0">
+            {/* Online Orders Counter (skip on store-editor) - hidden on mobile */}
             {!isStoreEditorPage && (
-              <div className="navbar-action-item">
+              <div className="navbar-action-item hidden md:flex">
                 <OnlineOrdersCounter variant="compact" />
               </div>
             )}
@@ -168,8 +171,8 @@ export function AdminNavbar({
               </Suspense>
             </div>
 
-            {/* Theme Toggle */}
-            <div className="navbar-action-item">
+            {/* Theme Toggle - hidden on small screens */}
+            <div className="navbar-action-item hidden sm:flex">
               <NavbarThemeToggle />
             </div>
 
@@ -179,23 +182,23 @@ export function AdminNavbar({
                 <NavbarNotifications />
               </div>
             )}
-            
+
             {/* Clean Separator */}
-            <div className="hidden sm:block w-px h-6 bg-border/60" />
-            
+            <div className="hidden md:block w-px h-6 bg-border/60" />
+
             {/* User Menu */}
-            <div className="hidden sm:block navbar-user-menu">
+            <div className="hidden md:block navbar-user-menu">
               <NavbarUserMenu isAdminPage={true} />
             </div>
-            
+
             {/* Mobile Menu Button */}
             {toggleSidebar && (
-              <div className="sm:hidden navbar-mobile-button">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+              <div className="md:hidden navbar-mobile-button">
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={toggleSidebar}
-                  className="h-9 w-9 rounded-lg hover:bg-muted/80 transition-colors duration-200"
+                  className="h-8 w-8 rounded-lg hover:bg-muted/80 transition-colors duration-200"
                   aria-label="فتح القائمة الجانبية"
                 >
                   <Menu className="h-4 w-4" />

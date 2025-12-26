@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 import {
   Eye,
   Edit,
@@ -62,10 +63,9 @@ import ViewProductDialog from './ViewProductDialog';
 import type { Product } from '@/lib/api/products';
 import { publishProduct, revertProductToDraft } from '@/lib/api/products';
 import { formatPrice, cn } from '@/lib/utils';
-import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
-import { hasPermissions } from '@/lib/api/userPermissionsUnified';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 import { Link, useNavigate } from 'react-router-dom';
 
 interface ProductsListResponsiveProps {
@@ -86,6 +86,7 @@ const ProductCard: React.FC<{
   onPreview: (product: Product) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canRestoreDraft: boolean;
   getPublicationStatus: (product: Product) => string;
 }> = ({
   product,
@@ -97,6 +98,7 @@ const ProductCard: React.FC<{
   onPreview,
   canEdit,
   canDelete,
+  canRestoreDraft,
   getPublicationStatus
 }) => {
   const publicationStatus = getPublicationStatus(product);
@@ -155,7 +157,7 @@ const ProductCard: React.FC<{
       {/* صورة المنتج */}
       <div className="relative aspect-square rounded-t-lg overflow-hidden bg-muted">
         <img
-          src={product.thumbnail_image}
+          src={resolveProductImageSrc(product as any)}
           alt={product.name}
           className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
           loading="lazy"
@@ -272,7 +274,7 @@ const ProductCard: React.FC<{
                 </DropdownMenuItem>
               )}
 
-              {publicationStatus === 'published' && canEdit && (
+              {publicationStatus === 'published' && canRestoreDraft && (
                 <DropdownMenuItem onClick={() => onRevertToDraft(product)}>
                   <Undo2 className="ml-2 h-4 w-4 text-yellow-600" />
                   إرجاع لمسودة
@@ -307,7 +309,7 @@ const ProductsListResponsive: React.FC<ProductsListResponsiveProps> = ({
 }) => {
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
-  const { isAdmin, permissions } = useAuth();
+  const unifiedPerms = useUnifiedPermissions();
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -316,38 +318,9 @@ const ProductsListResponsive: React.FC<ProductsListResponsiveProps> = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
   const [permissionAlertType, setPermissionAlertType] = useState<'edit' | 'delete'>('edit');
-  const [canEditProducts, setCanEditProducts] = useState(false);
-  const [canDeleteProducts, setCanDeleteProducts] = useState(false);
-  const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
-
-  // التحقق من الصلاحيات
-  useEffect(() => {
-    const checkPermissions = async () => {
-      setIsCheckingPermissions(true);
-      try {
-        if (isAdmin) {
-          setCanEditProducts(true);
-          setCanDeleteProducts(true);
-        } else if (permissions?.canManageProducts) {
-          setCanEditProducts(true);
-          setCanDeleteProducts(true);
-        } else {
-          const hasEditPermission = await hasPermissions('product', 'edit');
-          const hasDeletePermission = await hasPermissions('product', 'delete');
-          setCanEditProducts(hasEditPermission);
-          setCanDeleteProducts(hasDeletePermission);
-        }
-      } catch (error) {
-        console.error('Error checking permissions:', error);
-        setCanEditProducts(false);
-        setCanDeleteProducts(false);
-      } finally {
-        setIsCheckingPermissions(false);
-      }
-    };
-
-    checkPermissions();
-  }, [isAdmin, permissions]);
+  const canEditProducts = unifiedPerms.ready ? unifiedPerms.anyOf(['editProducts']) : false;
+  const canDeleteProducts = unifiedPerms.ready ? unifiedPerms.anyOf(['deleteProducts']) : false;
+  const canRestoreDraft = unifiedPerms.ready ? unifiedPerms.anyOf(['canRestoreProductDraft', 'editProducts']) : false;
 
   // دالة للحصول على حالة النشر
   const getPublicationStatus = (product: Product) => {
@@ -405,7 +378,7 @@ const ProductsListResponsive: React.FC<ProductsListResponsiveProps> = ({
   };
 
   const handleRevertToDraft = async (product: Product) => {
-    if (!canEditProducts) {
+    if (!canRestoreDraft) {
       setPermissionAlertType('edit');
       setShowPermissionAlert(true);
       return;
@@ -449,7 +422,7 @@ const ProductsListResponsive: React.FC<ProductsListResponsiveProps> = ({
   };
 
   // عرض مؤشر التحميل
-  if (isCheckingPermissions) {
+  if (!unifiedPerms.ready) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="flex flex-col items-center gap-2">
@@ -527,6 +500,7 @@ const ProductsListResponsive: React.FC<ProductsListResponsiveProps> = ({
                 onPreview={handlePreviewProduct}
                 canEdit={canEditProducts}
                 canDelete={canDeleteProducts}
+                canRestoreDraft={canRestoreDraft}
                 getPublicationStatus={getPublicationStatus}
               />
             ))}
@@ -547,6 +521,7 @@ const ProductsListResponsive: React.FC<ProductsListResponsiveProps> = ({
               onPreview={handlePreviewProduct}
               canEdit={canEditProducts}
               canDelete={canDeleteProducts}
+              canRestoreDraft={canRestoreDraft}
               getPublicationStatus={getPublicationStatus}
             />
           ))}
@@ -575,7 +550,7 @@ const ProductsListResponsive: React.FC<ProductsListResponsiveProps> = ({
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="rounded-md h-10 w-10">
-                        <AvatarImage src={product.thumbnail_image} alt={product.name} />
+                        <AvatarImage src={resolveProductImageSrc(product as any)} alt={product.name} />
                         <AvatarFallback className="rounded-md">
                           {product.name.substring(0, 2)}
                         </AvatarFallback>

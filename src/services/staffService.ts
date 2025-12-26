@@ -83,34 +83,17 @@ export const staffService = {
         try {
           const localStaff = await localStaffService.getAll(effectiveOrgId);
           console.log(`[staffService] ✅ تم جلب ${localStaff.length} موظف من PowerSync (Offline-First)`);
-          
-          // محاولة تحديث البيانات من السيرفر في الخلفية (إذا كان متصلاً)
-          if (!isNetworkOffline && isAppOnline()) {
-            try {
-              const { data, error } = await (supabase as any).rpc('get_pos_staff_sessions', {
-                p_organization_id: effectiveOrgId,
-              });
-              
-              if (!error && data && data.length > 0) {
-                // تحديث البيانات المحلية
-                for (const staff of data) {
-                  await localStaffService.upsert(staff, effectiveOrgId);
-                }
-                console.log(`[staffService] 💾 تم تحديث ${data.length} موظف من السيرفر`);
-                return data as POSStaffSession[];
-              }
-            } catch (syncError) {
-              console.warn('[staffService] ⚠️ فشل تحديث البيانات من السيرفر:', syncError);
-            }
-          }
-          
+
+          // ⚡ PowerSync يجلب البيانات من السيرفر تلقائياً عبر sync-rules
+          // لا حاجة لجلب البيانات يدوياً من السيرفر - هذا يسبب uploads غير ضرورية!
+
           return localStaff;
         } catch (localError) {
           console.error('[staffService] ❌ فشل الجلب من PowerSync:', localError);
         }
       }
 
-      // Fallback: محاولة الجلب من السيرفر (إذا كان متصلاً)
+      // Fallback: محاولة الجلب من السيرفر مباشرة (إذا فشل PowerSync)
       if (!isNetworkOffline && isAppOnline() && effectiveOrgId) {
         try {
           const { data, error } = await (supabase as any).rpc('get_pos_staff_sessions', {
@@ -118,10 +101,9 @@ export const staffService = {
           });
 
           if (!error && data) {
-            // حفظ البيانات محلياً
-            for (const staff of data) {
-              await localStaffService.upsert(staff, effectiveOrgId);
-            }
+            // ⚡ إرجاع البيانات مباشرة بدون upsert
+            // PowerSync سيجلب البيانات تلقائياً عبر sync-rules
+            console.log(`[staffService] ✅ تم جلب ${data.length} موظف من السيرفر (Fallback)`);
             return (data || []) as POSStaffSession[];
           }
         } catch (serverError) {
@@ -760,7 +742,8 @@ export const staffService = {
             organizationId: userData.organization_id,
             staffName: input.staff_name,
             pin: input.pin_code,
-            permissions: input.permissions
+            permissions: input.permissions,
+            isActive: input.is_active,
           });
         }
       } catch {}

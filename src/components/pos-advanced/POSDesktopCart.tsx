@@ -7,6 +7,7 @@ import React, { memo } from 'react';
 import { TitaniumCart } from '@/components/pos-infinity';
 import type { POSMode } from '@/components/pos-infinity/CommandIsland';
 import type { CartItem } from '@/types';
+import type { CartTransferItem } from '@/services/P2PCartService';
 
 interface Tab {
   id: string;
@@ -49,6 +50,8 @@ interface POSDesktopCartProps {
   organizationId?: string;
   orderDraftId?: string;
   onSerialConflict?: (serialNumber: string, conflictType: 'reserved' | 'sold') => void;
+  // 📲 نقل السلة
+  onReceiveCart?: (items: CartTransferItem[], mode: 'add' | 'replace') => void;
 }
 
 const POSDesktopCart = memo<POSDesktopCartProps>(({
@@ -78,7 +81,9 @@ const POSDesktopCart = memo<POSDesktopCartProps>(({
   // ⚡ Offline Props
   organizationId,
   orderDraftId,
-  onSerialConflict
+  onSerialConflict,
+  // 📲 نقل السلة
+  onReceiveCart
 }) => {
   return (
     <aside className="hidden lg:flex flex-col h-full order-2">
@@ -111,6 +116,8 @@ const POSDesktopCart = memo<POSDesktopCartProps>(({
           organizationId={organizationId}
           orderDraftId={orderDraftId}
           onSerialConflict={onSerialConflict}
+          // 📲 نقل السلة
+          onReceiveCart={onReceiveCart}
         />
       </div>
     </aside>

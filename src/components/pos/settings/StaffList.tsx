@@ -10,7 +10,8 @@ import StaffTableResponsive from '@/components/staff/StaffTableResponsive';
 import PermissionsDesignerDialog from '@/components/staff/PermissionsDesignerDialog';
 import { inventoryDB } from '@/database/localDb';
 import { useAuth } from '@/context/AuthContext';
-import { updateStaffPinOffline, updateStaffMetadataOffline } from '@/lib/offline/staffCredentials';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
+import { updateStaffMetadataOffline } from '@/lib/offline/staffCredentials';
 import UpdateOfflinePinDialog from '@/components/staff/UpdateOfflinePinDialog';
 
 const StaffList: React.FC = () => {
@@ -24,6 +25,16 @@ const StaffList: React.FC = () => {
   const { organization } = useAuth();
   const [permDialogOpen, setPermDialogOpen] = useState(false);
   const [permTarget, setPermTarget] = useState<POSStaffSession | null>(null);
+  const perms = useUnifiedPermissions();
+
+  const canViewStaff = perms.ready ? perms.anyOf(['canViewStaff', 'canManageStaff']) : false;
+  const canManageStaff = perms.ready ? perms.anyOf(['canManageStaff']) : false;
+  const canAddStaff = perms.ready ? perms.anyOf(['canAddStaff', 'canManageStaff']) : false;
+  const canEditStaff = perms.ready ? perms.anyOf(['canEditStaff', 'canManageStaff']) : false;
+  const canDeleteStaff = perms.ready ? perms.anyOf(['canDeleteStaff', 'canManageStaff']) : false;
+  const canToggleStaffStatus = perms.ready ? perms.anyOf(['canToggleStaffStatus', 'canManageStaff']) : false;
+  const canManageStaffPermissions = perms.ready ? perms.anyOf(['canManageStaffPermissions', 'canManageStaff']) : false;
+  const canUpdateOffline = perms.ready ? perms.anyOf(['canEditStaff', 'canManageStaff']) : false;
 
   // جلب قائمة الموظفين
   const fetchStaff = async () => {
@@ -51,10 +62,13 @@ const StaffList: React.FC = () => {
       const pins = await inventoryDB.staffPins.where('organization_id').equals(orgId).toArray();
       const map: Record<string, 'saved' | 'missing' | 'outdated'> = {};
       for (const s of staffList) {
-        const rec = pins.find(p => p.id === s.id);
+        const rec = pins.find((p: any) => p.staff_id === s.id || p.id === `pin_${s.id}` || p.id === s.id);
         if (!rec) { map[s.id] = 'missing'; continue; }
         const sameName = rec.staff_name === s.staff_name;
-        const samePerms = JSON.stringify(rec.permissions || {}) === JSON.stringify(s.permissions || {});
+        const recPerms = typeof (rec as any).permissions === 'string'
+          ? (() => { try { return JSON.parse((rec as any).permissions); } catch { return {}; } })()
+          : ((rec as any).permissions || {});
+        const samePerms = JSON.stringify(recPerms || {}) === JSON.stringify(s.permissions || {});
         map[s.id] = sameName && samePerms ? 'saved' : 'outdated';
       }
       setOfflineStatus(map);
@@ -69,6 +83,10 @@ const StaffList: React.FC = () => {
 
   // حذف موظف
   const handleDelete = async (id: string) => {
+    if (!canDeleteStaff) {
+      toast.error('لا تملك صلاحية حذف الموظفين');
+      return;
+    }
     if (!confirm('هل أنت متأكد من حذف هذا الموظف؟')) return;
 
     try {
@@ -84,6 +102,10 @@ const StaffList: React.FC = () => {
 
   // تبديل حالة التفعيل
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
+    if (!canToggleStaffStatus) {
+      toast.error('لا تملك صلاحية تفعيل/تعطيل الموظفين');
+      return;
+    }
     try {
       const result = await staffService.toggleActive(id, !currentStatus);
       if (result.success) {
@@ -97,17 +119,29 @@ const StaffList: React.FC = () => {
 
   // تحديث بيانات الأوفلاين (طلب PIN جديد وتحديثه محلياً وعلى السيرفر إن أمكن)
   const handleUpdateOffline = async (staff: POSStaffSession) => {
+    if (!canUpdateOffline) {
+      toast.error('لا تملك صلاحية تحديث بيانات الأوفلاين');
+      return;
+    }
     setTargetStaff(staff);
     setShowUpdateDialog(true);
   };
 
   const handleSyncOfflineMetadata = async () => {
+    if (!canUpdateOffline) {
+      toast.error('لا تملك صلاحية مزامنة بيانات الأوفلاين');
+      return;
+    }
     try {
       if (!organization?.id) return;
       const orgId = organization.id;
       // تحديث metadata (الاسم/الصلاحيات) للسجلات الموجودة فقط
       const pins = await inventoryDB.staffPins.where('organization_id').equals(orgId).toArray();
-      const existingIds = new Set(pins.map(p => p.id));
+      const existingIds = new Set(
+        pins
+          .map((p: any) => p.staff_id || (typeof p.id === 'string' ? p.id.replace(/^pin_/, '') : undefined))
+          .filter(Boolean)
+      );
       let updatedCount = 0;
       for (const s of staffList) {
         if (existingIds.has(s.id)) {
@@ -115,7 +149,8 @@ const StaffList: React.FC = () => {
             staffId: s.id,
             organizationId: orgId,
             staffName: s.staff_name,
-            permissions: s.permissions
+            permissions: s.permissions,
+            isActive: s.is_active,
           });
           updatedCount++;
         }
@@ -148,7 +183,12 @@ const StaffList: React.FC = () => {
                   <RefreshCw className="h-4 w-4 ml-1 sm:ml-2" />
                   <span className="hidden lg:inline">تحديث حالة</span> الأوفلاين
                 </Button>
-                <Button variant="outline" onClick={handleSyncOfflineMetadata} className="text-xs sm:text-sm">
+                <Button
+                  variant="outline"
+                  onClick={handleSyncOfflineMetadata}
+                  className="text-xs sm:text-sm"
+                  disabled={!canUpdateOffline}
+                >
                   <RefreshCw className="h-4 w-4 ml-1 sm:ml-2" />
                   <span className="hidden lg:inline">مزامنة بيانات</span> الأوفلاين
                 </Button>
@@ -160,29 +200,37 @@ const StaffList: React.FC = () => {
                   <RefreshCw className="h-4 w-4 ml-1" />
                   تحديث
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setShowAddDialog(true)}
-                  className="flex-1 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-                >
-                  <Plus className="h-4 w-4 ml-1" />
-                  إضافة موظف
-                </Button>
+                {canAddStaff && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowAddDialog(true)}
+                    className="flex-1 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                  >
+                    <Plus className="h-4 w-4 ml-1" />
+                    إضافة موظف
+                  </Button>
+                )}
               </div>
 
               {/* زر الإضافة للشاشات الكبيرة */}
-              <Button
-                onClick={() => setShowAddDialog(true)}
-                className="hidden md:flex bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-              >
-                <Plus className="ml-2 h-4 w-4" />
-                إضافة موظف
-              </Button>
+              {canAddStaff && (
+                <Button
+                  onClick={() => setShowAddDialog(true)}
+                  className="hidden md:flex bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                >
+                  <Plus className="ml-2 h-4 w-4" />
+                  إضافة موظف
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {!canViewStaff ? (
+            <div className="text-center py-10 text-muted-foreground">
+              لا تملك صلاحية عرض الموظفين.
+            </div>
+          ) : isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map((i) => (
                 <Skeleton key={i} className="h-16 w-full" />
@@ -195,15 +243,21 @@ const StaffList: React.FC = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 ابدأ بإضافة موظفك الأول
               </p>
-              <Button onClick={() => setShowAddDialog(true)}>
-                <Plus className="ml-2 h-4 w-4" />
-                إضافة موظف
-              </Button>
+              {canAddStaff && (
+                <Button onClick={() => setShowAddDialog(true)}>
+                  <Plus className="ml-2 h-4 w-4" />
+                  إضافة موظف
+                </Button>
+              )}
             </div>
           ) : (
             <StaffTableResponsive
               staff={staffList}
               onEdit={(staff) => {
+                if (!canEditStaff) {
+                  toast.error('لا تملك صلاحية تعديل الموظفين');
+                  return;
+                }
                 setEditingStaff(staff);
                 setShowAddDialog(true);
               }}
@@ -211,7 +265,19 @@ const StaffList: React.FC = () => {
               onToggleActive={handleToggleActive}
               offlineStatus={offlineStatus}
               onUpdateOffline={handleUpdateOffline}
-              onCustomizePermissions={(staff) => { setPermTarget(staff); setPermDialogOpen(true); }}
+              onCustomizePermissions={(staff) => {
+                if (!canManageStaffPermissions) {
+                  toast.error('لا تملك صلاحية إدارة الصلاحيات');
+                  return;
+                }
+                setPermTarget(staff);
+                setPermDialogOpen(true);
+              }}
+              canEdit={canEditStaff}
+              canDelete={canDeleteStaff}
+              canToggleActive={canToggleStaffStatus}
+              canManagePermissions={canManageStaffPermissions}
+              canUpdateOffline={canUpdateOffline}
             />
           )}
         </CardContent>
@@ -225,6 +291,7 @@ const StaffList: React.FC = () => {
           fetchStaff();
         }}
         editingStaff={editingStaff || undefined}
+        existingStaff={staffList}
       />
 
       <UpdateOfflinePinDialog

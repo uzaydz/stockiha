@@ -27,7 +27,7 @@ export const coursesList: Course[] = [
     level: 'شامل',
     isFree: true,
     targetAudience: ['مشتركي سطوكيها', 'مشتركي كتوبي'],
-    path: '/dashboard/courses/digital-marketing',
+    path: '/dashboard/courses-operations/digital-marketing',
     status: 'متاح',
     tags: ['فيسبوك', 'إنستقرام', 'إعلانات', 'تسويق رقمي'],
     color: 'bg-blue-500'
@@ -43,7 +43,7 @@ export const coursesList: Course[] = [
     level: 'شامل',
     isFree: true,
     targetAudience: ['مشتركي سطوكيها', 'مشتركي كتوبي'],
-    path: '/dashboard/courses/e-commerce',
+    path: '/dashboard/courses-operations/e-commerce',
     status: 'جديد',
     tags: ['تجارة إلكترونية', 'سطوكيها', 'COD', 'الجزائر'],
     color: 'bg-green-500'
@@ -59,7 +59,7 @@ export const coursesList: Course[] = [
     level: 'مبتدئ',
     isFree: true,
     targetAudience: ['المبتدئين في التجارة الإلكترونية', 'أصحاب الأعمال التقليدية'],
-    path: '/dashboard/courses/e-commerce-store',
+    path: '/dashboard/courses-operations/e-commerce-store',
     status: 'جديد',
     tags: ['سطوكيها', 'إنشاء متجر', 'مبتدئين', 'خطوة بخطوة'],
     color: 'bg-blue-500'
@@ -75,7 +75,7 @@ export const coursesList: Course[] = [
     level: 'شامل',
     isFree: true,
     targetAudience: ['المسوقين الرقميين', 'أصحاب الأعمال', 'المهتمين بالإعلانات الرقمية'],
-    path: '/dashboard/courses/tiktok-marketing',
+    path: '/dashboard/courses-operations/tiktok-marketing',
     status: 'جديد',
     tags: ['تيك توك', 'إعلانات', 'تسويق رقمي', 'سوشيال ميديا'],
     color: 'bg-pink-500'
@@ -91,7 +91,7 @@ export const coursesList: Course[] = [
     level: 'شامل',
     isFree: true,
     targetAudience: ['التجار التقليديين', 'أصحاب المحلات التجارية', 'أصحاب الأعمال الصغيرة'],
-    path: '/dashboard/courses/traditional-business',
+    path: '/dashboard/courses-operations/traditional-business',
     status: 'جديد',
     tags: ['سطوكيها', 'نقطة البيع', 'تحول رقمي', 'تجار تقليديين'],
     color: 'bg-orange-500'
@@ -107,7 +107,7 @@ export const coursesList: Course[] = [
     level: 'شامل',
     isFree: true,
     targetAudience: ['مراكز التصليح', 'مقدمي الخدمات التقنية', 'ورش الإصلاح'],
-    path: '/dashboard/courses/service-providers',
+    path: '/dashboard/courses-operations/service-providers',
     status: 'جديد',
     tags: ['خدمات', 'تصليحات', 'طابور ذكي', 'تتبع', 'SMS'],
     color: 'bg-blue-500'

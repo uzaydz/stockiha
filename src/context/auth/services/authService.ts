@@ -14,6 +14,7 @@ import {
   clearAuthStorageKeepOfflineCredentials,
   saveSessionCache
 } from '../utils/authStorage';
+import { loadSecureSession, hasStoredSecureSession, getSecureSessionMeta } from '../utils/secureSessionStorage';
 import {
   createAuthError,
   handleAuthError,
@@ -132,6 +133,15 @@ export class AuthService {
     this.isSigningIn = true;
 
     try {
+      // 0. احترام علامة explicit logout
+      const hasExplicitLogout = localStorage.getItem('bazaar_explicit_logout') === 'true';
+      if (hasExplicitLogout) {
+        return {
+          success: false,
+          error: createAuthError('تم تسجيل الخروج يدوياً. يلزم تسجيل دخول متصل أولاً.', 'AUTH')
+        };
+      }
+
       // 1. التحقق من أننا فعلاً في وضع عدم الاتصال (أو السماح بذلك قسراً)
       if (navigator.onLine) {
         // يمكننا السماح بذلك كخيار احتياطي حتى لو كنا متصلين
@@ -156,6 +166,41 @@ export class AuthService {
         return {
           success: false,
           error: createAuthError('لا توجد بيانات محفوظة. يرجى الدخول بإنترنت أولاً.', 'AUTH')
+        };
+      }
+
+      // 3.1 التحقق من عمر بيانات الأوفلاين (حماية إضافية)
+      const OFFLINE_MAX_AGE_DAYS = 30;
+      const maxAgeMs = OFFLINE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+      const snapshotAge = Date.now() - (snapshot.lastUpdatedAt || 0);
+      if (!snapshot.lastUpdatedAt || snapshotAge > maxAgeMs) {
+        return {
+          success: false,
+          error: createAuthError('بيانات الدخول الأوفلاين قديمة. يرجى تسجيل الدخول عبر الإنترنت لتحديثها.', 'AUTH')
+        };
+      }
+
+      // 3.2 التحقق من وجود جلسة أوفلاين مشفرة ومطابقة للمستخدم
+      if (!hasStoredSecureSession()) {
+        return {
+          success: false,
+          error: createAuthError('لا توجد جلسة أوفلاين آمنة مخزنة لهذا الجهاز.', 'AUTH')
+        };
+      }
+
+      const secureMeta = getSecureSessionMeta();
+      if (!secureMeta?.userId || secureMeta.userId !== snapshot.user.id) {
+        return {
+          success: false,
+          error: createAuthError('بيانات الأوفلاين لا تطابق هذا الجهاز أو المستخدم.', 'AUTH')
+        };
+      }
+
+      const secureSession = await loadSecureSession();
+      if (!secureSession || secureSession.user?.id !== snapshot.user.id) {
+        return {
+          success: false,
+          error: createAuthError('فشل استعادة جلسة الأوفلاين المشفرة.', 'AUTH')
         };
       }
 
@@ -258,10 +303,11 @@ export class AuthService {
   }
 
   /**
-   * تسجيل الخروج
+   * تسجيل الخروج (مع دعم PowerSync الآمن)
    */
   async signOut(): Promise<void> {
     if (this.isSigningOut) {
+      console.warn('[AuthService] Already signing out, skipping...');
       return;
     }
 
@@ -269,27 +315,54 @@ export class AuthService {
     this.isSigningOut = true;
 
     try {
+      console.log('[AuthService] 🚀 Starting safe logout with PowerSync support...');
+
+      // 1. تسجيل الخروج من Supabase Auth
       const client = await getSupabaseClient();
       const { error } = await client.auth.signOut();
 
       if (error) {
-        if (process.env.NODE_ENV === 'development') {
-        }
+        console.warn('[AuthService] ⚠️ Supabase signOut warning:', error.message);
+      } else {
+        console.log('[AuthService] ✅ Supabase signOut successful');
       }
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-      }
+    } catch (error: any) {
+      console.warn('[AuthService] ⚠️ Supabase signOut error:', error?.message);
     }
 
-    // تنظيف البيانات المحلية مع الاحتفاظ ببيانات الأوفلاين
-    clearAuthStorageKeepOfflineCredentials();
-    sessionManager.clearSessionCache();
-    authSingleton.clearAuth();
+    try {
+      // 2. استخدام PowerSync-Aware Logout Cleaner
+      const { PowerSyncAwareLogoutCleaner } = await import('@/lib/utils/powersync-aware-logout-cleaner');
+
+      console.log('[AuthService] 🧹 Using PowerSync-aware logout cleaner...');
+
+      await PowerSyncAwareLogoutCleaner.performSafeLogout({
+        skipNavigation: true, // لا تنقل، سنترك AuthContext يتعامل مع التنقل
+        showLoading: false,   // لا نظهر loading، الـ UI سيتعامل معه
+        clearPowerSync: true  // ✅ تنظيف PowerSync بطريقة آمنة
+      });
+
+      console.log('[AuthService] ✅ PowerSync-aware cleanup completed');
+
+    } catch (cleanupError: any) {
+      console.error('[AuthService] ❌ PowerSync cleanup error:', cleanupError?.message);
+
+      // Fallback: استخدام التنظيف القديم إذا فشل الجديد
+      console.warn('[AuthService] ⚠️ Falling back to legacy cleanup...');
+      clearAuthStorageKeepOfflineCredentials();
+    }
+
+    // 3. تنظيف إضافي للـ managers
+    try {
+      sessionManager.clearSessionCache();
+      authSingleton.clearAuth();
+    } catch (error: any) {
+      console.warn('[AuthService] ⚠️ Manager cleanup warning:', error?.message);
+    }
 
     trackPerformance('signOut', startTime);
 
-    if (process.env.NODE_ENV === 'development') {
-    }
+    console.log('[AuthService] ✅ Logout completed successfully');
 
     this.isSigningOut = false;
   }

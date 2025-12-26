@@ -17,7 +17,15 @@ export const resolveAssetPath = (assetPath: string): string => {
   const normalized = assetPath.replace(/^\/+/, '');
 
   try {
-    // new URL handles both http(s) and file protocols correctly.
+    const protocol = window.location.protocol;
+    const isHttp = protocol === 'http:' || protocol === 'https:';
+
+    // Web (http/https): always use root-relative paths so deep routes like /dashboard/... don't break assets.
+    if (isHttp) {
+      return `/${normalized}`;
+    }
+
+    // Desktop (file/custom protocols): keep relative paths.
     return new URL(`./${normalized}`, window.location.href).href;
   } catch {
     // Fallback to original path if URL construction fails for any reason.

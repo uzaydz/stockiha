@@ -4,6 +4,9 @@ import { useStaffSession } from '@/context/StaffSessionContext';
 import { useAuth } from '@/context/AuthContext';
 import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
+// ⚡ v3.0: Module-level deduplication للتحكم الشامل
+let _lastLoggedState = '';
+
 /**
  * مكون لتوجيه المستخدمين بعد تسجيل الدخول
  * - للمديرين (admin/owner): يوجههم لصفحة staff-login لاختيار وضع العمل
@@ -18,7 +21,6 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ✅ منع التنقلات المتعددة باستخدام sessionStorage
   const [isInitialized, setIsInitialized] = useState(false);
-  const redirectKeyRef = useRef(`staff_redirect_${Date.now()}`);
 
   useEffect(() => {
     // ✅ انتظار صغير للسماح بتحميل القيم من localStorage
@@ -73,7 +75,10 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
       // فقط المديرين (admin/owner) يحتاجون لاختيار وضع العمل
       const isAdminOrOwner = userRole === 'admin' || userRole === 'owner';
 
-      if (process.env.NODE_ENV === 'development') {
+      // ⚡ v3.0: منع الـ logging المتكرر عبر جميع الـ instances
+      const stateKey = `${isAdminOrOwner}:${!!currentStaff}:${unifiedPerms.isAdminMode}:${unifiedPerms.isStaffMode}`;
+      if (process.env.NODE_ENV === 'development' && _lastLoggedState !== stateKey) {
+        _lastLoggedState = stateKey;
         console.log('[StaffLoginRedirect] 🔍 فحص حالة الموظف:', {
           isAdminOrOwner,
           userRole,

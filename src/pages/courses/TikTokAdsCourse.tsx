@@ -68,6 +68,9 @@ const TikTokAdsCourse: React.FC<TikTokAdsCourseProps> = ({ useStandaloneLayout =
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400">لم يتم العثور على الدورة</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            تأكد من أن الدورة موجودة في قاعدة البيانات بـ slug: tiktok-ads
+          </p>
         </div>
       </div>
     );
@@ -124,7 +127,7 @@ const TikTokAdsCourse: React.FC<TikTokAdsCourseProps> = ({ useStandaloneLayout =
             <TikTokFeatures />
 
             {/* Course Modules */}
-            <CourseModules modules={tiktokAdsCourseData.modules} courseSlug="tiktok-marketing" />
+            <CourseModules modules={tiktokAdsCourseData.modules} courseSlug="tiktok-ads" />
 
             {/* Additional Call to Action */}
             <div className="mt-6">

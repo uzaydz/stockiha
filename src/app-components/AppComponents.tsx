@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useParams, Navigate, BrowserRouter, HashRouter } from 'react-router-dom';
+import { useLocation, useParams, Navigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { getCategoryById, getCategories } from '../lib/api/unified-api';
 import { saveCategoriesToLocalStorage, saveSubcategoriesToLocalStorage, syncCategoriesDataOnStartup } from '../lib/api/categories';
@@ -179,53 +179,30 @@ export const useAppInitialization = () => {
 };
 
 // 🎨 مكون أساسي للتطبيق
+// ⚠️ ملاحظة: تم إزالة Router من هنا لأن AdminApp يوفر BrowserRouter بالفعل في المستوى الأعلى
+// هذا يمنع خطأ "You cannot render a <Router> inside another <Router>"
 export const AppCore = ({ children }: { children: React.ReactNode }) => {
     useAppInitialization();
 
-    // كشف ما إذا كان التطبيق يعمل في Electron (تطبيق مكتبي)
-    const isElectron = typeof window !== 'undefined' && (
-        (window.navigator?.userAgent?.includes('Electron')) ||
-        !!(window as any).electronAPI ||
-        !!(window as any).__ELECTRON__ ||
-        !!(window as any).electron?.isElectron
-    );
-
-    // التطبيق المكتبي هو Electron فقط (Tauri تم إزالته)
-    const isDesktopApp = isElectron;
-
-    // في التطبيق المكتبي استخدم HashRouter لتفادي أخطاء التوجيه
-    // في المتصفح استخدم BrowserRouter كالعادة
-    const Router = isDesktopApp ? HashRouter : BrowserRouter;
-    // في المتصفح، استخدم '/' كـ basename. في التطبيق المكتبي (HashRouter) لا حاجة لbasename
-    const basename = isDesktopApp ? undefined : '/';
-
     return (
-        <Router
-            {...(basename ? { basename } : {})}
-            future={{
-                v7_startTransition: true,
-                v7_relativeSplatPath: true
-            }}
-        >
-            <ThemeProvider>
-                <StaffSessionProvider>
-                    <VirtualNumpadProvider>
-                        <TitlebarProvider>
-                            <SmartProviderWrapper>
-                                {/* Apple-like responsive shell wrapping all legacy content */}
-                                <div className="app-shell">
-                                    <div className="app-shell__content">
-                                        <TabFocusHandler>
-                                            {children}
-                                            <GlobalNumpadManager />
-                                        </TabFocusHandler>
-                                    </div>
+        <ThemeProvider>
+            <StaffSessionProvider>
+                <VirtualNumpadProvider>
+                    <TitlebarProvider>
+                        <SmartProviderWrapper>
+                            {/* Apple-like responsive shell wrapping all legacy content */}
+                            <div className="app-shell">
+                                <div className="app-shell__content">
+                                    <TabFocusHandler>
+                                        {children}
+                                        <GlobalNumpadManager />
+                                    </TabFocusHandler>
                                 </div>
-                            </SmartProviderWrapper>
-                        </TitlebarProvider>
-                    </VirtualNumpadProvider>
-                </StaffSessionProvider>
-            </ThemeProvider>
-        </Router>
+                            </div>
+                        </SmartProviderWrapper>
+                    </TitlebarProvider>
+                </VirtualNumpadProvider>
+            </StaffSessionProvider>
+        </ThemeProvider>
     );
 };

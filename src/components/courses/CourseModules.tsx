@@ -28,10 +28,10 @@ const CourseModules: React.FC<CourseModulesProps> = ({ modules, courseSlug = 'di
       return;
     }
 
-    // Handle TikTok Marketing course modules
-    if (courseSlug === 'tiktok-marketing') {
+    // Handle TikTok Ads course modules (New Unified Player)
+    if (courseSlug === 'tiktok-ads' || courseSlug === 'tiktok-marketing') {
       startTransition(() => {
-        navigate(`/dashboard/courses/tiktok-marketing/module/${moduleId}`);
+        navigate(`/dashboard/courses/tiktok-ads/learn/${moduleId}`);
       });
       return;
     }

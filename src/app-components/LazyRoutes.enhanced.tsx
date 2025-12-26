@@ -16,6 +16,7 @@ export const PricingPage = lazy(() => import('../pages/PricingPage'));
 
 // ============ صفحات التوثيق ============
 export const CustomDomainsDocPage = lazy(() => import('../pages/docs/CustomDomainsDocPage'));
+export const StockihaGuide = lazy(() => import('../pages/StockihaGuideV2'));
 
 // ============ صفحات الشراء والمنتجات ============
 export const ProductPurchase = lazy(() => import('../pages/ProductPurchase'));
@@ -129,6 +130,9 @@ export const Employees = lazy(() => import('../pages/dashboard/Employees'));
 export const OrderDistributionSettings = lazy(() => import('../pages/OrderDistributionSettings'));
 export const ConfirmationCenter = lazy(() => import('../pages/dashboard/ConfirmationCenter'));
 
+// ============ اقتراحات الميزات ============
+export const FeatureSuggestions = lazy(() => import('../pages/FeatureSuggestionsEnhanced'));
+
 // ============ ANALYTICS - صفحة التحليلات الجديدة ============
 export const Analytics = lazy(() =>
   import('../pages/dashboard/Analytics').then(module => {
@@ -176,6 +180,10 @@ export const POSOptimized = lazy(() =>
     import('qrcode.react').catch(() => { });
     return module;
   })
+);
+
+export const POSStocktake = lazy(() =>
+  import('../pages/POSStocktake').then(module => ({ default: module.default }))
 );
 
 export const POSAdvanced = lazy(async () => {
@@ -403,6 +411,7 @@ export const TraditionalBusinessCourse = lazy(() => import('../pages/courses/Tra
 export const ServiceProvidersCourse = lazy(() => import('../pages/courses/ServiceProvidersCourse'));
 export const SystemTrainingCourse = lazy(() => import('../pages/courses/SystemTrainingCourse'));
 export const SystemTrainingStudyPage = lazy(() => import('../pages/courses/SystemTrainingStudyPage'));
+export const TikTokAdsStudyPage = lazy(() => import('../pages/courses/TikTokAdsStudyPage'));
 
 // ============ COURSE MODULES - Use existing paths ============
 // Digital Marketing Modules

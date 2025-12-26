@@ -1,0 +1,90 @@
+# 🚀 Headers محسنة لتحسين نقاط ضغط Gzip
+
+# إعدادات عامة لجميع الملفات
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY  
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# الصفحة الرئيسية والـ HTML
+/*.html
+  Cache-Control: no-cache
+  Vary: Accept-Encoding
+
+/
+  Cache-Control: no-cache
+  Vary: Accept-Encoding
+
+# الملفات الثابتة (JS, CSS) - تخزين طويل المدى مع MIME type صحيح
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/javascript; charset=utf-8
+  Vary: Accept-Encoding
+
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: text/css; charset=utf-8
+  Vary: Accept-Encoding
+
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/javascript; charset=utf-8
+  Vary: Accept-Encoding
+
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: text/css; charset=utf-8
+  Vary: Accept-Encoding
+
+# الخطوط
+/assets/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+# الصور
+/assets/images/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.png
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.jpeg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.webp
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+  Vary: Accept-Encoding
+
+# ملفات البيانات
+/*.json
+  Cache-Control: public, max-age=3600
+  Vary: Accept-Encoding
+
+# ملفات الضغط المسبق
+/*.gz
+  Content-Encoding: gzip
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.br
+  Content-Encoding: br
+  Cache-Control: public, max-age=31536000, immutable
+
+# API
+/api/*
+  Cache-Control: no-cache
+  Vary: Accept-Encoding

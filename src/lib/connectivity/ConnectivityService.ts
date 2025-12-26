@@ -36,6 +36,7 @@ class EnhancedConnectivityService {
   private state: ConnectivityState;
   private config: ConnectivityConfig;
   private listeners = new Set<ConnectivityStateListener>();
+  private activeChecksEnabled = true;
 
   // Timers
   private pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -87,7 +88,27 @@ class EnhancedConnectivityService {
     if (this.started) return;
     this.started = true;
 
-    console.log('[ConnectivityService] Starting enhanced connectivity service v2.1 (Algeria Shield)');
+    // Disable active connectivity checks (ping/captive portal) in web browsers.
+    // This avoids CSP violations and noisy console errors on strict CSP deployments.
+    const isElectron =
+      typeof window !== 'undefined' &&
+      ((window as any).electronAPI !== undefined ||
+        window.navigator?.userAgent?.includes('Electron'));
+    this.activeChecksEnabled = isElectron;
+
+    // Apply ping configuration to the ping service (only used when active checks are enabled)
+    try {
+      if (this.activeChecksEnabled) {
+        multiEndpointPing.setEndpoints(this.config.pingEndpoints);
+        multiEndpointPing.setTimeout(this.config.pingTimeout);
+      }
+    } catch {
+      // Ignore ping config errors
+    }
+
+    if (this.activeChecksEnabled) {
+      console.log('[ConnectivityService] Starting enhanced connectivity service v2.1 (Algeria Shield)');
+    }
 
     // 1. Setup browser event listeners
     if (typeof window !== 'undefined') {
@@ -100,8 +121,8 @@ class EnhancedConnectivityService {
       networkQualityService.subscribe(this.handleNetworkQualityChange);
     }
 
-    // 3. Subscribe to captive portal detection
-    if (this.config.useCaptivePortalDetection) {
+    // 3. Subscribe to captive portal detection (active checks only)
+    if (this.activeChecksEnabled && this.config.useCaptivePortalDetection) {
       captivePortalDetector.subscribe(this.handleCaptivePortalChange);
     }
 
@@ -110,18 +131,34 @@ class EnhancedConnectivityService {
       this.setupElectronListener();
     }
 
-    // 5. Run initial connectivity check
-    void this.runFullCheck();
+    // 5. Run initial connectivity check (active checks only)
+    if (this.activeChecksEnabled) {
+      void this.runFullCheck();
+    } else {
+      // Passive mode: rely on navigator.onLine + events only
+      const nowOnline = typeof navigator !== 'undefined' ? navigator.onLine !== false : false;
+      this.updateState({
+        isOnline: nowOnline,
+        quality: nowOnline ? 'good' : 'offline',
+        source: 'navigator',
+      });
+    }
 
     // 6. Start periodic timers
-    this.startTimers();
+    if (this.activeChecksEnabled) {
+      this.startTimers();
+    }
 
-    console.log('[ConnectivityService] Started with config:', {
-      pingIntervalOnline: this.config.pingIntervalOnline,
-      pingIntervalOffline: this.config.pingIntervalOffline,
-      healthCheckInterval: this.config.healthCheckInterval,
-      failureThreshold: this.config.failureThreshold,
-    });
+    if (this.activeChecksEnabled) {
+      console.log('[ConnectivityService] Started with config:', {
+        pingIntervalOnline: this.config.pingIntervalOnline,
+        pingIntervalOffline: this.config.pingIntervalOffline,
+        healthCheckInterval: this.config.healthCheckInterval,
+        failureThreshold: this.config.failureThreshold,
+      });
+    } else {
+      console.log('[ConnectivityService] Passive mode enabled (no ping checks) - web browser');
+    }
   }
 
   /**
@@ -133,7 +170,9 @@ class EnhancedConnectivityService {
       window.removeEventListener('offline', this.handleOfflineEvent);
     }
 
-    this.stopTimers();
+    if (this.activeChecksEnabled) {
+      this.stopTimers();
+    }
     this.stopElectronListener();
     this.started = false;
     console.log('[ConnectivityService] Stopped');
@@ -188,6 +227,16 @@ class EnhancedConnectivityService {
    * Force immediate connectivity check
    */
   async forceCheck(): Promise<ConnectivityState> {
+    if (!this.activeChecksEnabled) {
+      const nowOnline = typeof navigator !== 'undefined' ? navigator.onLine !== false : false;
+      this.updateState({
+        isOnline: nowOnline,
+        quality: nowOnline ? 'good' : 'offline',
+        source: 'navigator',
+      });
+      return this.state;
+    }
+
     console.log('[ConnectivityService] Force check triggered');
     await this.runFullCheck();
     return this.state;
@@ -204,6 +253,11 @@ class EnhancedConnectivityService {
     // Layer 1: Fast browser check first
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       return false;
+    }
+
+    // Passive mode in web: don't perform external pings
+    if (!this.activeChecksEnabled) {
+      return true;
     }
 
     // Layer 2: Check Electron net.isOnline if available (most reliable in desktop)

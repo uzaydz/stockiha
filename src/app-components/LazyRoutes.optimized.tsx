@@ -193,6 +193,7 @@ export const ActivationCodesPage = lazy(() => import('../pages/super-admin/activ
 export const YalidineSyncPage = lazy(() => import('../pages/super-admin/YalidineSyncPage'));
 export const SuperAdminSEO = lazy(() => import('../pages/SuperAdminSEO'));
 export const SuperAdminCourses = lazy(() => import('../pages/SuperAdminCourses'));
+export const SuperAdminFeatureSuggestions = lazy(() => import('../pages/SuperAdminFeatureSuggestions'));
 
 // ============ Super Admin Referrals ============
 export const SuperAdminReferralsDashboard = lazy(() => import('../pages/super-admin/referrals'));

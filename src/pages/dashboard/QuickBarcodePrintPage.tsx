@@ -13,9 +13,10 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { toast } from 'sonner';
-import { Loader2, Search, Filter, SortAsc, SortDesc, Calendar, Hash, Package, Wifi, WifiOff, Printer, Eye } from 'lucide-react';
+import { Loader2, Search, Filter, SortAsc, SortDesc, Calendar, Hash, Package, Wifi, WifiOff, Printer, Eye, X } from 'lucide-react';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 // ⚡ استيراد المكونات الجديدة
-import BarcodePreview from '@/components/barcode/BarcodePreview';
+import BarcodePreviewEnhanced from '@/components/barcode/BarcodePreviewEnhanced';
 import PrintHistory from '@/components/barcode/PrintHistory';
 import KeyboardShortcutsHelp from '@/components/barcode/KeyboardShortcutsHelp';
 import { usePrintShortcuts } from '@/hooks/usePrintShortcuts';
@@ -25,21 +26,25 @@ import JsBarcode from 'jsbarcode';
 import { barcodeTemplates, BarcodeTemplate } from '@/config/barcode-templates';
 // استيراد دالة تحضير قيم الباركود
 import { prepareBarcodeValue, generateBarcodeLocal, generateQRCodeLocal } from '@/lib/barcode-utils';
+import { renderLabelsToHtml, PrintableItem } from '@/utils/barcodeRenderer';
 import { useTenant } from '@/context/TenantContext';
-import { supabase } from '@/lib/supabase';
-// ⚡ استيراد الخدمات الجديدة
-import { useProductsForPrinting, type ProductForBarcode } from '@/hooks/useProductsForPrinting';
+// ⚡ استيراد الخدمات الجديدة المحسّنة
+import {
+  useProductsForBarcodePrintingOffline,
+  type ProductForBarcodePrinting
+} from '@/hooks/useProductsForBarcodePrintingOffline';
 import { tauriPrintService } from '@/services/TauriPrintService';
 import { localBarcodeGenerator } from '@/services/LocalBarcodeGenerator';
 import { isElectronApp, isDesktopApp } from '@/lib/platform';
 import { printSettingsService, type PrintSettings } from '@/services/PrintSettingsService';
 // ⚡ نظام الطباعة الموحد
 import { usePrinter } from '@/hooks/usePrinter';
+// ⚡ مكون Pagination
+import { BarcodePagination } from '@/components/barcode/BarcodePagination';
 
-// استخدام ProductForBarcode من useProductsForPrinting
-// interface ProductForBarcode معرف في useProductsForPrinting.ts
+// ⚡ استخدام ProductForBarcodePrinting من useProductsForBarcodePrintingOffline
 
-interface SelectedProduct extends ProductForBarcode {
+interface SelectedProduct extends ProductForBarcodePrinting {
   selected: boolean;
   print_quantity: number;
   use_stock_quantity: boolean;
@@ -48,7 +53,7 @@ interface SelectedProduct extends ProductForBarcode {
 // إضافة interface للفلاتر والبحث
 interface SearchAndFilter {
   search_query: string;
-  sort_by: 'name' | 'price' | 'stock' | 'created_at' | 'sku';
+  sort_by: 'name' | 'price' | 'stock' | 'sku';
   sort_order: 'asc' | 'desc';
   stock_filter: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
   price_range: {
@@ -63,7 +68,7 @@ interface SearchAndFilter {
 // This helps TypeScript understand the RPC call better.
 // Replace 'public' with your actual schema if it's different.
 type GetProductsRpcArgs = any; // Changed to any to resolve linter issue temporarily
-type GetProductsRpcReturn = ProductForBarcode[];
+type GetProductsRpcReturn = ProductForBarcodePrinting[];
 
 const barcodeTypes = [
   "CODE128", "CODE128A", "CODE128B", "CODE128C",
@@ -92,33 +97,46 @@ export interface FontOption {
   url?: string; // For @import url in print window if it's a web font
 }
 
-// ⚡ خيارات الخطوط - جميعها محلية أو نظام (لا URLs خارجية)
+// ⚡ خيارات الخطوط - جميعها محلية تعمل أوفلاين
 export const fontOptions: FontOption[] = [
+  // === خطوط عربية ===
+  {
+    id: "tajawal",
+    name: "تجوال (Tajawal) ⭐ - الأفضل للعربية",
+    cssValue: "'Tajawal', sans-serif",
+    isRTL: true,
+  },
+  {
+    id: "cairo",
+    name: "القاهرة (Cairo) - عربي أنيق",
+    cssValue: "'Cairo', sans-serif",
+    isRTL: true,
+  },
+  // === خطوط إنجليزية/فرنسية ===
+  {
+    id: "inter",
+    name: "Inter ⭐ - الأفضل للإنجليزية والفرنسية",
+    cssValue: "'Inter', sans-serif",
+  },
+  {
+    id: "roboto",
+    name: "Roboto - عالمي ومتوازن",
+    cssValue: "'Roboto', sans-serif",
+  },
+  // === خطوط النظام (Fallback) ===
   {
     id: "system-ui",
     name: "النظام الافتراضي (System UI)",
-    cssValue: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-  },
-  {
-    id: "tajawal",
-    name: "تجوال (Tajawal) - عربي ⭐",
-    cssValue: "'Tajawal', sans-serif",
-    isRTL: true,
-    // ⚡ خط محلي - يعمل أوفلاين
+    cssValue: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   {
     id: "arial",
-    name: "آريال (Arial)",
+    name: "آريال (Arial) - كلاسيكي",
     cssValue: "Arial, sans-serif",
   },
   {
-    id: "helvetica",
-    name: "هيلفيتيكا (Helvetica)",
-    cssValue: "Helvetica, Arial, sans-serif",
-  },
-  {
     id: "times",
-    name: "تايمز (Times New Roman)",
+    name: "تايمز (Times New Roman) - رسمي",
     cssValue: "'Times New Roman', Times, serif",
   },
   {
@@ -146,22 +164,10 @@ const generateQRCodeForPrint = async (value: string, size: number = 80): Promise
 
 const QuickBarcodePrintPage = () => {
   const { currentOrganization } = useTenant();
-  const [products, setProducts] = useState<SelectedProduct[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<SelectedProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectAll, setSelectAll] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
 
-  // ⚡ نظام الطباعة الموحد
-  const {
-    printHtml,
-    printBarcodes,
-    isElectron: isElectronPrint,
-    selectedPrinter,
-    isPrinting
-  } = usePrinter();
-
-  // إضافة state للبحث والفلترة
+  // ⚡ state للبحث والفلترة
   const [searchAndFilter, setSearchAndFilter] = useState<SearchAndFilter>({
     search_query: '',
     sort_by: 'name',
@@ -172,6 +178,70 @@ const QuickBarcodePrintPage = () => {
       max: ''
     }
   });
+
+  // ⚡ استخدام useDebouncedSearch مثل POS (تأخير 300ms)
+  const {
+    inputValue: searchInput,
+    debouncedValue: debouncedSearchQuery,
+    setInputValue: setSearchInput,
+    clearSearch: clearSearchInput,
+    isSearching
+  } = useDebouncedSearch({
+    delay: 300,
+    onDebouncedChange: (value) => {
+      setSearchAndFilter(prev => ({
+        ...prev,
+        search_query: value
+      }));
+    }
+  });
+
+  // ⚡ جلب المنتجات من PowerSync مع pagination (يعمل offline!)
+  const {
+    products: fetchedProducts,
+    isLoading,
+    error,
+    pagination,
+    goToPage,
+    nextPage,
+    previousPage,
+    setPageSize,
+    refresh,
+    totalCount
+  } = useProductsForBarcodePrintingOffline({
+    initialPageSize: 50,
+    searchQuery: searchAndFilter.search_query,
+    sortBy: searchAndFilter.sort_by as 'name' | 'price' | 'stock' | 'sku',
+    sortOrder: searchAndFilter.sort_order,
+    stockFilter: searchAndFilter.stock_filter,
+    priceMin: searchAndFilter.price_range.min ? parseFloat(searchAndFilter.price_range.min) : null,
+    priceMax: searchAndFilter.price_range.max ? parseFloat(searchAndFilter.price_range.max) : null
+  });
+
+  // ⚡ نظام الطباعة الموحد
+  const {
+    printHtml,
+    printBarcodes,
+    isElectron: isElectronPrint,
+    selectedPrinter,
+    setSelectedPrinter,
+    isPrinting,
+    printers,
+    printTest,
+    fetchPrinters
+  } = usePrinter();
+
+  // ⚡ تحويل المنتجات المجلوبة إلى SelectedProduct مع الاحتفاظ بحالة selected
+  const [printQuantities, setPrintQuantities] = useState<Record<string, { quantity: number; useStock: boolean }>>({});
+
+  const products = useMemo<SelectedProduct[]>(() => {
+    return fetchedProducts.map(p => ({
+      ...p,
+      selected: selectedProductIds.has(p.product_id),
+      print_quantity: printQuantities[p.product_id]?.quantity ?? (p.stock_quantity > 0 ? p.stock_quantity : 1),
+      use_stock_quantity: printQuantities[p.product_id]?.useStock ?? true
+    }));
+  }, [fetchedProducts, selectedProductIds, printQuantities]);
 
   const [printSettings, setPrintSettings] = useState<PrintSettings>({
     label_width: 50,
@@ -187,6 +257,10 @@ const QuickBarcodePrintPage = () => {
     selected_label_size: "50x30",
     selected_template_id: barcodeTemplates[0]?.id || "default",
     font_family_css: fontOptions[0]?.cssValue || "sans-serif",
+    // ⚡ إعدادات الطباعة التلقائية
+    barcode_printer_name: null,
+    silent_print: true,
+    auto_select_printer: true,
   });
 
   // تحميل الإعدادات عند البدء
@@ -216,221 +290,66 @@ const QuickBarcodePrintPage = () => {
     saveSettings();
   }, [printSettings, currentOrganization?.id]);
 
-  // ⚡ state للمعاينة
-  const [showPreview, setShowPreview] = useState(false);
+  // ⚡ جلب قائمة الطابعات عند تحميل الصفحة (في Electron فقط)
+  useEffect(() => {
+    if (isElectronPrint) {
+      fetchPrinters();
+    }
+  }, [isElectronPrint, fetchPrinters]);
+
 
   // ⚡ المنتج المحدد للمعاينة (أول منتج محدد)
   const previewProduct = useMemo(() => {
     return products.find(p => p.selected) || products[0];
   }, [products]);
 
-  // ⚡ دالة إعادة الطباعة من السجل (يجب أن تكون قبل أي return)
+  // ⚡ دالة إعادة الطباعة من السجل
   const handleReprint = useCallback((productIds: string[]) => {
-    setProducts(prev => prev.map(p => ({
-      ...p,
-      selected: productIds.includes(p.product_id)
-    })));
+    setSelectedProductIds(new Set(productIds));
+    setSelectAll(false);
     toast.info(`تم تحديد ${productIds.length} منتج للطباعة`);
   }, []);
 
   // ⚡ اختصارات لوحة المفاتيح (يجب أن تكون قبل أي return)
   const { shortcuts } = usePrintShortcuts({
-    onPrint: () => {}, // سيتم تحديثه لاحقاً
+    onPrint: () => { }, // سيتم تحديثه لاحقاً
     onSelectAll: () => {
       if (!selectAll) handleSelectAll();
     },
     onDeselectAll: () => {
       if (selectAll) handleSelectAll();
     },
-    onPreview: () => setShowPreview(!showPreview),
+    onPreview: () => { }, // Preview functionality can be added later if needed
     enabled: !isLoading && !error
   });
 
-  // دالة الفلترة والبحث
-  const filterAndSortProducts = useCallback((products: SelectedProduct[], filters: SearchAndFilter): SelectedProduct[] => {
-    let filtered = [...products];
-
-    // تطبيق البحث
-    if (filters.search_query.trim()) {
-      const searchTerm = filters.search_query.toLowerCase().trim();
-      filtered = filtered.filter(product =>
-        product.product_name.toLowerCase().includes(searchTerm) ||
-        product.product_sku.toLowerCase().includes(searchTerm) ||
-        (product.product_barcode && product.product_barcode.toLowerCase().includes(searchTerm))
-      );
-    }
-
-    // تطبيق فلتر المخزون
-    switch (filters.stock_filter) {
-      case 'in_stock':
-        filtered = filtered.filter(product => product.stock_quantity > 5);
-        break;
-      case 'low_stock':
-        filtered = filtered.filter(product => product.stock_quantity > 0 && product.stock_quantity <= 5);
-        break;
-      case 'out_of_stock':
-        filtered = filtered.filter(product => product.stock_quantity === 0);
-        break;
-      // 'all' case doesn't need filtering
-    }
-
-    // تطبيق فلتر نطاق السعر
-    if (filters.price_range.min) {
-      const minPrice = parseFloat(filters.price_range.min);
-      if (!isNaN(minPrice)) {
-        filtered = filtered.filter(product => {
-          const price = typeof product.product_price === 'string'
-            ? parseFloat(product.product_price)
-            : product.product_price;
-          return price >= minPrice;
-        });
-      }
-    }
-
-    if (filters.price_range.max) {
-      const maxPrice = parseFloat(filters.price_range.max);
-      if (!isNaN(maxPrice)) {
-        filtered = filtered.filter(product => {
-          const price = typeof product.product_price === 'string'
-            ? parseFloat(product.product_price)
-            : product.product_price;
-          return price <= maxPrice;
-        });
-      }
-    }
-
-    // تطبيق الترتيب
-    filtered.sort((a, b) => {
-      let aValue: any, bValue: any;
-
-      switch (filters.sort_by) {
-        case 'name':
-          aValue = a.product_name.toLowerCase();
-          bValue = b.product_name.toLowerCase();
-          break;
-        case 'price':
-          aValue = typeof a.product_price === 'string' ? parseFloat(a.product_price) : a.product_price;
-          bValue = typeof b.product_price === 'string' ? parseFloat(b.product_price) : b.product_price;
-          break;
-        case 'stock':
-          aValue = a.stock_quantity;
-          bValue = b.stock_quantity;
-          break;
-        case 'sku':
-          aValue = a.product_sku.toLowerCase();
-          bValue = b.product_sku.toLowerCase();
-          break;
-        case 'created_at':
-          // نظراً لأن البيانات لا تحتوي على created_at، سنستخدم الترتيب الحالي
-          return 0;
-        default:
-          return 0;
-      }
-
-      if (filters.sort_order === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
-
-    return filtered;
-  }, []);
-
-  const fetchProductsForBarcode = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // إذا لم تكن المؤسسة معروفة بعد، انتظر حتى تتوفر
-      if (!currentOrganization?.id) {
-        setProducts([]);
-        setIsLoading(false);
-        return;
-      }
-
-      // جلب جميع المنتجات على دفعات 1000 لتجاوز حد Supabase
-      const pageSize = 1000;
-      let offset = 0;
-      let allRows: ProductForBarcode[] = [];
-
-      // المحاولة الأولى: استخدام الدالة المحسنة مع pagination
-      while (true) {
-        const { data: pageData, error: pageError } = await (supabase.rpc as any)(
-          'get_products_for_barcode_printing_enhanced',
-          {
-            p_organization_id: currentOrganization.id,
-            p_search_query: null,
-            p_sort_by: 'name',
-            p_sort_order: 'asc',
-            p_stock_filter: 'all',
-            p_price_min: null,
-            p_price_max: null,
-            p_limit: pageSize,
-            p_offset: offset,
-          }
-        );
-
-        if (pageError) {
-          // في حال عدم توفر الدالة المحسنة، ارجع إلى الدالة المبسطة القديمة (قد تُرجع 1000 فقط)
-          const { data: legacyData, error: legacyError } = await (supabase.rpc as any)(
-            'get_products_for_barcode_printing',
-            { p_organization_id: currentOrganization.id }
-          );
-          if (legacyError) throw legacyError;
-          allRows = Array.isArray(legacyData) ? legacyData : [];
-          break;
-        }
-
-        const rows = Array.isArray(pageData) ? pageData : [];
-        allRows = allRows.concat(rows);
-
-        if (rows.length < pageSize) break;
-        offset += pageSize;
-        // تأخير بسيط لتخفيف الضغط على القاعدة
-        await new Promise((r) => setTimeout(r, 80));
-        // حماية من الحلقات الطويلة جداً (حد أقصى 10000 منتج)
-        if (offset >= 10000) break;
-      }
-
-      const selectableProducts: SelectedProduct[] = allRows.map((p: ProductForBarcode) => ({
-        ...p,
-        selected: false,
-        print_quantity: p.stock_quantity > 0 ? p.stock_quantity : 1,
-        use_stock_quantity: true,
-      }));
-      setProducts(selectableProducts);
-    } catch (err: any) {
-      setError(
-        `حدث خطأ أثناء جلب المنتجات: ${err.message}. تأكد من أن الدالة get_products_for_barcode_printing معرفة في قاعدة البيانات.`
-      );
-      toast.error("فشل جلب المنتجات: " + err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentOrganization?.id]);
-
+  // ⚡ رسالة ترحيب
   useEffect(() => {
-    fetchProductsForBarcode();
-  }, [fetchProductsForBarcode]);
-
-  // تطبيق الفلاتر عند تغيير المنتجات أو الفلاتر
-  useEffect(() => {
-    const filtered = filterAndSortProducts(products, searchAndFilter);
-    setFilteredProducts(filtered);
-    setSelectAll(false); // إعادة تعيين تحديد الكل عند تغيير الفلاتر
-  }, [products, searchAndFilter, filterAndSortProducts]);
-
-  useEffect(() => {
-    // Initial toast message
     toast.info('مرحباً بك في صفحة الطباعة السريعة للباركود!');
   }, []);
 
+  // ⚡ Keyboard shortcuts للبحث
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + F للتركيز على البحث
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        const searchInputEl = document.querySelector<HTMLInputElement>('input[placeholder*="ابحث"]');
+        searchInputEl?.focus();
+      }
+      // Esc لمسح البحث
+      if (e.key === 'Escape' && searchInput) {
+        clearSearchInput();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchInput, clearSearchInput]);
+
   // دوال التعامل مع البحث والفلترة
   const handleSearchChange = (value: string) => {
-    setSearchAndFilter(prev => ({
-      ...prev,
-      search_query: value
-    }));
+    setSearchInput(value);
   };
 
   const handleSortChange = (field: SearchAndFilter['sort_by']) => {
@@ -453,6 +372,7 @@ const QuickBarcodePrintPage = () => {
   };
 
   const clearFilters = () => {
+    clearSearchInput();
     setSearchAndFilter({
       search_query: '',
       sort_by: 'name',
@@ -465,62 +385,62 @@ const QuickBarcodePrintPage = () => {
     });
   };
 
-  const handleSelectProduct = (productId: string) => {
-    setProducts((prevProducts) =>
-      prevProducts.map((p) =>
-        p.product_id === productId ? { ...p, selected: !p.selected } : p
-      )
-    );
-    setSelectAll(false); // Uncheck selectAll if any individual product is deselected
-  };
+  // ⚡ تحديث دوال التحديد لاستخدام selectedProductIds
+  const handleSelectProduct = useCallback((productId: string) => {
+    setSelectedProductIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+    setSelectAll(false);
+  }, []);
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     const newSelectAll = !selectAll;
     setSelectAll(newSelectAll);
-    setProducts((prevProducts) =>
-      prevProducts.map((p) => ({ ...p, selected: newSelectAll }))
-    );
-  };
 
-  const handlePrintQuantityChange = (
-    productId: string,
-    quantity: string
-  ) => {
+    if (newSelectAll) {
+      // تحديد جميع المنتجات في الصفحة الحالية
+      const allIds = new Set(products.map(p => p.product_id));
+      setSelectedProductIds(allIds);
+    } else {
+      // إلغاء تحديد الكل
+      setSelectedProductIds(new Set());
+    }
+  }, [selectAll, products]);
+
+  const handlePrintQuantityChange = useCallback((productId: string, quantity: string) => {
     const numQuantity = parseInt(quantity, 10);
-    setProducts((prevProducts) =>
-      prevProducts.map((p) =>
-        p.product_id === productId
-          ? {
-            ...p,
-            print_quantity:
-              isNaN(numQuantity) || numQuantity < 1 ? 1 : numQuantity,
-            use_stock_quantity: false,
-          }
-          : p
-      )
-    );
-  };
+    setPrintQuantities(prev => ({
+      ...prev,
+      [productId]: {
+        quantity: isNaN(numQuantity) || numQuantity < 1 ? 1 : numQuantity,
+        useStock: false
+      }
+    }));
+  }, []);
 
-  const handleUseStockQuantityChange = (productId: string) => {
-    setProducts((prevProducts) =>
-      prevProducts.map((p) => {
-        if (p.product_id === productId) {
-          const shouldUseStock = !p.use_stock_quantity;
-          return {
-            ...p,
-            use_stock_quantity: shouldUseStock,
-            print_quantity:
-              shouldUseStock
-                ? p.stock_quantity > 0
-                  ? p.stock_quantity
-                  : 1
-                : p.print_quantity,
-          };
-        }
-        return p;
-      })
-    );
-  };
+  const handleUseStockQuantityChange = useCallback((productId: string) => {
+    const product = products.find(p => p.product_id === productId);
+    if (!product) return;
+
+    const currentUseStock = printQuantities[productId]?.useStock ?? true;
+    const newUseStock = !currentUseStock;
+
+    setPrintQuantities(prev => ({
+      ...prev,
+      [productId]: {
+        useStock: newUseStock,
+        quantity: newUseStock
+          ? (product.stock_quantity > 0 ? product.stock_quantity : 1)
+          : (prev[productId]?.quantity ?? 1)
+      }
+    }));
+  }, [products, printQuantities]);
 
   const handlePrintSettingChange = <K extends keyof PrintSettings>(
     key: K,
@@ -581,7 +501,7 @@ const QuickBarcodePrintPage = () => {
       <POSPureLayout>
         <div className="p-6 text-center">
           <p className="text-red-500 mb-4">{error}</p>
-          <Button onClick={fetchProductsForBarcode} className="mt-4">
+          <Button onClick={refresh} className="mt-4">
             إعادة المحاولة
           </Button>
         </div>
@@ -589,10 +509,10 @@ const QuickBarcodePrintPage = () => {
     );
   }
 
-  // ⚡ دالة الطباعة باستخدام Tauri API
+  // ⚡ دالة الطباعة المحسّنة (تدعم Electron و Browser)
   const printViaIframe = async (htmlContent: string): Promise<boolean> => {
     const printContainerId = 'barcode-print-container';
-    console.log('[Print] بدء عملية الطباعة...');
+    console.log('[Print] 🖨️ بدء عملية الطباعة...');
 
     // إزالة container قديم إذا وجد
     const existingContainer = document.getElementById(printContainerId);
@@ -608,51 +528,202 @@ const QuickBarcodePrintPage = () => {
     const printContainer = document.createElement('div');
     printContainer.id = printContainerId;
     printContainer.innerHTML = htmlContent;
-    printContainer.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: white; overflow: auto;';
 
-    // إضافة styles للطباعة
+    // ⚡ تحسين CSS للطباعة الحرارية
+    printContainer.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 99999;
+      background: white;
+      overflow: auto;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    `;
+
+    // إضافة styles محسّنة للطباعة
     const printStyles = document.createElement('style');
     printStyles.id = 'print-styles-temp';
     printStyles.textContent = `
       @media print {
+        /* إخفاء كل شيء ما عدا محتوى الطباعة */
         body > *:not(#${printContainerId}) { display: none !important; }
+
         #${printContainerId} {
           position: static !important;
           width: 100% !important;
           height: auto !important;
           overflow: visible !important;
         }
+
+        /* ⚡ تحسينات للطباعة الحرارية */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+
+        /* تحسين جودة الصور */
+        img {
+          image-rendering: -webkit-optimize-contrast;
+          image-rendering: crisp-edges;
+          image-rendering: pixelated;
+        }
+
+        /* ⚡ منع تقسيم الملصقات والعناصر */
+        .barcode-label {
+          page-break-inside: avoid !important;
+          page-break-after: always;
+          break-inside: avoid !important;
+        }
+        .barcode-label:last-child {
+          page-break-after: auto;
+        }
+        .barcode-label * {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
       }
     `;
     document.head.appendChild(printStyles);
     document.body.appendChild(printContainer);
-    console.log('[Print] تم إنشاء container للطباعة');
+    console.log('[Print] ✅ تم إنشاء container للطباعة');
 
-    // انتظار تحميل المحتوى
-    await new Promise(r => setTimeout(r, 1000));
+    // ⚡ انتظار تحميل جميع الصور
+    const images = printContainer.querySelectorAll('img');
+    if (images.length > 0) {
+      console.log(`[Print] ⏳ انتظار تحميل ${images.length} صورة...`);
+      await Promise.all(
+        Array.from(images).map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve; // تجاهل الأخطاء
+            setTimeout(resolve, 2000); // timeout بعد 2 ثانية
+          });
+        })
+      );
+      console.log('[Print] ✅ تم تحميل جميع الصور');
+    }
 
-    // ⚡ الطباعة باستخدام window.print
-    console.log('[Print] استخدام window.print...');
+    // انتظار إضافي لضمان التحميل الكامل
+    await new Promise(r => setTimeout(r, 500));
+
+    // ⚡ الطباعة
+    console.log('[Print] 🖨️ استدعاء window.print()...');
     try {
       window.focus();
+
+      // ⚡ استخدام window.print() العادي (المتصفح أو Electron)
+      console.log('[Print] 🖨️ استدعاء window.print()...');
       window.print();
-      console.log('[Print] تم استدعاء window.print()');
+
+      console.log('[Print] ✅ تم استدعاء window.print()');
       toast.success('تم فتح نافذة الطباعة');
 
       // إزالة العناصر بعد الطباعة
       setTimeout(() => {
         printContainer.remove();
         printStyles.remove();
+        console.log('[Print] 🗑️ تم تنظيف عناصر الطباعة');
       }, 2000);
 
       return true;
     } catch (error: any) {
-      console.error('[Print Error]', error);
+      console.error('[Print] ❌ خطأ في الطباعة:', error);
       printContainer.remove();
       printStyles.remove();
       toast.error(`خطأ في الطباعة: ${error.message}`);
       return false;
     }
+  };
+
+
+  // ========================================================================
+  // ⚡ دالة توليد رابط المنتج لـ QR Code
+  // ========================================================================
+  const getStoreDomain = (product: SelectedProduct): string => {
+    if (product.organization_domain) return product.organization_domain;
+    if (product.organization_subdomain) return `${product.organization_subdomain}.stockiha.com`;
+    return '';
+  };
+
+  const getProductUrl = (product: SelectedProduct): string => {
+    const slugPart = product.product_slug ? encodeURIComponent(product.product_slug) : product.product_id;
+    const storeDomain = getStoreDomain(product);
+
+    if (storeDomain) {
+      return `https://${storeDomain}/product-purchase-max-v3/${slugPart}`;
+    }
+
+    return `https://stockiha.com/product-purchase-max-v3/${slugPart}`;
+  };
+
+  // ========================================================================
+  // ⚡ توليد HTML مخصص لقالب QR + Barcode - محسّن للمسح السريع
+  // ========================================================================
+  const generateQRPlusBarcodeHtml = async (
+    products: SelectedProduct[],
+    settings: PrintSettings,
+    template: BarcodeTemplate,
+    font: typeof fontOptions[0]
+  ): Promise<string> => {
+    // ⚡ استخدام النظام الجديد المعتمد على React To HTML
+    console.log('[Print] 🎨 Generating HTML using React Renderer');
+
+    const printableItems: PrintableItem[] = [];
+
+    // استخدام Promise.all لتسريع العمليات
+    await Promise.all(products.map(async (product) => {
+      // تحقق من الكمية المطلوبة
+      const count = product.use_stock_quantity
+        ? (product.stock_quantity > 0 ? product.stock_quantity : 1)
+        : product.print_quantity;
+
+      if (count <= 0) return;
+
+      const barcodeValue = product.product_barcode || product.product_sku || product.product_id || '0000';
+      const productUrl = getProductUrl(product);
+
+      // توليد الصور (Base64)
+      const [barcodeUrl, qrUrl] = await Promise.all([
+        generateBarcodeLocal(barcodeValue, 'code128', {
+          displayValue: settings.display_barcode_value,
+          width: 2,
+          height: 50,
+          fontSize: 14
+        }),
+        generateQRCodeLocal(productUrl, { width: 150, height: 150 })
+      ]);
+
+      printableItems.push({
+        templateId: template.id,
+        count: count,
+        props: {
+          product: product,
+          settings: {
+            showPrice: settings.display_price,
+            showName: settings.display_product_name,
+            showStore: settings.display_store_name,
+            showSku: settings.display_sku,
+            showBarcodeValue: settings.display_barcode_value,
+            fontFamily: settings.font_family_css // ⚡ الخط المختار
+          },
+          barcodeUrl: barcodeUrl, // Base64 image
+          qrCodeUrl: qrUrl       // Base64 image
+        }
+      });
+    }));
+
+    // التصيير باستخدام المحرك الجديد
+    return renderLabelsToHtml(printableItems, {
+      labelWidth: Number(settings.label_width),
+      labelHeight: Number(settings.label_height)
+    });
+
   };
 
   const generateAndPrintBarcodes = async () => {
@@ -662,47 +733,53 @@ const QuickBarcodePrintPage = () => {
       return;
     }
 
+    const totalLabels = selectedProducts.reduce((sum, p) => {
+      const count = p.use_stock_quantity
+        ? (p.stock_quantity > 0 ? p.stock_quantity : 1)
+        : p.print_quantity;
+      return sum + count;
+    }, 0);
+
+    toast.loading(`جاري تحضير ${totalLabels} ملصق...`, { id: 'barcode-generation' });
+
     const selectedTemplate = barcodeTemplates.find(t => t.id === printSettings.selected_template_id) || barcodeTemplates[0];
     const selectedFont = fontOptions.find(f => f.cssValue === printSettings.font_family_css) || fontOptions[0];
+
+    // ⚡ توليد HTML الموحد لجميع الحالات
+    const fullHtml = await generateQRPlusBarcodeHtml(selectedProducts, printSettings, selectedTemplate, selectedFont);
 
     // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
     if (isElectronPrint) {
       try {
         toast.info('جاري تحضير الطباعة المباشرة...');
 
-        // تجهيز بيانات الباركود للطباعة المباشرة
-        const barcodeData = selectedProducts.flatMap(product => {
-          const itemsToPrintCount = product.use_stock_quantity
-            ? (product.stock_quantity > 0 ? product.stock_quantity : 1)
-            : product.print_quantity;
+        /* 
+           ملاحظة: عند استخدام customHtml مع UnifiedPrintService، 
+           يتم تجاهل barcodeData الجزئية لأن HTML هو السيد.
+           لذلك نمرر مصفوفة فارغة أو صورية للبيانات، ونعتمد على customHtml.
+        */
 
-          const barcodes = [];
-          for (let i = 0; i < itemsToPrintCount; i++) {
-            barcodes.push({
-              value: product.product_barcode || product.product_sku || product.product_id || 'NO_DATA',
-              productName: printSettings.display_product_name ? product.product_name : undefined,
-              price: printSettings.display_price ? `${product.product_price} DA` : undefined,
-              storeName: printSettings.display_store_name ? product.organization_name : undefined,
-              height: 50,
-              width: 2,
-              showValue: printSettings.display_barcode_value
-            });
-          }
-          return barcodes;
-        });
-
-        const result = await printBarcodes(barcodeData, {
+        // ⚡ نمرر عنصر وهمي لتجاوز التحقق من "empty array" في الـ Main Process
+        // لأننا نستخدم customHtml، فلن يتم استخدام هذه البيانات للطباعة الفعلية
+        const result = await printBarcodes([{ value: '123456789' }], {
           labelSize: {
             width: `${printSettings.label_width}mm`,
             height: `${printSettings.label_height}mm`
           },
+          // نمرر الإعدادات للعلم فقط، لكن HTML هو الذي يحدد المحتوى
           showProductName: printSettings.display_product_name,
           showPrice: printSettings.display_price,
-          showStoreName: printSettings.display_store_name
+          showStoreName: printSettings.display_store_name,
+          showBarcodeValue: printSettings.display_barcode_value,
+          showSku: printSettings.display_sku,
+          templateId: printSettings.selected_template_id,
+          printerName: printSettings.barcode_printer_name || selectedPrinter,
+          silent: printSettings.silent_print,
+          customHtml: fullHtml // ⚡ هنا السحر: نرسل HTML جاهز تماماً
         });
 
         if (result.success) {
-          toast.success('تمت الطباعة بنجاح!');
+          toast.success('تمت الطباعة بنجاح!', { id: 'barcode-generation' });
 
           // حفظ سجل الطباعة
           if (currentOrganization?.id) {
@@ -723,237 +800,26 @@ const QuickBarcodePrintPage = () => {
               'success'
             );
           }
-          return;
+          return; // ⚡ خروج مبكر عند النجاح
         } else {
-          console.warn('[Print] فشلت الطباعة المباشرة، التراجع إلى الطباعة العادية:', result.error);
+          const errorMsg = result.error || 'غير محدد';
+          console.warn('[Print] فشلت الطباعة المباشرة، التراجع إلى الطباعة العادية:', errorMsg);
+          console.warn('[Print] Full result:', result);
+          toast.loading(`تراجع إلى الطباعة العادية... (السبب: ${errorMsg})`, { id: 'barcode-generation' });
         }
       } catch (err) {
         console.warn('[Print] خطأ في الطباعة المباشرة، التراجع إلى الطباعة العادية:', err);
+        console.error('[Print] Error details:', err);
+        toast.loading('جاري التحضير للطباعة العادية...', { id: 'barcode-generation' });
       }
     }
-
-    // ⚡ توليد الباركودات مسبقاً كـ Data URLs (للطباعة العادية)
-    const generateBarcodeDataUrl = (value: string, format: string): string => {
-      try {
-        const canvas = document.createElement('canvas');
-        JsBarcode(canvas, value, {
-          format: format,
-          lineColor: "#000",
-          width: 2,
-          height: 50,
-          displayValue: printSettings.display_barcode_value,
-          fontSize: 10,
-          margin: 5,
-          ...(selectedTemplate.jsBarcodeOptions || {})
-        });
-        return canvas.toDataURL('image/png');
-      } catch (error) {
-        console.warn('[Barcode] فشل توليد الباركود:', value, error);
-        // محاولة CODE128 كـ fallback
-        try {
-          const canvas = document.createElement('canvas');
-          JsBarcode(canvas, value, {
-            format: 'CODE128',
-            lineColor: "#000",
-            width: 2,
-            height: 50,
-            displayValue: printSettings.display_barcode_value,
-            fontSize: 10,
-            margin: 5
-          });
-          return canvas.toDataURL('image/png');
-        } catch (e2) {
-          return '';
-        }
-      }
-    };
-
-    let printHtmlContent = '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>طباعة الباركود</title>';
-
-    // ⚡ تضمين الخطوط المحلية - يعمل أوفلاين
-    let fontImportStyle = '';
-    if (selectedFont && selectedFont.id === 'tajawal') {
-      // خط Tajawal محلي - للعربية
-      fontImportStyle = `
-        @font-face {
-          font-family: 'Tajawal';
-          src: url('/fonts/tajawal-regular.woff2') format('woff2');
-          font-weight: 400;
-          font-style: normal;
-          font-display: swap;
-        }
-        @font-face {
-          font-family: 'Tajawal';
-          src: url('/fonts/tajawal-medium.woff2') format('woff2');
-          font-weight: 500;
-          font-style: normal;
-          font-display: swap;
-        }
-        @font-face {
-          font-family: 'Tajawal';
-          src: url('/fonts/tajawal-bold.woff2') format('woff2');
-          font-weight: 700;
-          font-style: normal;
-          font-display: swap;
-        }
-      `;
-    }
-    // ⚠️ لا نستخدم URLs خارجية للخطوط - جميع الخطوط الأخرى هي خطوط نظام
-
-    printHtmlContent += `<style>
-      ${fontImportStyle}
-      /* Base Print Styles */
-      @media print {
-        @page { size: ${printSettings.label_width}mm ${printSettings.label_height}mm; margin: 0mm; }
-        body {
-          margin: 0;
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: flex-start;
-          align-items: flex-start;
-          gap: 0;
-          font-family: ${printSettings.font_family_css} !important;
-          direction: ${selectedFont?.isRTL ? 'rtl' : 'ltr'};
-        }
-        .barcode-label {
-          width: ${printSettings.label_width}mm !important;
-          height: ${printSettings.label_height}mm !important;
-          page-break-inside: avoid;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          box-sizing: border-box;
-          padding: 1mm;
-          font-family: ${printSettings.font_family_css} !important;
-        }
-        .barcode-label > * {
-           font-family: ${printSettings.font_family_css} !important;
-        }
-        .barcode-label p {
-          margin: 0.2mm 0;
-          font-size: 6pt;
-          text-align: center;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          width: 100%;
-        }
-        .barcode-label .org-name {}
-        .barcode-label .product-name {}
-        .barcode-label .price {}
-        .barcode-label .sku {}
-        .barcode-label svg { max-width: 95% !important; height: auto !important; max-height: 50% !important; margin: 0.5mm auto; display: block;}
-      }
-      ${selectedTemplate.css}
-      
-      /* تحسينات خاصة بالطباعة الحرارية */
-      @media print {
-        .barcode-label.template-qr-plus-barcode .qr-code-container-new svg {
-          /* تحسين جودة الطباعة للطباعة الحرارية */
-          shape-rendering: crispEdges !important;
-          image-rendering: pixelated !important;
-          image-rendering: -moz-crisp-edges !important;
-          image-rendering: crisp-edges !important;
-        }
-      }
-    </style></head><body>`;
-
-    const productUrlBase = (domain: string | null, subdomain: string | null): string => {
-      if (domain) {
-        return `https://${domain}`;
-      }
-      if (subdomain) {
-        return `https://${subdomain}.stockiha.com`;
-      }
-      return 'fallback-base-url.com'; // Fallback if neither is present
-    };
-
-    // ⚡ توليد الباركودات كصور Data URL مسبقاً (لا يحتاج DOM خارجي)
-    for (const product of selectedProducts) {
-      const itemsToPrintCount = product.use_stock_quantity ? (product.stock_quantity > 0 ? product.stock_quantity : 1) : product.print_quantity;
-
-      for (let i = 0; i < itemsToPrintCount; i++) {
-        const baseUrl = productUrlBase(product.organization_domain, product.organization_subdomain);
-        const slugPart = product.product_slug ? encodeURIComponent(product.product_slug) : product.product_id;
-        const productPageUrl = `${baseUrl}/products/${slugPart}`;
-        const isFallbackUrl = baseUrl === 'fallback-base-url.com';
-
-        // تحضير قيمة الباركود
-        const valueToEncodeForBarcode = product.product_barcode || product.product_sku || product.product_id || 'NO_DATA';
-        let barcodeFormatForTemplate = printSettings.barcode_type;
-        if (selectedTemplate.id === 'qr-plus-barcode') {
-          barcodeFormatForTemplate = 'CODE128';
-        }
-        const valueToUse = prepareBarcodeValue(valueToEncodeForBarcode, barcodeFormatForTemplate);
-
-        // توليد صورة الباركود
-        const barcodeDataUrl = generateBarcodeDataUrl(valueToUse, barcodeFormatForTemplate);
-
-        // توليد QR Code إذا لزم الأمر
-        let qrCodeHtml = '';
-        if (selectedTemplate.id === 'qr-plus-barcode' && !isFallbackUrl) {
-          try {
-            const qrDataUrl = await generateQRCodeForPrint(productPageUrl, 80);
-            if (qrDataUrl) {
-              qrCodeHtml = `<img src="${qrDataUrl}" alt="QR Code" style="width: 80px; height: 80px; image-rendering: crisp-edges;" />`;
-            }
-          } catch (e) {
-            console.warn('[QR] فشل توليد QR Code');
-            qrCodeHtml = `<div style="width: 80px; height: 80px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px;">QR</div>`;
-          }
-        }
-
-        if (selectedTemplate.id === 'qr-plus-barcode') {
-          printHtmlContent += `
-            <div class="barcode-label template-${selectedTemplate.id}">
-              ${printSettings.display_store_name ? `<div class="store-name-header-new">${product.organization_name}</div>` : ''}
-              <div class="main-content-wrapper-new">
-                <div class="qr-code-container-new">
-                  ${qrCodeHtml}
-                </div>
-                <div class="product-details-area-new">
-                  <div class="info-table-new">
-                    ${printSettings.display_product_name ?
-              `<div class="info-table-row-new product-name-row-new">
-                        <span class="info-value-new product-name-value-new">${product.product_name}</span>
-                      </div>` : ''}
-                    <div class="info-table-row-new barcode-row-new">
-                      <div class="barcode-svg-container-new">
-                        ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="Barcode" style="max-width: 100%; height: auto;" />` : '<span style="color: red;">خطأ باركود</span>'}
-                      </div>
-                    </div>
-                    ${printSettings.display_price ?
-              `<div class="info-table-row-new price-row-new">
-                        <span class="info-value-new price-value-new">${product.product_price} DA</span>
-                      </div>` : ''}
-                  </div>
-                </div>
-              </div>
-              <div class="site-url-footer-new">${baseUrl}</div>
-            </div>`;
-        } else {
-          // القالب العادي
-          printHtmlContent += `<div class="barcode-label template-${selectedTemplate.id}">
-            ${printSettings.display_store_name ? `<p class="org-name">${product.organization_name}</p>` : ''}
-            ${printSettings.display_product_name ? `<p class="product-name">${product.product_name}</p>` : ''}
-            ${selectedTemplate.id === 'ideal' && (printSettings.display_product_name || printSettings.display_store_name) ? '<div class="divider"></div>' : ''}
-            ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="Barcode" style="max-width: 95%; height: auto; max-height: 50%; margin: 0.5mm auto; display: block;" />` : '<span style="color: red;">خطأ باركود</span>'}
-            ${printSettings.display_price || printSettings.display_sku ?
-              `<div class="price-sku-container">
-                ${printSettings.display_price ? `<p class="price">${product.product_price} DA</p>` : ''}
-                ${printSettings.display_sku ? `<p class="sku">SKU: ${product.product_sku}</p>` : ''}
-              </div>` : ''}
-          </div>`;
-        }
-      }
-    }
-    printHtmlContent += '</body></html>';
 
     // ⚡ استخدام iframe للطباعة (يعمل في Tauri)
-    toast.info('جاري تحضير الطباعة...');
-    const success = await printViaIframe(printHtmlContent);
+    toast.loading('جاري فتح نافذة الطباعة...', { id: 'barcode-generation' });
+    const success = await printViaIframe(fullHtml);
+
+    // ⚡ إخفاء مؤشر التحميل
+    toast.dismiss('barcode-generation');
 
     // ⚡ حفظ سجل الطباعة
     if (currentOrganization?.id) {
@@ -962,7 +828,7 @@ const QuickBarcodePrintPage = () => {
         name: p.product_name,
         quantity: p.use_stock_quantity ? (p.stock_quantity > 0 ? p.stock_quantity : 1) : p.print_quantity
       }));
-      
+
       await printHistoryService.addPrintRecord(
         currentOrganization.id,
         productsForHistory,
@@ -978,58 +844,16 @@ const QuickBarcodePrintPage = () => {
 
 
   return (
-    <POSPureLayout onRefresh={fetchProductsForBarcode} isRefreshing={isLoading}>
+    <POSPureLayout onRefresh={refresh} isRefreshing={isLoading}>
       <div className="p-4 md:p-6 overflow-y-auto h-full">
         {/* ⚡ العنوان مع الأزرار */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h1 className="text-2xl font-bold">طباعة سريعة للباركود</h1>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPreview(!showPreview)}
-              className="h-8"
-            >
-              <Eye className="h-4 w-4 ml-1" />
-              {showPreview ? 'إخفاء المعاينة' : 'معاينة'}
-            </Button>
             <KeyboardShortcutsHelp shortcuts={shortcuts} />
           </div>
         </div>
 
-        {/* ⚡ قسم المعاينة والسجل */}
-        {showPreview && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {/* معاينة الباركود */}
-            {previewProduct && (
-              <BarcodePreview
-                productName={previewProduct.product_name}
-                productPrice={previewProduct.product_price}
-                productSku={previewProduct.product_sku}
-                productBarcode={previewProduct.product_barcode || ''}
-                storeName={previewProduct.organization_name}
-                barcodeType={printSettings.barcode_type}
-                templateId={printSettings.selected_template_id}
-                showStoreName={printSettings.display_store_name}
-                showProductName={printSettings.display_product_name}
-                showPrice={printSettings.display_price}
-                showSku={printSettings.display_sku}
-                showBarcodeValue={printSettings.display_barcode_value}
-                labelWidth={printSettings.label_width}
-                labelHeight={printSettings.label_height}
-                fontFamily={printSettings.font_family_css}
-              />
-            )}
-            
-            {/* سجل الطباعة */}
-            {currentOrganization?.id && (
-              <PrintHistory
-                organizationId={currentOrganization.id}
-                onReprint={handleReprint}
-              />
-            )}
-          </div>
-        )}
 
         {/* قسم اختيار المنتجات */}
         <div className="mb-8 p-6 bg-background rounded-lg border shadow-sm">
@@ -1046,7 +870,7 @@ const QuickBarcodePrintPage = () => {
                   htmlFor="selectAllProducts"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  تحديد الكل ({products.filter(p => p.selected).length} / {filteredProducts.length})
+                  تحديد الكل ({selectedProductIds.size} / {products.length})
                 </label>
               </div>
             )}
@@ -1059,11 +883,28 @@ const QuickBarcodePrintPage = () => {
               <div className="flex-1 relative">
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="ابحث بالاسم أو SKU أو الباركود..."
-                  value={searchAndFilter.search_query}
+                  placeholder="ابحث بالاسم أو SKU أو الباركود... (Ctrl+F)"
+                  value={searchInput}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pr-10"
+                  className="pr-10 pl-10"
+                  title="اضغط Ctrl+F للتركيز، Esc للمسح"
                 />
+                {/* Loading indicator أثناء الكتابة/البحث */}
+                {isSearching && (
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2" title="جاري البحث...">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  </div>
+                )}
+                {/* زر Clear */}
+                {searchInput && !isSearching && (
+                  <button
+                    onClick={clearSearchInput}
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    title="مسح البحث (Esc)"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
               <Button
                 variant="outline"
@@ -1156,35 +997,117 @@ const QuickBarcodePrintPage = () => {
               </div>
             </div>
 
-            {/* عرض إحصائيات النتائج */}
-            <div className="flex justify-between items-center text-sm text-muted-foreground">
-              <span>
-                عرض {filteredProducts.length} من أصل {products.length} منتج
-              </span>
-              {searchAndFilter.search_query && (
-                <span>نتائج البحث عن: "{searchAndFilter.search_query}"</span>
-              )}
+            {/* عرض إحصائيات النتائج والفلاتر النشطة */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <span>
+                  عرض {products.length} منتج من أصل {totalCount} (صفحة {pagination.currentPage}/{pagination.totalPages})
+                </span>
+              </div>
+
+              {/* عرض الفلاتر النشطة */}
+              <div className="flex flex-wrap items-center gap-2">
+                {searchAndFilter.search_query && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">
+                    <Search className="h-3 w-3" />
+                    <span>بحث: "{searchAndFilter.search_query}"</span>
+                  </div>
+                )}
+                {searchAndFilter.stock_filter !== 'all' && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">
+                    <Package className="h-3 w-3" />
+                    <span>
+                      {searchAndFilter.stock_filter === 'in_stock' && 'متوفر'}
+                      {searchAndFilter.stock_filter === 'low_stock' && 'مخزون منخفض'}
+                      {searchAndFilter.stock_filter === 'out_of_stock' && 'نفذ من المخزون'}
+                    </span>
+                  </div>
+                )}
+                {(searchAndFilter.price_range.min || searchAndFilter.price_range.max) && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">
+                    <Hash className="h-3 w-3" />
+                    <span>
+                      سعر: {searchAndFilter.price_range.min || '0'} - {searchAndFilter.price_range.max || '∞'}
+                    </span>
+                  </div>
+                )}
+                {(searchAndFilter.search_query || searchAndFilter.stock_filter !== 'all' || searchAndFilter.price_range.min || searchAndFilter.price_range.max) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="h-6 px-2 text-xs"
+                  >
+                    <X className="h-3 w-3 ml-1" />
+                    مسح الكل
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
-          {products.length === 0 && !isLoading && (
-            <p className="text-muted-foreground text-center py-8">
-              لم يتم العثور على منتجات. قد تحتاج إلى إضافة منتجات أولاً أو التحقق من الدالة `get_products_for_barcode_printing` في قاعدة البيانات.
-            </p>
+          {/* ⚡ Pagination في الأعلى */}
+          {totalCount > 0 && (
+            <BarcodePagination
+              pagination={pagination}
+              onPageChange={goToPage}
+              onPageSizeChange={setPageSize}
+              onNext={nextPage}
+              onPrevious={previousPage}
+            />
           )}
-          {filteredProducts.length === 0 && products.length > 0 && (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">
-                لا توجد منتجات تطابق معايير البحث والفلترة
+
+          {/* رسالة عدم وجود منتجات في النظام */}
+          {totalCount === 0 && !isLoading && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Package className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">لا توجد منتجات</h3>
+              <p className="text-muted-foreground max-w-md mb-4">
+                لم يتم العثور على أي منتجات في النظام. قد تحتاج إلى إضافة منتجات أولاً أو التأكد من مزامنة PowerSync.
               </p>
-              <Button variant="outline" onClick={clearFilters} className="mt-2">
-                مسح الفلاتر
+              <Button variant="outline" onClick={refresh}>
+                <Search className="h-4 w-4 ml-2" />
+                إعادة المحاولة
               </Button>
             </div>
           )}
-          {filteredProducts.length > 0 && (
-            <div className="max-h-[500px] overflow-y-auto border rounded-md">
+
+          {/* رسالة عدم وجود نتائج بحث */}
+          {products.length === 0 && totalCount > 0 && !isLoading && (
+            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-muted rounded-lg">
+              <Search className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">لا توجد نتائج</h3>
+              <p className="text-muted-foreground max-w-md mb-4">
+                لم نجد أي منتجات تطابق معايير البحث والفلترة الحالية.
+                {searchInput && (
+                  <span className="block mt-2 font-medium">
+                    البحث عن: "{searchInput}"
+                  </span>
+                )}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={clearFilters}>
+                  <X className="h-4 w-4 ml-2" />
+                  مسح الفلاتر
+                </Button>
+                <Button variant="outline" onClick={refresh}>
+                  <Search className="h-4 w-4 ml-2" />
+                  إعادة البحث
+                </Button>
+              </div>
+            </div>
+          )}
+          {products.length > 0 && (
+            <div className="border rounded-md relative">
+              {/* Overlay خفيف فقط أثناء تحميل النتائج (ليس أثناء الكتابة) */}
+              {isLoading && !isSearching && (
+                <div className="absolute inset-0 bg-background/50 backdrop-blur-[2px] z-20 flex items-center justify-center rounded-md">
+                  <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg shadow-lg border">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm font-medium">جاري التحديث...</span>
+                  </div>
+                </div>
+              )}
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
@@ -1233,7 +1156,7 @@ const QuickBarcodePrintPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.map((product) => (
+                  {products.map((product) => (
                     <TableRow key={product.product_id} className={product.selected ? 'bg-muted/50' : ''}>
                       <TableCell>
                         <Checkbox
@@ -1252,12 +1175,12 @@ const QuickBarcodePrintPage = () => {
                         <code className="text-xs">{product.product_sku}</code>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${product.stock_quantity === 0
+                        <span className={`inline - flex items - center px - 2 py - 1 rounded - full text - xs font - medium ${product.stock_quantity === 0
                           ? 'bg-red-100 text-red-800'
                           : product.stock_quantity <= 5
                             ? 'bg-yellow-100 text-yellow-800'
                             : 'bg-green-100 text-green-800'
-                          }`}>
+                          } `}>
                           {product.stock_quantity}
                         </span>
                       </TableCell>
@@ -1291,6 +1214,17 @@ const QuickBarcodePrintPage = () => {
                   ))}
                 </TableBody>
               </Table>
+
+              {/* ⚡ Pagination في الأسفل */}
+              {totalCount > 0 && (
+                <BarcodePagination
+                  pagination={pagination}
+                  onPageChange={goToPage}
+                  onPageSizeChange={setPageSize}
+                  onNext={nextPage}
+                  onPrevious={previousPage}
+                />
+              )}
             </div>
           )}
         </div>
@@ -1405,11 +1339,176 @@ const QuickBarcodePrintPage = () => {
           </div>
         </div>
 
+        {/* ⚡ قسم إعدادات الطابعة - جديد */}
+        <div className="mb-8 p-6 bg-background rounded-lg border shadow-sm">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Printer className="h-5 w-5" />
+            2.5 إعدادات الطابعة
+            {isElectronPrint && (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full ml-2">
+                Electron
+              </span>
+            )}
+          </h2>
+
+          {isElectronPrint ? (
+            <div className="space-y-4">
+              {/* اختيار الطابعة */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="printerSelect" className="flex items-center gap-2">
+                    <Printer className="h-4 w-4" />
+                    اختر الطابعة للباركود
+                  </Label>
+                  <Select
+                    value={printSettings.barcode_printer_name || '__default__'}
+                    onValueChange={(value) => {
+                      const printerName = value === '__default__' ? null : value;
+                      handlePrintSettingChange("barcode_printer_name", printerName);
+                      setSelectedPrinter(value === '__default__' ? '' : value);
+                    }}
+                  >
+                    <SelectTrigger id="printerSelect">
+                      <SelectValue placeholder="اختر الطابعة..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__default__">الطابعة الافتراضية</SelectItem>
+                      {printers.map((printer) => (
+                        <SelectItem key={printer.name} value={printer.name}>
+                          {printer.displayName || printer.name}
+                          {printer.isDefault && ' ⭐ (افتراضية)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {printers.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      لم يتم العثور على طابعات. تأكد من توصيل الطابعة.
+                    </p>
+                  )}
+                </div>
+
+                {/* زر اختبار الطباعة */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Wifi className="h-4 w-4" />
+                    اختبار الطابعة
+                  </Label>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={printTest}
+                    disabled={isPrinting || isLoading}
+                  >
+                    {isPrinting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                        جاري الطباعة...
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="h-4 w-4 ml-2" />
+                        طباعة صفحة اختبار
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    طباعة صفحة اختبار للتأكد من عمل الطابعة بشكل صحيح
+                  </p>
+                </div>
+              </div>
+
+              {/* خيارات الطباعة */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                  <Checkbox
+                    id="silentPrint"
+                    checked={printSettings.silent_print}
+                    onCheckedChange={(checked) => handlePrintSettingChange("silent_print", Boolean(checked))}
+                  />
+                  <Label htmlFor="silentPrint" className="text-sm cursor-pointer">
+                    الطباعة الصامتة (بدون نافذة الطباعة)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                  <Checkbox
+                    id="autoSelectPrinter"
+                    checked={printSettings.auto_select_printer}
+                    onCheckedChange={(checked) => handlePrintSettingChange("auto_select_printer", Boolean(checked))}
+                  />
+                  <Label htmlFor="autoSelectPrinter" className="text-sm cursor-pointer">
+                    اختيار الطابعة تلقائياً
+                  </Label>
+                </div>
+              </div>
+
+              {/* معلومات الطابعة المحددة */}
+              {selectedPrinter && printers.find(p => p.name === selectedPrinter) && (
+                <div className="mt-4 p-3 bg-muted rounded-lg text-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Printer className="h-4 w-4 text-primary" />
+                    <span className="font-medium">الطابعة المحددة:</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    {printers.find(p => p.name === selectedPrinter)?.displayName || selectedPrinter}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed border-muted rounded-lg">
+              <WifiOff className="h-12 w-12 text-muted-foreground mb-3 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">الطباعة المباشرة غير متاحة</h3>
+              <p className="text-muted-foreground max-w-md mb-4">
+                للحصول على أفضل تجربة طباعة مع الطابعات الحرارية، يُرجى استخدام تطبيق سطح المكتب (Electron).
+              </p>
+              <p className="text-xs text-muted-foreground">
+                ستظهر نافذة الطباعة العادية للمتصفح عند الطباعة.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* قسم معاينة الطباعة */}
         <div className="mb-8 p-6 bg-background rounded-lg border shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">3. معاينة الطباعة</h2>
-          <p className="text-muted-foreground">سيتم إنشاء معاينة دقيقة للملصقات في نافذة الطباعة المنبثقة بناءً على الإعدادات والمنتجات المحددة.
-            تأكد من أن أبعاد الملصق ونوع الباركود والقالب والخط صحيحان.</p>
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Eye className="h-5 w-5" />
+            3. معاينة حية للطباعة
+          </h2>
+
+          {previewProduct ? (
+            <div className="flex justify-center">
+              <div className="w-full max-w-2xl">
+                <BarcodePreviewEnhanced
+                  productName={previewProduct.product_name}
+                  productPrice={previewProduct.product_price}
+                  productSku={previewProduct.product_sku}
+                  productBarcode={previewProduct.product_barcode || ''}
+                  productSlug={previewProduct.product_slug || previewProduct.product_id}
+                  storeName={previewProduct.organization_name}
+                  storeDomain={getStoreDomain(previewProduct)}
+                  barcodeType={printSettings.barcode_type}
+                  templateId={printSettings.selected_template_id}
+                  showStoreName={printSettings.display_store_name}
+                  showProductName={printSettings.display_product_name}
+                  showPrice={printSettings.display_price}
+                  showSku={printSettings.display_sku}
+                  showBarcodeValue={printSettings.display_barcode_value}
+                  labelWidth={printSettings.label_width}
+                  labelHeight={printSettings.label_height}
+                  fontFamily={printSettings.font_family_css}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-muted rounded-lg">
+              <Package className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">لا توجد منتجات محددة</h3>
+              <p className="text-muted-foreground max-w-md">
+                حدد منتجاً واحداً على الأقل من القائمة أعلاه لرؤية معاينة حية للباركود
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2">

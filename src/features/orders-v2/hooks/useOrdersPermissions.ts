@@ -3,24 +3,26 @@
  */
 
 import { useMemo } from 'react';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 export interface OrdersPermissions {
   canView: boolean;
   canUpdate: boolean;
   canCancel: boolean;
+  canProcessPayments: boolean;
   canManageGroups: boolean;
   canBulkAssign: boolean;
   isReady: boolean;
 }
 
 export const useOrdersPermissions = (): OrdersPermissions => {
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   return useMemo(() => ({
-    canView: perms.ready ? perms.anyOf(['viewOrders']) : false,
-    canUpdate: perms.ready ? perms.anyOf(['updateOrders', 'manageOrders']) : false,
-    canCancel: perms.ready ? perms.anyOf(['cancelOrders', 'manageOrders']) : false,
+    canView: perms.ready ? perms.anyOf(['viewOrders', 'canViewOnlineOrders', 'canManageOnlineOrders']) : false,
+    canUpdate: perms.ready ? perms.anyOf(['canUpdateOrderStatus', 'canManageOnlineOrders']) : false,
+    canCancel: perms.ready ? perms.anyOf(['canCancelOrders', 'canManageOnlineOrders']) : false,
+    canProcessPayments: perms.ready ? perms.anyOf(['canProcessOrderPayments', 'canManageOnlineOrders']) : false,
     canManageGroups: perms.ready ? perms.anyOf(['canManageOnlineOrderGroups']) : false,
     canBulkAssign: perms.ready ? perms.anyOf(['canManageOnlineOrderGroups']) : false,
     isReady: perms.ready,

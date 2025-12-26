@@ -178,6 +178,11 @@ export const DEFAULT_STATS: OrderStats = {
 // ============================================
 
 export interface ShippingProvider {
+  // UI-friendly fields used by dropdowns/tables
+  code: string;
+  name: string;
+
+  // Backend/RPC fields (kept for compatibility)
   provider_id: string;
   provider_code: string;
   provider_name: string;

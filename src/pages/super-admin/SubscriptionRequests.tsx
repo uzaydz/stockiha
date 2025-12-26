@@ -16,7 +16,7 @@ import {
   Search,
   Loader2
 } from 'lucide-react';
-import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { SuperAdminPureLayout } from '@/components/super-admin-layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -253,7 +253,7 @@ const SubscriptionRequests: React.FC = () => {
   const rejectedCount = requests.filter(r => r.status === 'rejected').length;
 
   return (
-    <SuperAdminLayout>
+    <SuperAdminPureLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -705,7 +705,7 @@ const SubscriptionRequests: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SuperAdminLayout>
+    </SuperAdminPureLayout>
   );
 };
 

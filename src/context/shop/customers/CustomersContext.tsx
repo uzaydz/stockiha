@@ -8,6 +8,9 @@
  * - دعم البحث والفلترة
  */
 
+// ⚡ v3.0: Module-level deduplication للتحكم الشامل
+let _lastLoggedCount = -1;
+
 import React, {
   createContext,
   useContext,
@@ -135,7 +138,11 @@ export const CustomersProvider = React.memo(function CustomersProvider({
           rib: c.rib ?? null,
           address: c.address ?? null
         } as User));
-        console.log(`[CustomersContext] 📦 Loaded ${localCustomers.length} customers from PowerSync`);
+        // ⚡ v3.0: Module-level deduplication - سجل فقط عند تغيير العدد
+        if (_lastLoggedCount !== localCustomers.length) {
+          _lastLoggedCount = localCustomers.length;
+          console.log(`[CustomersContext] 📦 Loaded ${localCustomers.length} customers from PowerSync`);
+        }
       } catch (localError) {
         console.warn('[CustomersContext] ⚠️ Failed to load from PowerSync:', localError);
       }

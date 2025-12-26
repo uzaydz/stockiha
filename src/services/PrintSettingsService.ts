@@ -29,6 +29,10 @@ export interface PrintSettings {
   selected_label_size: string;
   selected_template_id: string;
   font_family_css: string;
+  // ⚡ إعدادات الطباعة التلقائية
+  barcode_printer_name: string | null;
+  silent_print: boolean;
+  auto_select_printer: boolean;
 }
 
 // =====================================================
@@ -49,6 +53,10 @@ const DEFAULT_SETTINGS: PrintSettings = {
   selected_label_size: "50x30",
   selected_template_id: "default",
   font_family_css: "system-ui",
+  // ⚡ إعدادات الطباعة التلقائية (افتراضياً)
+  barcode_printer_name: null, // سيتم اختيار الطابعة الافتراضية تلقائياً
+  silent_print: true, // طباعة صامتة بدون نافذة
+  auto_select_printer: true, // اختيار الطابعة تلقائياً
 };
 
 // =====================================================

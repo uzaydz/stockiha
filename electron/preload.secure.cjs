@@ -752,7 +752,7 @@ const electronAPI = {
      * @param {boolean} [options.showStoreName] - إظهار اسم المتجر
      * @returns {Promise<{success: boolean, error?: string}>}
      */
-    barcode: (options) => {
+    barcode: async (options) => {
       if (!options || typeof options !== 'object') {
         throw new Error('Print options must be an object');
       }
@@ -762,7 +762,28 @@ const electronAPI = {
       if (options.barcodes.length === 0) {
         throw new Error('Barcodes array cannot be empty');
       }
-      return ipcRenderer.invoke('print:barcode', options);
+      console.log('[Preload] 📦 Barcode options:', {
+        barcodesCount: options.barcodes.length,
+        labelSize: options.labelSize,
+        printerName: options.printerName,
+        silent: options.silent,
+        templateId: options.templateId,
+        hasCustomHtml: !!options.customHtml,
+        customHtmlLength: options.customHtml?.length || 0
+      });
+
+      try {
+        console.log('[Preload] 🚀 Calling ipcRenderer.invoke("print:barcode")...');
+        const result = await ipcRenderer.invoke('print:barcode', options);
+        console.log('[Preload] ✅ Got result from main process:', result);
+        return result;
+      } catch (error) {
+        console.error('[Preload] ❌ Error invoking print:barcode:', error);
+        return {
+          success: false,
+          error: error.message || 'IPC communication error'
+        };
+      }
     },
 
     /**

@@ -176,7 +176,7 @@ export default function SuperAdminRoute() {
       setDebugInfo('جاري التحقق من الصلاحيات من الخادم...');
 
       const { data, error } = await supabase
-        .rpc('get_user_basic_info', { p_auth_user_id: user.id });
+        .rpc('get_user_basic_info' as any, { p_auth_user_id: user.id });
 
       if (error) {
         console.error('[SuperAdminRoute] خطأ في التحقق من الصلاحيات:', error);
@@ -188,7 +188,7 @@ export default function SuperAdminRoute() {
           timestamp: now,
         };
       } else if (data && data.length > 0) {
-        const userData = data[0];
+        const userData = data[0] as any;
         const isSuper = userData.is_super_admin === true;
         setIsSuperAdmin(isSuper);
         setAuthError(!isSuper);
@@ -288,22 +288,23 @@ export default function SuperAdminRoute() {
   if (!user) {
     if (process.env.NODE_ENV === 'development') {
     }
-    
-    // إعطاء وقت إضافي لـ AuthContext لتهيئة نفسه
-    if (!user) {
-      return (
-        <div className="flex items-center justify-center h-screen bg-gray-50">
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-600">جاري تهيئة المصادقة...</p>
-            <p className="mt-2 text-sm text-gray-500">يرجى الانتظار</p>
-          </div>
-        </div>
-      );
+
+    // ✅ تقليل وقت الانتظار - إذا لم يكن هناك user بعد isLoading = false، وجّه مباشرة
+    if (!isLoading) {
+      // Not logged in - redirect to super admin login immediately
+      return <Navigate to="/super-admin/login" state={{ from: location }} replace />;
     }
-    
-    // If not logged in, redirect to super admin login
-    return <Navigate to="/super-admin/login" state={{ from: location }} replace />;
+
+    // If still loading, show loading state briefly
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">جاري تهيئة المصادقة...</p>
+          <p className="mt-2 text-sm text-gray-500">يرجى الانتظار</p>
+        </div>
+      </div>
+    );
   }
 
   if (!isSuperAdmin) {

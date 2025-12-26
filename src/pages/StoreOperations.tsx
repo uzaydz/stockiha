@@ -90,12 +90,12 @@ const StoreOperationsPage: React.FC = () => {
       return TAB_CONFIG;
     }
 
-    const canStoreSettings = perms.ready ? perms.anyOf(['manageSettings', 'canViewStoreSettings', 'canManageStoreSettings']) : false;
-    const canComponents = perms.ready ? perms.anyOf(['manageSettings', 'canManageComponents', 'canViewComponents']) : false;
-    const canThemes = perms.ready ? perms.anyOf(['manageSettings', 'canManageThemes', 'canViewThemes']) : false;
-    const canLandingPages = perms.ready ? perms.anyOf(['manageSettings', 'canManageLandingPages', 'canViewLandingPages']) : false;
-    const canThankYou = perms.ready ? perms.anyOf(['manageSettings', 'canManageThankYouPage', 'canViewThankYouPage']) : false;
-    const canDelivery = perms.ready ? perms.anyOf(['manageSettings', 'canManageDelivery', 'canViewDelivery']) : false;
+    const canStoreSettings = perms.ready ? perms.anyOf(['canAccessStoreOperations', 'canViewStoreSettings', 'canManageStoreSettings']) : false;
+    const canComponents = perms.ready ? perms.anyOf(['canAccessStoreOperations', 'canManageComponents', 'canViewComponents']) : false;
+    const canThemes = perms.ready ? perms.anyOf(['canAccessStoreOperations', 'canManageThemes', 'canViewThemes']) : false;
+    const canLandingPages = perms.ready ? perms.anyOf(['canAccessStoreOperations', 'canManageLandingPages', 'canViewLandingPages']) : false;
+    const canThankYou = perms.ready ? perms.anyOf(['canAccessStoreOperations', 'canManageThankYouPage', 'canViewThankYouPage']) : false;
+    const canDelivery = perms.ready ? perms.anyOf(['canAccessStoreOperations', 'canManageDelivery', 'canViewDelivery']) : false;
 
     return TAB_CONFIG.filter(t =>
       (t.id === 'store-settings' && canStoreSettings) ||

@@ -17,11 +17,18 @@ class PrintManager {
     }
 
     initialize() {
+        console.log('[PrintManager] 🚀 Initializing PrintManager...');
         this.createWorkerWindow();
+        console.log('[PrintManager] ✅ PrintManager initialized');
     }
 
     createWorkerWindow() {
-        if (this.workerWindow && !this.workerWindow.isDestroyed()) return;
+        if (this.workerWindow && !this.workerWindow.isDestroyed()) {
+            console.log('[PrintManager] ♻️ Worker window already exists');
+            return;
+        }
+
+        console.log('[PrintManager] 🪟 Creating worker window...');
 
         this.workerWindow = new BrowserWindow({
             width: 800,
@@ -92,13 +99,276 @@ class PrintManager {
     }
 
     /**
+     * ⚡ Fallback: طباعة الباركود باستخدام HTML (نفس طريقة الوصل الناجحة)
+     */
+    async printBarcodeViaHtml(options) {
+        // ⚡ استخراج المعاملات أولاً
+        const {
+            barcodes,
+            printerName,
+            labelSize,
+            showStoreName,
+            showProductName,
+            showPrice,
+            showBarcodeValue = true,
+            showSku = false,
+            templateId = 'default',
+            fontFamily = 'system-ui',
+            barcodeType = 'CODE128',
+            silent,
+            customHtml // ⚡ HTML مخصص للقوالب المعقدة (مثل QR codes)
+        } = options;
+
+        console.log('[PrintManager] 🔄 Using HTML printing for barcodes (same as receipts)');
+        console.log('[PrintManager] Barcode options:', {
+            barcodesCount: barcodes?.length,
+            printerName: printerName,
+            labelSize: labelSize,
+            labelWidth: labelSize?.width,
+            labelHeight: labelSize?.height,
+            templateId: templateId,
+            fontFamily: fontFamily,
+            barcodeType: barcodeType,
+            silent: silent,
+            hasCustomHtml: !!customHtml
+        });
+        console.log('[PrintManager] 📏 Label size will be: width=' + (labelSize?.width || '50mm') + ', height=' + (labelSize?.height || '30mm'));
+
+        // ⚡ إذا كان هناك HTML مخصص، استخدمه مباشرة
+        if (customHtml) {
+            console.log('[PrintManager] 🎨 Using custom HTML for complex template');
+            return await this.printHtml({
+                html: customHtml,
+                printerName,
+                silent: silent !== false,
+                pageSize: {
+                    width: parseInt(labelSize?.width?.replace('mm', '') || '50', 10) * 1000,
+                    height: parseInt(labelSize?.height?.replace('mm', '') || '30', 10) * 1000
+                },
+                margins: { marginType: 'none' }
+            });
+        }
+
+        // بناء HTML للباركودات - مع تطبيق القالب والإعدادات
+        // CSS يختلف حسب القالب المختار
+        let templateCss = '';
+
+        // تطبيق CSS حسب القالب
+        // ⚡ ملاحظة: جميع القوالب تستخدم نفس حجم الملصق المحدد في @page
+        if (templateId === 'classic') {
+            templateCss = `
+                .barcode-label {
+                    padding: 2mm;
+                    border: 0.5px solid #888;
+                    width: ${labelSize?.width || '50mm'};
+                    height: ${labelSize?.height || '30mm'};
+                }
+                .store-name { font-size: 7pt; font-weight: bold; margin-bottom: 1mm; }
+                .product-name { font-size: 8pt; font-weight: bold; margin-bottom: 0.5mm; }
+                .price { font-size: 7pt; margin-top: 0.5mm; }
+                .sku { font-size: 6pt; color: #555; margin-top: 0.5mm; }
+            `;
+        } else if (templateId === 'compact') {
+            templateCss = `
+                .barcode-label {
+                    padding: 1mm;
+                    width: ${labelSize?.width || '50mm'};
+                    height: ${labelSize?.height || '30mm'};
+                }
+                .store-name { display: none; }
+                .product-name { font-size: 7pt; font-weight: bold; margin-bottom: 0.2mm; white-space: normal; line-height: 1.1; }
+                .price { font-size: 6.5pt; font-weight: bold; margin-top: 0.2mm; }
+                .sku { font-size: 5.5pt; color: #333; margin-top: 0.2mm; }
+            `;
+        } else if (templateId === 'ideal') {
+            templateCss = `
+                .barcode-label {
+                    padding: 2.5mm;
+                    width: ${labelSize?.width || '50mm'};
+                    height: ${labelSize?.height || '30mm'};
+                }
+                .store-name { font-size: 5.5pt; color: #333; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1mm; }
+                .product-name { font-size: 8pt; font-weight: 600; margin-bottom: 1mm; line-height: 1.15; }
+                .price { font-size: 7.5pt; font-weight: 600; margin-top: 1mm; }
+                .sku { font-size: 6pt; color: #444; margin-top: 0.5mm; }
+            `;
+        } else {
+            // default template
+            templateCss = `
+                .barcode-label {
+                    padding: 2mm;
+                    width: ${labelSize?.width || '50mm'};
+                    height: ${labelSize?.height || '30mm'};
+                }
+                .store-name { font-size: 6pt; }
+                .product-name { font-size: 7pt; font-weight: bold; }
+                .price { font-size: 7pt; font-weight: bold; }
+                .sku { font-size: 6pt; }
+            `;
+        }
+
+        let html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: ${labelSize?.width || '50mm'} ${labelSize?.height || '30mm'};
+            margin: 0;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: ${fontFamily}, Arial, sans-serif;
+            direction: rtl;
+        }
+        .barcode-label {
+            width: 100%;
+            height: 100%;
+            page-break-after: always;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .barcode-label:last-child {
+            page-break-after: auto;
+        }
+        /* ⚡ منع تقسيم العناصر داخل الملصق */
+        .barcode-label * {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+        .store-name,
+        .product-name,
+        .price,
+        .sku {
+            text-align: center;
+        }
+        .barcode-container {
+            font-family: 'Libre Barcode 128', 'Libre Barcode 128 Text', monospace;
+            font-size: ${barcodeType === 'CODE128' ? '32px' : '28px'};
+            margin: 3px 0;
+            letter-spacing: 0;
+        }
+        ${templateCss}
+    </style>
+</head>
+<body>`;
+
+        // إضافة كل باركود
+        for (const barcode of barcodes) {
+            html += `
+    <div class="barcode-label">`;
+
+            // اسم المتجر
+            if (showStoreName && barcode.storeName) {
+                html += `
+        <div class="store-name">${barcode.storeName}</div>`;
+            }
+
+            // اسم المنتج
+            if (showProductName && barcode.productName) {
+                html += `
+        <div class="product-name">${barcode.productName}</div>`;
+            }
+
+            // الباركود
+            // نستخدم الخط الخاص بالباركود مع القيمة
+            const barcodeDisplay = showBarcodeValue ? `*${barcode.value}*` : `*${barcode.value}*`;
+            html += `
+        <div class="barcode-container">${barcodeDisplay}</div>`;
+
+            // السعر
+            if (showPrice && barcode.price) {
+                html += `
+        <div class="price">${barcode.price}</div>`;
+            }
+
+            // SKU (إذا كان متاحاً)
+            if (showSku && barcode.sku) {
+                html += `
+        <div class="sku">SKU: ${barcode.sku}</div>`;
+            }
+
+            html += `
+    </div>`;
+        }
+
+        html += `
+</body>
+</html>`;
+
+        // تحويل labelSize للتنسيق الصحيح (microns)
+        let finalPageSize;
+        if (labelSize && typeof labelSize === 'object') {
+            const widthStr = labelSize.width || '50mm';
+            const heightStr = labelSize.height || '30mm';
+            const widthMm = parseInt(widthStr.replace('mm', ''), 10);
+            const heightMm = parseInt(heightStr.replace('mm', ''), 10);
+            finalPageSize = {
+                width: widthMm * 1000, // microns
+                height: heightMm * 1000
+            };
+        } else {
+            finalPageSize = {
+                width: 50000, // 50mm
+                height: 30000  // 30mm
+            };
+        }
+
+        // استخدام نفس آلية printHtml الموثوقة
+        console.log('[PrintManager] 📄 Calling printHtml with:', {
+            printerName,
+            silent: silent !== false,
+            pageSize: finalPageSize
+        });
+
+        const result = await this.printHtml({
+            html,
+            printerName,
+            silent: silent !== false,
+            pageSize: finalPageSize,
+            margins: { marginType: 'none' }
+        });
+
+        console.log('[PrintManager] 📄 printHtml result:', result);
+        return result;
+    }
+
+    /**
      * Handle Barcode printing
      */
     async printBarcode(options) {
+        console.log('[PrintManager] 🎯 printBarcode called with options:', {
+            barcodesCount: options.barcodes?.length,
+            labelSize: options.labelSize,
+            printerName: options.printerName,
+            silent: options.silent,
+            templateId: options.templateId,
+            hasCustomHtml: !!options.customHtml,
+            customHtmlLength: options.customHtml?.length || 0
+        });
+
         try {
-            if (!PosPrinter) {
-                throw new Error('POS Printer not available');
+            // ⚡ PRIORITY 1: إذا كان هناك customHtml (QR templates)، استخدم HTML printing مباشرة
+            if (options.customHtml) {
+                console.log('[PrintManager] 🎨 customHtml detected, using HTML printing directly');
+                return await this.printBarcodeViaHtml(options);
             }
+
+            // ⚡ PRIORITY 2: إذا لم يكن PosPrinter متاحاً، استخدم HTML printing
+            if (!PosPrinter) {
+                console.warn('[PrintManager] ⚠️ PosPrinter not available, using HTML fallback');
+                return await this.printBarcodeViaHtml(options);
+            }
+
+            // ⚡ PRIORITY 3: محاولة Native printing (للقوالب البسيطة فقط)
+            console.log('[PrintManager] ✅ Trying native PosPrinter (simple templates only)');
 
             const { barcodes, printerName, pageSize, silent, labelSize, showStoreName, showProductName, showPrice } = options;
 
@@ -153,22 +423,67 @@ class PrintManager {
                 });
             }
 
+            // ⚡ electron-pos-printer يقبل pageSize كـ string (مثل '58mm') أو object
+            let finalPageSize = '58mm'; // القيمة الافتراضية
+
+            if (labelSize && typeof labelSize === 'object') {
+                // إذا كان labelSize مثل { width: '50mm', height: '30mm' }
+                const widthStr = labelSize.width || '50mm';
+                // electron-pos-printer يستخدم العرض فقط للطابعات الحرارية
+                finalPageSize = widthStr;
+            } else if (typeof labelSize === 'string') {
+                finalPageSize = labelSize;
+            } else if (typeof pageSize === 'string') {
+                finalPageSize = pageSize;
+            }
+
+            // ⚠️ IMPORTANT: إذا لم يتم تحديد printerName، سيفتح نافذة الاختيار!
+            const useSilent = silent !== false && printerName; // صامت فقط إذا كانت الطابعة محددة
+
+            const timeOutPerLine = Number.isFinite(options.timeOutPerLine) ? Number(options.timeOutPerLine) : 120;
+
             const printOptions = {
-                preview: silent === false,
-                margin: '2mm',
+                preview: false, // لا معاينة
+                margin: '0mm', // بدون هوامش
                 copies: 1,
-                printerName: printerName || undefined,
-                pageSize: labelSize || pageSize || { width: '50mm', height: '30mm' },
-                silent: silent !== false
+                printerName: printerName, // ⚠️ مهم جداً!
+                pageSize: finalPageSize,
+                silent: useSilent, // صامت فقط مع طابعة محددة
+                // ⚡ تسريع طباعة الباركود (الملصقات عادة قصيرة)
+                timeOutPerLine
             };
 
-            console.log('[PrintManager] Printing barcodes:', barcodes.length);
+            console.log('[PrintManager] 🖨️ Barcode Print Options:', {
+                barcodeCount: barcodes.length,
+                pageSize: finalPageSize,
+                printerName: printerName || 'NOT SET ⚠️',
+                silent: useSilent,
+                preview: false
+            });
+
+            console.log('[PrintManager] 📦 Full printOptions object:', JSON.stringify(printOptions, null, 2));
+            console.log('[PrintManager] 📦 Data array length:', data.length);
+
+            if (!printerName) {
+                console.warn('[PrintManager] ⚠️ No printer specified! Print dialog will appear.');
+            }
+
+            console.log('[PrintManager] 🚀 Calling PosPrinter.print()...');
             await PosPrinter.print(data, printOptions);
+            console.log('[PrintManager] ✅ PosPrinter.print() completed successfully');
             return { success: true };
 
         } catch (error) {
-            console.error('[PrintManager] Barcode print failed:', error);
-            return { success: false, error: error.message };
+            console.error('[PrintManager] ❌ Native barcode printing failed:', error);
+            console.log('[PrintManager] 🔄 Falling back to HTML printing...');
+
+            // محاولة HTML printing كـ fallback
+            try {
+                return await this.printBarcodeViaHtml(options);
+            } catch (fallbackError) {
+                console.error('[PrintManager] ❌ HTML fallback also failed:', fallbackError);
+                return { success: false, error: `Native print failed: ${error.message}. HTML fallback also failed: ${fallbackError.message}` };
+            }
         }
     }
 
@@ -353,6 +668,87 @@ class PrintManager {
             console.log('[PrintManager] Using default pageSize (58mm):', finalPageSize);
         }
 
+        // Auto-fit height for thermal widths to avoid large blank space
+        if (
+            finalPageSize &&
+            typeof finalPageSize === 'object' &&
+            typeof finalPageSize.width === 'number' &&
+            typeof finalPageSize.height === 'number'
+        ) {
+            const isThermalWidth = finalPageSize.width <= 100000;
+            const isAutoHeight = finalPageSize.height >= 200000;
+
+            if (isThermalWidth && isAutoHeight) {
+                try {
+                    const measurement = await this.workerWindow.webContents.executeJavaScript(`(() => {
+                        const selectors = [
+                            '#print-root',
+                            '#repair-print-container',
+                            '.receipt-wrapper',
+                            '.receipt-container',
+                            '.repair-receipt'
+                        ];
+                        let target = null;
+                        let usedSelector = 'body';
+
+                        for (const selector of selectors) {
+                            const el = document.querySelector(selector);
+                            if (el) {
+                                target = el;
+                                usedSelector = selector;
+                                break;
+                            }
+                        }
+
+                        const body = document.body;
+                        const doc = document.documentElement;
+
+                        const targetHeight = target
+                            ? Math.max(
+                                target.scrollHeight || 0,
+                                target.offsetHeight || 0,
+                                target.clientHeight || 0,
+                                target.getBoundingClientRect ? Math.ceil(target.getBoundingClientRect().height) : 0
+                              )
+                            : 0;
+
+                        const docHeight = Math.max(
+                            body?.scrollHeight || 0,
+                            body?.offsetHeight || 0,
+                            body?.clientHeight || 0,
+                            doc?.scrollHeight || 0,
+                            doc?.offsetHeight || 0,
+                            doc?.clientHeight || 0
+                        );
+
+                        return {
+                            height: Math.max(targetHeight, docHeight),
+                            targetHeight,
+                            docHeight,
+                            selector: usedSelector,
+                            dpr: window.devicePixelRatio || 1
+                        };
+                    })()`);
+
+                    const heightPx = Math.max(0, Number(measurement?.height) || 0);
+                    const devicePixelRatio = Math.max(1, Number(measurement?.dpr) || 1);
+                    const heightMm = Math.ceil((heightPx / devicePixelRatio) * 25.4 / 96);
+                    const paddedMm = Math.max(10, heightMm + 2);
+                    finalPageSize.height = paddedMm * 1000;
+                    console.log('[PrintManager] Auto-sized thermal height:', {
+                        selector: measurement?.selector,
+                        targetHeight: measurement?.targetHeight,
+                        docHeight: measurement?.docHeight,
+                        heightPx,
+                        heightMm: paddedMm,
+                        heightMicrons: finalPageSize.height
+                    });
+                } catch (error) {
+                    console.warn('[PrintManager] Auto-size thermal height failed:', error);
+                }
+            }
+        }
+
         console.log('[PrintManager] Final print options:', {
             silent,
             printerName,
@@ -375,8 +771,14 @@ class PrintManager {
                     console.log('[PrintManager] ✅ HTML Print success');
                     resolve();
                 } else {
-                    console.error('[PrintManager] ❌ HTML Print failure:', errorType);
-                    reject(new Error(errorType || 'Print failed'));
+                    const errorMessage = errorType || 'Print cancelled or failed';
+                    console.error('[PrintManager] ❌ HTML Print failure:', errorMessage);
+                    console.error('[PrintManager] Print options were:', {
+                        silent: silent !== false,
+                        deviceName: printerName || 'default',
+                        pageSize: finalPageSize
+                    });
+                    reject(new Error(errorMessage));
                 }
             });
         });

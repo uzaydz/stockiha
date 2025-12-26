@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Layout from '@/components/Layout';
 import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
@@ -16,6 +16,7 @@ import {
   Layers,
   RefreshCw 
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 // Import components
 import { ServiceStatsCards, TransactionStatsCards } from '@/components/subscription-services/StatsCards';
@@ -35,7 +36,7 @@ const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
 }) => {
   const { user, organizationId, isLoading } = useUser();
   const { currentOrganization } = useTenant();
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   // Dialog states
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false);
@@ -128,8 +129,14 @@ const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
 
+  const canViewSubscriptionServices = perms.ready ? perms.anyOf(['canViewSubscriptionServices', 'canManageSubscriptionServices', 'viewServices', 'manageServices']) : false;
+  const canCreateSubscriptionService = perms.ready ? perms.anyOf(['canCreateSubscriptionService', 'canManageSubscriptionServices']) : false;
+  const canEditSubscriptionService = perms.ready ? perms.anyOf(['canEditSubscriptionService', 'canManageSubscriptionServices']) : false;
+  const canViewSubscriptionTransactions = perms.ready ? perms.anyOf(['canViewSubscriptionTransactions', 'canManageSubscriptionServices']) : false;
+  const canRefundSubscriptionPayment = perms.ready ? perms.anyOf(['canRefundSubscriptionPayment', 'canManageSubscriptionServices']) : false;
+
   // صلاحيات الوصول: عرض أو إدارة الخدمات
-  if (perms.ready && !perms.anyOf(['viewServices','manageServices'])) {
+  if (perms.ready && !canViewSubscriptionServices) {
     return renderWithLayout(
       <div className="container mx-auto py-10">
         <Alert variant="destructive">
@@ -170,18 +177,20 @@ const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
                   )}
                 </Button>
                 
-                <Button 
-                  onClick={() => setIsAddServiceDialogOpen(true)}
-                  disabled={!organizationId}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  إضافة خدمة جديدة
-                </Button>
+                {canCreateSubscriptionService && (
+                  <Button 
+                    onClick={() => setIsAddServiceDialogOpen(true)}
+                    disabled={!organizationId}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    إضافة خدمة جديدة
+                  </Button>
+                )}
               </>
             )}
             
             {activeTab === 'transactions' && (
-              <Button onClick={fetchTransactions}>
+              <Button onClick={fetchTransactions} disabled={!canViewSubscriptionTransactions}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 تحديث البيانات
               </Button>
@@ -223,12 +232,26 @@ const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
               services={services}
               loading={servicesLoading}
               viewMode={viewMode}
-              onManagePricing={handleManagePricing}
+              onManagePricing={(service) => {
+                if (!canEditSubscriptionService) {
+                  toast.error('لا تملك صلاحية تعديل خدمات الاشتراكات');
+                  return;
+                }
+                handleManagePricing(service);
+              }}
             />
           </TabsContent>
 
           {/* Transactions Tab */}
           <TabsContent value="transactions" className="space-y-6">
+            {!canViewSubscriptionTransactions ? (
+              <Alert variant="destructive">
+                <ShieldAlert className="h-4 w-4" />
+                <AlertTitle>غير مصرح</AlertTitle>
+                <AlertDescription>لا تملك صلاحية عرض معاملات الاشتراكات.</AlertDescription>
+              </Alert>
+            ) : (
+              <>
             {/* Transaction Stats */}
             {transactionStats && <TransactionStatsCards stats={transactionStats} />}
 
@@ -246,11 +269,15 @@ const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
             <TransactionsTable
               transactions={transactions}
               loading={transactionsLoading}
+              canManageAccount={canEditSubscriptionService}
+              canDeleteTransaction={canRefundSubscriptionPayment}
               onTransactionDeleted={(transactionId) => {
                 // إعادة تحميل البيانات والإحصائيات بعد الحذف
                 fetchTransactions();
               }}
             />
+              </>
+            )}
           </TabsContent>
         </Tabs>
 

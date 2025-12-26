@@ -34,7 +34,10 @@ import {
   Hash,
   Layers,
   Tag,
-  Shield
+  Shield,
+  Send,
+  Download,
+  QrCode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +48,8 @@ import type { POSMode } from './CommandIsland';
 import type { SaleType } from '@/lib/pricing/wholesalePricing';
 import { calculateProductPrice, toProductPricingInfo, parseWholesaleTiers, getApplicableTier } from '@/lib/pricing/wholesalePricing';
 import { useCustomShortcuts } from './KeyboardShortcutsManager';
+import { CartTransferButton } from '@/components/pos/cart-transfer';
+import type { CartTransferItem } from '@/services/P2PCartService';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -114,6 +119,8 @@ interface TitaniumCartProps {
   organizationId?: string;
   orderDraftId?: string;
   onSerialConflict?: (serialNumber: string, conflictType: 'reserved' | 'sold') => void;
+  // 📲 نقل السلة بين الأجهزة
+  onReceiveCart?: (items: CartTransferItem[], mode: 'add' | 'replace') => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -748,7 +755,9 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
   // ⚡ Offline Props
   organizationId,
   orderDraftId,
-  onSerialConflict
+  onSerialConflict,
+  // 📲 نقل السلة
+  onReceiveCart
 }) => {
   const theme = THEME[mode];
   const Icon = theme.icon;
@@ -826,6 +835,17 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
 
         {/* Actions */}
         <div className="flex items-center gap-1">
+          {/* 📲 زر نقل السلة */}
+          {onReceiveCart && mode === 'sale' && (
+            <CartTransferButton
+              cartItems={items}
+              onReceiveCart={onReceiveCart}
+              customerName={customerName}
+              variant="icon"
+              size="icon"
+              className="w-8 h-8 rounded-xl text-zinc-500 dark:text-[#8b949e] hover:text-primary dark:hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/20"
+            />
+          )}
           {onHoldCart && (
             <button
               onClick={onHoldCart}
@@ -1130,6 +1150,10 @@ const TitaniumCart: React.FC<TitaniumCartProps> = memo(({
 TitaniumCart.displayName = 'TitaniumCart';
 
 export default TitaniumCart;
+
+
+
+
 
 
 

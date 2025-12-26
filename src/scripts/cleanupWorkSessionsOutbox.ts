@@ -10,15 +10,36 @@
 
 import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
+const cleanupInFlightByOrg = new Map<string, Promise<{
+  success: boolean;
+  removed: number;
+  recreated: number;
+  error?: string;
+}>>();
+const cleanupLastRunByOrg = new Map<string, number>();
+const CLEANUP_DEDUPE_MS = 60 * 1000;
+
 export async function cleanupWorkSessionsOutbox(organizationId: string): Promise<{
   success: boolean;
   removed: number;
   recreated: number;
   error?: string;
 }> {
+  const now = Date.now();
+  const lastRun = cleanupLastRunByOrg.get(organizationId) || 0;
+  if (now - lastRun < CLEANUP_DEDUPE_MS) {
+    return { success: true, removed: 0, recreated: 0 };
+  }
+
+  const inFlight = cleanupInFlightByOrg.get(organizationId);
+  if (inFlight) {
+    return inFlight;
+  }
+
   console.log('[CleanupOutbox] 🧹 بدء تنظيف sync_outbox للجلسات...');
 
-  try {
+  const run = (async () => {
+    try {
     // ⚡ التأكد من تهيئة PowerSync
     if (!powerSyncService.isAvailable()) {
       await powerSyncService.initialize();
@@ -159,7 +180,7 @@ export async function cleanupWorkSessionsOutbox(organizationId: string): Promise
       recreated: recreatedCount
     };
 
-  } catch (error) {
+    } catch (error) {
     console.error('[CleanupOutbox] ❌ خطأ في التنظيف:', error);
     return {
       success: false,
@@ -167,5 +188,15 @@ export async function cleanupWorkSessionsOutbox(organizationId: string): Promise
       recreated: 0,
       error: error instanceof Error ? error.message : String(error)
     };
+    }
+  })();
+
+  cleanupInFlightByOrg.set(organizationId, run);
+  cleanupLastRunByOrg.set(organizationId, now);
+
+  try {
+    return await run;
+  } finally {
+    cleanupInFlightByOrg.delete(organizationId);
   }
 }

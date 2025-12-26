@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Table,
   TableBody,
@@ -54,9 +55,7 @@ import ViewProductDialog from './ViewProductDialog';
 import type { Product } from '@/lib/api/products';
 import { publishProduct, revertProductToDraft } from '@/lib/api/products';
 import { formatPrice } from '@/lib/utils';
-import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
-import { EmployeePermissions } from '@/types/employee';
 import {
   Dialog,
   DialogContent,
@@ -67,12 +66,27 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { ProductFeatures } from '@/components/store/ProductFeatures';
 import { Link, useNavigate } from 'react-router-dom';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
+import { imageOfflineService } from '@/services/ImageOfflineService';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 // import { getProductSlug } from '@/components/store/productUtils';
 
 import '@/styles/products-responsive.css';
+
+const GRID_ITEM_HEIGHT = 360;
+const GRID_OVERSCAN = 4;
+const GRID_VIRTUALIZATION_THRESHOLD = 60;
+
+const getGridColumnsCount = () => {
+  if (typeof window === 'undefined') return 4;
+  const width = window.innerWidth;
+  if (width < 640) return 1;
+  if (width < 1024) return 2;
+  if (width < 1280) return 3;
+  return 4;
+};
 
 interface ProductsListProps {
   products: Product[];
@@ -156,45 +170,253 @@ const ProductsList = ({
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
   const [permissionAlertType, setPermissionAlertType] = useState<'edit' | 'delete'>('edit');
-  const [canEditProducts, setCanEditProducts] = useState(false);
-  const [canDeleteProducts, setCanDeleteProducts] = useState(false);
-  const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
   const [isUpdatingFeatures, setIsUpdatingFeatures] = useState(false);
+  const [cachedImages, setCachedImages] = useState<Record<string, string>>({});
+  const [gridColumns, setGridColumns] = useState(getGridColumnsCount());
+  const gridParentRef = useRef<HTMLDivElement>(null);
 
-  // استدعاء معلومات المستخدم من سياق المصادقة
-  const { user } = useAuth();
   const { currentOrganization } = useTenant();
-  
-  // تعديل آلية التحقق من الصلاحيات
+  const unifiedPerms = useUnifiedPermissions();
+  const canEditProducts = unifiedPerms.ready ? unifiedPerms.anyOf(['editProducts']) : false;
+  const canDeleteProducts = unifiedPerms.ready ? unifiedPerms.anyOf(['deleteProducts']) : false;
+  const canRestoreDraft = unifiedPerms.ready ? unifiedPerms.anyOf(['canRestoreProductDraft', 'editProducts']) : false;
+
   useEffect(() => {
-    if (!user) return;
-    
-    const checkPermissions = async () => {
-      try {
-        setIsCheckingPermissions(true);
-        
-        // استخدام الدالة الموحدة للتحقق من عدة صلاحيات دفعة واحدة
-        const permissionsResult = await hasPermissions(['editProducts', 'deleteProducts'], user.id);
-        
-        setCanEditProducts(permissionsResult.editProducts || false);
-        setCanDeleteProducts(permissionsResult.deleteProducts || false);
-      } catch (error) {
-        // في حالة الخطأ، تحقق مباشرة من البيانات الخام
-        const permissions = user.user_metadata?.permissions || {};
-        const isAdmin = 
-          user.user_metadata?.role === 'admin' || 
-          user.user_metadata?.role === 'owner' || 
-          user.user_metadata?.is_org_admin === true;
-          
-        setCanEditProducts(isAdmin || Boolean(permissions.editProducts) || Boolean(permissions.manageProducts));
-        setCanDeleteProducts(isAdmin || Boolean(permissions.deleteProducts) || Boolean(permissions.manageProducts));
-      } finally {
-        setIsCheckingPermissions(false);
+    const onResize = () => setGridColumns(getGridColumnsCount());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadCachedImages = async () => {
+      if (!products?.length) {
+        if (isMounted) setCachedImages({});
+        return;
       }
+
+      const entries = await Promise.all(
+        products.map(async (product) => {
+          const cached = await imageOfflineService.getCachedImage(product.id);
+          return cached ? [product.id, cached] as const : null;
+        })
+      );
+
+      if (!isMounted) return;
+      const nextMap: Record<string, string> = {};
+      for (const entry of entries) {
+        if (entry) nextMap[entry[0]] = entry[1];
+      }
+      setCachedImages(nextMap);
     };
-    
-    checkPermissions();
-  }, [user]);
+
+    void loadCachedImages();
+    return () => {
+      isMounted = false;
+    };
+  }, [products]);
+
+  const getProductImageSrc = (product: Product): string => {
+    const cached = cachedImages[product.id];
+    if (cached) return cached;
+    return resolveProductImageSrc(product as any);
+  };
+
+  const gridRows = useMemo(() => {
+    const rows: Product[][] = [];
+    for (let i = 0; i < products.length; i += gridColumns) {
+      rows.push(products.slice(i, i + gridColumns));
+    }
+    return rows;
+  }, [products, gridColumns]);
+
+  const gridVirtualizer = useVirtualizer({
+    count: gridRows.length,
+    getScrollElement: () => gridParentRef.current,
+    estimateSize: () => GRID_ITEM_HEIGHT,
+    overscan: GRID_OVERSCAN,
+  });
+
+  const virtualRows = gridVirtualizer.getVirtualItems();
+  const shouldVirtualizeGrid = viewMode === 'grid' && products.length > GRID_VIRTUALIZATION_THRESHOLD;
+
+  const renderGridCard = (product: Product) => (
+    <Card key={product.id} className="h-full flex flex-col overflow-hidden product-card">
+      <CardHeader className="p-3 sm:p-4 pb-2 flex-shrink-0 product-card-header">
+        <div className="aspect-square rounded-md overflow-hidden mb-2 bg-muted">
+          <img
+            src={getProductImageSrc(product)}
+            alt={product.name}
+            className="h-full w-full object-cover transition-all hover:scale-105"
+            loading="lazy"
+          />
+        </div>
+        <CardTitle className="text-sm sm:text-base line-clamp-2 leading-tight">{product.name}</CardTitle>
+        <CardDescription className="text-xs sm:text-sm line-clamp-2 mt-1">
+          {product.description ? product.description.substring(0, 60) : ''}
+          {product.description && product.description.length > 60 ? '...' : ''}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-3 sm:p-4 pt-0 pb-2 flex-shrink-0 product-card-content">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="font-medium text-sm sm:text-base">{formatPrice(product.price)}</div>
+          <StockStatus quantity={product.stock_quantity} />
+        </div>
+        {product.sku && (
+          <div className="text-xs text-muted-foreground mt-1">
+            SKU: {product.sku}
+          </div>
+        )}
+        <div className="mt-2 flex flex-wrap gap-1">
+          {product.category && (
+            <Badge variant="outline" className="text-xs">
+              {(() => {
+                if (typeof product.category === 'string') return product.category;
+                if (typeof product.category === 'object' && 'name' in product.category) {
+                  return (product.category as { name: string }).name;
+                }
+                return '';
+              })()}
+            </Badge>
+          )}
+          <div className="text-xs">
+            {getPublicationStatusBadge(getPublicationStatus(product))}
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="p-3 sm:p-4 pt-2 mt-auto flex-shrink-0 product-card-footer">
+        <div className="flex items-center justify-center gap-2 w-full product-card-buttons">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => handleView(product)}
+                  className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <Eye className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>عرض المنتج</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => handlePreviewProduct(product)}
+                  className="h-8 w-8 p-0 hover:bg-green-100 dark:hover:bg-green-950/20"
+                >
+                  <ExternalLink className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>عرض صفحة الشراء</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {canEditProducts ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Link to={`/dashboard/product/${product.id}`}>
+                      <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(product)}
+                    className="h-8 w-8 p-0 opacity-50 cursor-not-allowed"
+                    disabled
+                  >
+                    <Edit className="h-4 w-4 text-gray-400" />
+                  </Button>
+                )}
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>تعديل المنتج</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {getPublicationStatus(product) === 'draft' && canEditProducts && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handlePublish(product)}
+                    className="h-8 w-8 p-0 hover:bg-green-50 dark:hover:bg-green-950/20"
+                  >
+                    <Upload className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>نشر المنتج</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {getPublicationStatus(product) === 'published' && canRestoreDraft && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRevertToDraft(product)}
+                    className="h-8 w-8 p-0 hover:bg-yellow-50 dark:hover:bg-yellow-950/20"
+                  >
+                    <Undo2 className="h-4 w-4 text-yellow-700 dark:text-yellow-400" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>إرجاع إلى مسودة</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {canDeleteProducts && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(product)}
+                    className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950/20"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>حذف المنتج</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+      </CardFooter>
+    </Card>
+  );
 
   const handleView = (product: Product) => {
     setViewProduct(product);
@@ -269,7 +491,7 @@ const ProductsList = ({
   };
 
   const handleRevertToDraft = async (product: Product) => {
-    if (!canEditProducts) {
+    if (!canRestoreDraft) {
       toast.error("ليس لديك صلاحية تعديل حالة النشر");
       return;
     }
@@ -389,8 +611,8 @@ const ProductsList = ({
     }
   };
 
-  // عرض مؤشر تحميل أثناء التحقق من الصلاحيات
-  if (isCheckingPermissions) {
+  // عرض مؤشر تحميل أثناء تجهيز الصلاحيات
+  if (!unifiedPerms.ready) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="flex flex-col items-center gap-2">
@@ -473,7 +695,7 @@ const ProductsList = ({
                     <TableCell className="sm:table-cell block pb-2 sm:pb-0">
                       <div className="flex items-start gap-3">
                         <Avatar className="rounded-md h-12 w-12 sm:h-9 sm:w-9 flex-shrink-0">
-                          <AvatarImage src={product.thumbnail_image} alt={product.name} />
+                          <AvatarImage src={getProductImageSrc(product)} alt={product.name} />
                           <AvatarFallback className="rounded-md bg-primary/10 text-primary">
                             {product.name.substring(0, 2)}
                           </AvatarFallback>
@@ -633,7 +855,7 @@ const ProductsList = ({
                         )}
 
                         {/* زر إعادة إلى مسودة - يظهر فقط للمنتجات المنشورة */}
-                        {getPublicationStatus(product) === 'published' && canEditProducts && (
+                        {getPublicationStatus(product) === 'published' && canRestoreDraft && (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -681,193 +903,44 @@ const ProductsList = ({
               </TableBody>
             </Table>
           </div>
+        ) : shouldVirtualizeGrid ? (
+          <div
+            ref={gridParentRef}
+            className="h-[calc(100vh-320px)] overflow-auto"
+            style={{ contain: 'strict' }}
+          >
+            <div
+              style={{
+                height: `${gridVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {virtualRows.map((virtualRow) => {
+                const rowProducts = gridRows[virtualRow.index] || [];
+                return (
+                  <div
+                    key={virtualRow.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 p-4">
+                      {rowProducts.map((product) => renderGridCard(product))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 p-4">
-            {products.map((product) => (
-              <Card key={product.id} className="h-full flex flex-col overflow-hidden product-card">
-                <CardHeader className="p-3 sm:p-4 pb-2 flex-shrink-0 product-card-header">
-                  <div className="aspect-square rounded-md overflow-hidden mb-2 bg-muted">
-                    <img
-                      src={product.thumbnail_image}
-                      alt={product.name}
-                      className="h-full w-full object-cover transition-all hover:scale-105"
-                      loading="lazy"
-                    />
-                  </div>
-                  <CardTitle className="text-sm sm:text-base line-clamp-2 leading-tight">{product.name}</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm line-clamp-2 mt-1">
-                    {product.description ? product.description.substring(0, 60) : ''}
-                    {product.description && product.description.length > 60 ? '...' : ''}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4 pt-0 pb-2 flex-shrink-0 product-card-content">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="font-medium text-sm sm:text-base">{formatPrice(product.price)}</div>
-                    <StockStatus quantity={product.stock_quantity} />
-                  </div>
-                  {product.sku && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      SKU: {product.sku}
-                    </div>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {product.category && (
-                      <Badge variant="outline" className="text-xs">
-                        {(() => {
-                          if (typeof product.category === 'string') return product.category;
-                          if (typeof product.category === 'object' && 'name' in product.category) {
-                            return (product.category as { name: string }).name;
-                          }
-                          return '';
-                        })()}
-                      </Badge>
-                    )}
-                    {/* إضافة مؤشر حالة النشر */}
-                    <div className="text-xs">
-                      {getPublicationStatusBadge(getPublicationStatus(product))}
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="p-3 sm:p-4 pt-2 mt-auto flex-shrink-0 product-card-footer">
-                  <div className="flex items-center justify-center gap-2 w-full product-card-buttons">
-                    {/* زر العرض */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleView(product)}
-                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          >
-                            <Eye className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>عرض المنتج</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-
-                    {/* زر العرض المباشر - يفتح صفحة الشراء */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handlePreviewProduct(product)}
-                            className="h-8 w-8 p-0 hover:bg-green-100 dark:hover:bg-green-950/20"
-                          >
-                            <ExternalLink className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>عرض صفحة الشراء</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    
-                    {/* زر التعديل */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          {canEditProducts ? (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              asChild
-                              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                              <Link to={`/dashboard/product/${product.id}`}>
-                                <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                              </Link>
-                            </Button>
-                          ) : (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleEdit(product)}
-                              className="h-8 w-8 p-0 opacity-50 cursor-not-allowed"
-                              disabled
-                            >
-                              <Edit className="h-4 w-4 text-gray-400" />
-                            </Button>
-                          )}
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>تعديل المنتج</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-
-                    {/* زر النشر - يظهر فقط للمنتجات المسودة */}
-                    {getPublicationStatus(product) === 'draft' && canEditProducts && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handlePublish(product)}
-                              className="h-8 w-8 p-0 hover:bg-green-50 dark:hover:bg-green-950/20"
-                            >
-                              <Upload className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>نشر المنتج</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    
-                    {/* زر إعادة إلى مسودة - يظهر فقط للمنتجات المنشورة */}
-                    {getPublicationStatus(product) === 'published' && canEditProducts && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleRevertToDraft(product)}
-                              className="h-8 w-8 p-0 hover:bg-yellow-50 dark:hover:bg-yellow-950/20"
-                            >
-                              <Undo2 className="h-4 w-4 text-yellow-700 dark:text-yellow-400" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>إرجاع إلى مسودة</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    
-                    {/* زر الحذف */}
-                    {canDeleteProducts && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950/20"
-                              onClick={() => handleDelete(product)}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>حذف المنتج</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-
-                  </div>
-                </CardFooter>
-              </Card>
-            ))}
+            {products.map((product) => renderGridCard(product))}
           </div>
         )}
       </div>

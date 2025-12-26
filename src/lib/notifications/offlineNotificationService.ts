@@ -121,6 +121,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 class OfflineNotificationService {
   private static instance: OfflineNotificationService;
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
   private settings: NotificationSettings = DEFAULT_SETTINGS;
   private listeners: Set<(notification: OfflineNotification) => void> = new Set();
   private lowStockInterval: number | null = null;
@@ -148,25 +149,36 @@ class OfflineNotificationService {
       return;
     }
 
+    if (this.initPromise && this.currentOrganizationId === organizationId) {
+      await this.initPromise;
+      return;
+    }
+
     // إذا كان هناك تهيئة سابقة لمؤسسة مختلفة، نظفها
     if (this.initialized && this.currentOrganizationId !== organizationId) {
       this.stop();
     }
 
-    try {
-      this.currentOrganizationId = organizationId;
+    this.initPromise = (async () => {
+      try {
+        this.currentOrganizationId = organizationId;
 
-      // تحميل الإعدادات
-      await this.loadSettings(organizationId);
+        // تحميل الإعدادات
+        await this.loadSettings(organizationId);
 
-      // بدء المراقبة المحلية
-      this.startLocalMonitoring(organizationId);
+        // بدء المراقبة المحلية
+        this.startLocalMonitoring(organizationId);
 
-      this.initialized = true;
-      console.log('[LocalNotifications] ✅ Service initialized (local-only mode)');
-    } catch (error) {
-      console.error('[LocalNotifications] ❌ Initialization error:', error);
-    }
+        this.initialized = true;
+        console.log('[LocalNotifications] ✅ Service initialized (local-only mode)');
+      } catch (error) {
+        console.error('[LocalNotifications] ❌ Initialization error:', error);
+      } finally {
+        this.initPromise = null;
+      }
+    })();
+
+    await this.initPromise;
   }
 
   /**

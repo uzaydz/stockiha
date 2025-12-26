@@ -35,7 +35,7 @@ interface POSAdvancedDialogsProps {
   isPrintDialogOpen: boolean;
   isCalculatorOpen: boolean;
   isQuickExpenseOpen: boolean;
-  
+
   // دوال إدارة النوافذ الحوارية
   setIsVariantDialogOpen: (open: boolean) => void;
   setIsPOSSettingsOpen: (open: boolean) => void;
@@ -44,7 +44,7 @@ interface POSAdvancedDialogsProps {
   setIsPrintDialogOpen: (open: boolean) => void;
   setIsCalculatorOpen: (open: boolean) => void;
   setIsQuickExpenseOpen: (open: boolean) => void;
-  
+
   // بيانات النوافذ الحوارية
   selectedProductForVariant: Product | null;
   setSelectedProductForVariant: (product: Product | null) => void;
@@ -52,7 +52,7 @@ interface POSAdvancedDialogsProps {
   setSelectedRepairOrder: (order: any) => void;
   repairQueuePosition: number;
   setRepairQueuePosition: (position: number) => void;
-  
+
   // بيانات الطباعة
   completedItems: any[];
   completedServices: any[];
@@ -69,12 +69,12 @@ interface POSAdvancedDialogsProps {
   isPartialPayment: boolean;
   considerRemainingAsPartial: boolean;
   subscriptionAccountInfo: any;
-  
+
   // دوال معالجة الأحداث
   handleAddVariantToCart: (
-    product: Product, 
-    colorId?: string, 
-    sizeId?: string, 
+    product: Product,
+    colorId?: string,
+    sizeId?: string,
     variantPrice?: number,
     colorName?: string,
     colorCode?: string,
@@ -82,7 +82,7 @@ interface POSAdvancedDialogsProps {
     variantImage?: string
   ) => void;
   handleRepairServiceSuccess: (orderId: string, trackingCode: string) => Promise<void>;
-  
+
   // دوال مسح البيانات
   clearPrintData: () => void;
 }
@@ -96,7 +96,7 @@ export const POSAdvancedDialogs: React.FC<POSAdvancedDialogsProps> = ({
   isPrintDialogOpen,
   isCalculatorOpen,
   isQuickExpenseOpen,
-  
+
   // دوال إدارة النوافذ الحوارية
   setIsVariantDialogOpen,
   setIsPOSSettingsOpen,
@@ -105,7 +105,7 @@ export const POSAdvancedDialogs: React.FC<POSAdvancedDialogsProps> = ({
   setIsPrintDialogOpen,
   setIsCalculatorOpen,
   setIsQuickExpenseOpen,
-  
+
   // بيانات النوافذ الحوارية
   selectedProductForVariant,
   setSelectedProductForVariant,
@@ -113,7 +113,7 @@ export const POSAdvancedDialogs: React.FC<POSAdvancedDialogsProps> = ({
   setSelectedRepairOrder,
   repairQueuePosition,
   setRepairQueuePosition,
-  
+
   // بيانات الطباعة
   completedItems,
   completedServices,
@@ -130,87 +130,16 @@ export const POSAdvancedDialogs: React.FC<POSAdvancedDialogsProps> = ({
   isPartialPayment,
   considerRemainingAsPartial,
   subscriptionAccountInfo,
-  
+
   // دوال معالجة الأحداث
   handleAddVariantToCart,
   handleRepairServiceSuccess,
-  
+
   // دوال مسح البيانات
   clearPrintData
 }) => {
   // ⚡ نظام الطباعة الموحد
   const { printHtml, isElectron: isElectronPrint, isPrinting } = usePrinter();
-
-  // ⚡ طباعة وصل التصليح
-  const handlePrintRepairReceipt = async () => {
-    const printContainer = document.querySelector('.repair-receipt-print-area');
-    if (!printContainer) {
-      // إذا لم يوجد container محدد، نستخدم window.print كـ fallback
-      if (isElectronPrint) {
-        try {
-          const dialogContent = document.querySelector('[data-repair-print-content]');
-          if (dialogContent) {
-            const result = await printHtml(`
-              <!DOCTYPE html>
-              <html dir="rtl" lang="ar">
-                <head>
-                  <meta charset="UTF-8">
-                  <title>وصل التصليح</title>
-                  <style>
-                    * { box-sizing: border-box; margin: 0; padding: 0; }
-                    body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; }
-                    @page { size: A4; margin: 10mm; }
-                  </style>
-                </head>
-                <body>${dialogContent.innerHTML}</body>
-              </html>
-            `, { silent: false });
-
-            if (result.success) {
-              toast.success('تمت الطباعة بنجاح');
-              return;
-            }
-          }
-        } catch (err) {
-          console.warn('[POSAdvancedDialogs] فشلت الطباعة المباشرة:', err);
-        }
-      }
-      // Fallback
-      window.print();
-      return;
-    }
-
-    // طباعة المحتوى المحدد
-    if (isElectronPrint) {
-      try {
-        const result = await printHtml(`
-          <!DOCTYPE html>
-          <html dir="rtl" lang="ar">
-            <head>
-              <meta charset="UTF-8">
-              <title>وصل التصليح</title>
-              <style>
-                * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; }
-                @page { size: A4; margin: 10mm; }
-              </style>
-            </head>
-            <body>${printContainer.innerHTML}</body>
-          </html>
-        `, { silent: false });
-
-        if (result.success) {
-          toast.success('تمت الطباعة بنجاح');
-          return;
-        }
-      } catch (err) {
-        console.warn('[POSAdvancedDialogs] فشلت الطباعة المباشرة:', err);
-      }
-    }
-
-    // Fallback to window.print
-    window.print();
-  };
 
   return (
     <>
@@ -267,55 +196,16 @@ export const POSAdvancedDialogs: React.FC<POSAdvancedDialogsProps> = ({
         onSuccess={handleRepairServiceSuccess}
       />
 
-      {/* نافذة طباعة وصل التصليح */}
-      <Dialog open={isRepairPrintDialogOpen} onOpenChange={setIsRepairPrintDialogOpen}>
-        <DialogContent 
-          className="max-w-2xl max-h-[85vh] overflow-y-auto p-0"
-        >
-          <div className="bg-white">
-            <div className="p-6 border-b">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">طباعة وصل التصليح</h3>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setIsRepairPrintDialogOpen(false)}
-                >
-                  إغلاق
-                </Button>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {selectedRepairOrder && (
-                <RepairOrderPrint 
-                  order={selectedRepairOrder} 
-                  queuePosition={repairQueuePosition} 
-                />
-              )}
-            </div>
-            
-            <div className="p-6 border-t bg-gray-50 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsRepairPrintDialogOpen(false)}
-              >
-                إغلاق
-              </Button>
-              <Button onClick={handlePrintRepairReceipt} disabled={isPrinting}>
-                {isPrinting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                    جاري الطباعة...
-                  </>
-                ) : (
-                  'طباعة'
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* نافذة طباعة وصل التصليح - باستخدام المكون المطور مباشرة */}
+      {selectedRepairOrder && (
+        <RepairOrderPrint
+          order={selectedRepairOrder}
+          queuePosition={repairQueuePosition}
+          showPrintButton={false} // Not used in controlled mode, but good practice
+          isOpen={isRepairPrintDialogOpen}
+          onOpenChange={setIsRepairPrintDialogOpen}
+        />
+      )}
 
       {/* نافذة طباعة الطلبات العادية */}
       <PrintReceiptDialog

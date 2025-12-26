@@ -39,6 +39,7 @@ const UpdateButton: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState<Date | null>(null);
   const [isDevMode, setIsDevMode] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const checkingTimeoutRef = useRef<number | null>(null);
 
   // Electron Updater Hook
@@ -73,7 +74,7 @@ const UpdateButton: React.FC = () => {
     if (electronUpdater.progress) {
       setDownloadProgress({
         percent: electronUpdater.progress.percent,
-        transferred: electronUpdater.progress.downloaded,
+        transferred: (electronUpdater.progress as any).transferred || (electronUpdater.progress as any).downloaded || 0,
         total: electronUpdater.progress.total,
         bytesPerSecond: electronUpdater.progress.bytesPerSecond,
       });
@@ -83,7 +84,7 @@ const UpdateButton: React.FC = () => {
     if (electronUpdater.updateInfo) {
       setUpdateInfo({
         version: electronUpdater.updateInfo.version,
-        releaseNotes: electronUpdater.updateInfo.body,
+        releaseNotes: electronUpdater.updateInfo.releaseNotes || (electronUpdater.updateInfo as any).body,
       });
     }
 
@@ -136,10 +137,13 @@ const UpdateButton: React.FC = () => {
       toast.success(`تحديث جديد: ${info.version}`, { icon: '🎉' });
     });
 
-    const unsubscribeNotAvailable = api.updater.onUpdateNotAvailable(() => {
-      console.log('[UpdateButton] Event: update-not-available');
+    const unsubscribeNotAvailable = api.updater.onUpdateNotAvailable((data: any) => {
+      console.log('[UpdateButton] Event: update-not-available', data);
       setUpdateStatus('not-available');
       setLastCheckTime(new Date());
+      if (data?.debugInfo) {
+        setDebugInfo(data.debugInfo);
+      }
     });
 
     const unsubscribeProgress = api.updater.onDownloadProgress((progress: DownloadProgress) => {
@@ -516,6 +520,20 @@ const UpdateButton: React.FC = () => {
                 </button>
               </div>
             )}
+
+            {/* Debug Section - لتشخيص مشكلة التحديثات */}
+            <div className="border-t border-white/10 mt-2 px-4 py-2">
+              <p className="text-xs text-orange-400 font-semibold mb-1">🔧 Debug Info:</p>
+              <div className="text-[10px] text-white/50 space-y-0.5 font-mono">
+                <p>Version: {currentVersion}</p>
+                <p>Status: {updateStatus}</p>
+                <p>isElectron: {isElectron ? 'yes' : 'no'}</p>
+                <p>isDevMode: {isDevMode ? 'yes' : 'no'}</p>
+                <p>UpdateInfo: {updateInfo ? `v${updateInfo.version}` : 'null'}</p>
+                <p>LastCheck: {lastCheckTime ? lastCheckTime.toLocaleTimeString() : 'never'}</p>
+                {debugInfo && <p className="text-orange-300">Server: {debugInfo}</p>}
+              </div>
+            </div>
           </div>
         </div>
       </PopoverContent>

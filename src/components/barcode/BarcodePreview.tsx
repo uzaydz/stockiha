@@ -1,19 +1,23 @@
 /**
- * BarcodePreview - معاينة حية للباركود قبل الطباعة
- * 
+ * BarcodePreview - معاينة حية ومتقدمة للباركود قبل الطباعة
+ *
  * ⚡ المميزات:
- * - معاينة فورية للملصق
- * - تحديث تلقائي عند تغيير الإعدادات
- * - دعم جميع القوالب
+ * - معاينة فورية ودقيقة للملصق
+ * - دعم جميع القوالب (default, classic, compact, ideal, qr-plus-barcode)
+ * - دعم QR Code للقالب الخاص
+ * - تحديث تلقائي عند تغيير أي إعداد
+ * - معاينة بنفس CSS المستخدم في الطباعة
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Printer, ZoomIn, ZoomOut } from 'lucide-react';
+import { Eye, Printer, ZoomIn, ZoomOut, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { barcodeTemplates } from '@/config/barcode-templates';
 
 interface BarcodePreviewProps {
   productName: string;

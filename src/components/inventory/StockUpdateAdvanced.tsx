@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 import {
   Package,
   Scale,
@@ -147,6 +148,7 @@ export default function StockUpdateAdvanced({
   const [batchNumber, setBatchNumber] = useState('');
   const [unitCost, setUnitCost] = useState<number>(0);
   const [imageError, setImageError] = useState(false);
+  const imageSrc = useMemo(() => resolveProductImageSrc(item as any, ''), [item]);
 
   // إعادة تعيين الحالة عند فتح النافذة
   useEffect(() => {
@@ -333,9 +335,9 @@ export default function StockUpdateAdvanced({
             <CardContent className="p-4">
               <div className="flex gap-4">
                 {/* صورة المنتج */}
-                {item.thumbnail_image && !imageError ? (
+                {imageSrc && !imageError ? (
                   <img
-                    src={item.thumbnail_image}
+                    src={imageSrc}
                     alt={item.name}
                     className="h-20 w-20 rounded-lg object-cover border"
                     onError={() => setImageError(true)}

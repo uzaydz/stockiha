@@ -8,7 +8,8 @@
   height: calc(100vh - var(--titlebar-height, 48px)) !important;
   max-height: calc(100vh - var(--titlebar-height, 48px)) !important;
   border-top-right-radius: 0 !important;
-  z-index: 60 !important;
+  /* Must be above floating MobileBottomNavigation (z-[100]) */
+  z-index: 220 !important;
   
   /* Glassmorphism - Midnight Obsidian #050b15 */
   background: rgba(5, 11, 21, 0.97) !important;
@@ -90,9 +91,10 @@
 [data-state="open"] > [data-radix-portal],
 [data-radix-presence],
 [role="dialog"][data-state="open"] {
-  z-index: 60 !important;
+  z-index: 220 !important;
 }
 
 [data-radix-dialog-overlay] {
-  z-index: 55 !important;
+  /* Above bottom-nav, below the sheet content */
+  z-index: 210 !important;
 }

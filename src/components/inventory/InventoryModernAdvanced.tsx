@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 import {
   Package,
   Scale,
@@ -530,7 +531,7 @@ function ProductCard({ item, isExpanded, onToggleExpand, onEdit, isMobile = fals
           {/* صورة المنتج - ⚡ دعم thumbnail_base64 للعمل Offline */}
           <div className="flex-shrink-0 relative">
             {(() => {
-              const imageSrc = (item as any).thumbnail_base64 || item.thumbnail_image;
+              const imageSrc = resolveProductImageSrc(item as any);
               return imageSrc && !imageError ? (
               <img
                 src={imageSrc}

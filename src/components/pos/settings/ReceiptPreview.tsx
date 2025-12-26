@@ -1,9 +1,18 @@
+<<<<<<< ours
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, User, Receipt, QrCode, Hash } from 'lucide-react';
 import { POSSettings } from '@/types/posSettings';
 import { QRCodeSVG } from 'qrcode.react';
+=======
+import React, { useMemo } from 'react';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Receipt } from 'lucide-react';
+import { POSSettings } from '@/types/posSettings';
+import unifiedPrintService, { type ReceiptData } from '@/services/UnifiedPrintService';
+>>>>>>> theirs
 
 interface ReceiptPreviewProps {
   settings: POSSettings | null;
@@ -22,6 +31,7 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ settings }) => {
     );
   }
 
+<<<<<<< ours
   // بيانات تجريبية للمعاينة
   const sampleOrder = {
     id: 'ORD-2024-001',
@@ -325,6 +335,141 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ settings }) => {
           <Badge variant="outline" className="text-xs">
             {settings.paper_width}مم
           </Badge>
+=======
+  const previewWidthPx = Math.max(240, Math.round(settings.paper_width * 3));
+
+  const { srcDoc, sampleReceiptData } = useMemo(() => {
+    // بيانات تجريبية للمعاينة (متوافقة مع UnifiedPrintService)
+    const sample: ReceiptData = {
+      orderId: 'ORD-2024-001',
+      items: [
+        { name: 'قهوة تركية', quantity: 2, price: 15.0, total: 30.0 },
+        { name: 'كرواسون', quantity: 1, price: 8.5, total: 8.5 },
+        { name: 'عصير برتقال', quantity: 1, price: 12.0, total: 12.0 },
+      ],
+      subtotal: 50.5,
+      tax: 7.58,
+      total: 58.08,
+      customerName: 'عميل تجريبي',
+      employeeName: 'أحمد محمد',
+      paymentMethod: 'نقداً',
+    };
+
+    const receiptHtml = unifiedPrintService.generateReceiptHtml(sample, {
+      // ⚡ نمرر فقط الحقول التي يحتاجها مولّد القوالب
+      store_name: settings.store_name,
+      store_phone: settings.store_phone,
+      store_address: settings.store_address,
+      store_logo_url: settings.store_logo_url,
+      receipt_header_text: settings.receipt_header_text,
+      receipt_footer_text: settings.receipt_footer_text,
+      welcome_message: settings.welcome_message,
+      currency_symbol: settings.currency_symbol,
+      currency_position: settings.currency_position,
+      show_store_logo: settings.show_store_logo,
+      show_store_info: settings.show_store_info,
+      show_customer_info: settings.show_customer_info,
+      show_employee_name: settings.show_employee_name,
+      show_date_time: settings.show_date_time,
+      show_qr_code: settings.show_qr_code,
+      show_tracking_code: settings.show_tracking_code,
+      receipt_template: settings.receipt_template as any,
+      custom_css: settings.custom_css,
+    } as any);
+
+    const doc = `<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --preview-width: ${previewWidthPx}px;
+        --preview-bg: ${settings.background_color || '#ffffff'};
+        --preview-fg: ${settings.text_color || '#000000'};
+      }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: #f3f4f6;
+        color: var(--preview-fg);
+        font-family: Tajawal, Arial, sans-serif;
+      }
+      .wrap {
+        padding: 12px;
+        display: flex;
+        justify-content: center;
+      }
+      .paper {
+        width: var(--preview-width);
+        background: var(--preview-bg);
+        border-radius: 10px;
+        border: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+        padding: 12px;
+        box-sizing: border-box;
+        overflow: hidden;
+      }
+      ${settings.custom_css || ''}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="paper">
+        ${receiptHtml}
+      </div>
+    </div>
+  </body>
+</html>`;
+
+    return { srcDoc: doc, sampleReceiptData: sample };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    settings.store_name,
+    settings.store_phone,
+    settings.store_address,
+    settings.store_logo_url,
+    settings.receipt_header_text,
+    settings.receipt_footer_text,
+    settings.welcome_message,
+    settings.currency_symbol,
+    settings.currency_position,
+    settings.show_store_logo,
+    settings.show_store_info,
+    settings.show_customer_info,
+    settings.show_employee_name,
+    settings.show_date_time,
+    settings.show_qr_code,
+    settings.show_tracking_code,
+    settings.receipt_template,
+    settings.custom_css,
+    settings.background_color,
+    settings.text_color,
+    previewWidthPx,
+  ]);
+
+  return (
+    <Card className="overflow-hidden">
+      <iframe
+        title="receipt-preview"
+        sandbox=""
+        className="w-full border-0 bg-transparent"
+        style={{ height: 520 }}
+        srcDoc={srcDoc}
+      />
+
+      <div className="px-4 py-2 bg-muted/30 border-t">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>معاينة {settings.receipt_template}</span>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              {settings.paper_width}مم
+            </Badge>
+            <Badge variant="secondary" className="text-xs">
+              {sampleReceiptData.orderId}
+            </Badge>
+          </div>
+>>>>>>> theirs
         </div>
       </div>
     </Card>

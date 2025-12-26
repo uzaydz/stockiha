@@ -34,12 +34,16 @@ interface TransactionsTableProps {
   transactions: SubscriptionTransaction[];
   loading: boolean;
   onTransactionDeleted?: (transactionId: string) => void;
+  canManageAccount?: boolean;
+  canDeleteTransaction?: boolean;
 }
 
 export const TransactionsTable: React.FC<TransactionsTableProps> = ({ 
   transactions, 
   loading,
-  onTransactionDeleted 
+  onTransactionDeleted,
+  canManageAccount = true,
+  canDeleteTransaction = true,
 }) => {
   const [selectedTransaction, setSelectedTransaction] = useState<SubscriptionTransaction | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
@@ -129,6 +133,10 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   };
 
   const handleManageAccount = (transaction: SubscriptionTransaction) => {
+    if (!canManageAccount) {
+      toast.error('لا تملك صلاحية تعديل بيانات الحساب');
+      return;
+    }
     try {
       setSelectedTransaction(transaction);
       // تحميل معلومات الحساب المحفوظة إذا كانت موجودة
@@ -201,6 +209,10 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   };
 
   const handleDeleteTransaction = (transaction: SubscriptionTransaction) => {
+    if (!canDeleteTransaction) {
+      toast.error('لا تملك صلاحية حذف/استرجاع معاملات الاشتراك');
+      return;
+    }
     try {
       setSelectedTransaction(transaction);
       setIsDeleteDialogOpen(true);
@@ -211,6 +223,10 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
   const confirmDeleteTransaction = async () => {
     if (!selectedTransaction) return;
+    if (!canDeleteTransaction) {
+      toast.error('لا تملك صلاحية حذف/استرجاع معاملات الاشتراك');
+      return;
+    }
 
     try {
       setIsDeleting(true);
@@ -345,10 +361,12 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                             <Eye className="h-4 w-4 mr-2" />
                             تفاصيل الاشتراك
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleManageAccount(transaction)}>
-                            <User className="h-4 w-4 mr-2" />
-                            إدارة الحساب
-                          </DropdownMenuItem>
+                          {canManageAccount && (
+                            <DropdownMenuItem onClick={() => handleManageAccount(transaction)}>
+                              <User className="h-4 w-4 mr-2" />
+                              إدارة الحساب
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => handleCopyId(transaction.id)}>
                             <Copy className="h-4 w-4 mr-2" />
                             نسخ المعرف
@@ -359,19 +377,21 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                               نسخ كود التتبع
                             </DropdownMenuItem>
                           )}
-                          {transaction.payment_status === 'completed' && (
+                          {transaction.payment_status === 'completed' && canDeleteTransaction && (
                             <DropdownMenuItem className="text-red-600">
                               <RefreshCw className="h-4 w-4 mr-2" />
                               استرداد
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem 
-                            className="text-red-600"
-                            onClick={() => handleDeleteTransaction(transaction)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            حذف الاشتراك
-                          </DropdownMenuItem>
+                          {canDeleteTransaction && (
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => handleDeleteTransaction(transaction)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              حذف الاشتراك
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

@@ -112,51 +112,9 @@
 
 /* القائمة الثابتة في الأسفل للهاتف */
 .mobile-bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   z-index: 40 !important;
-  background: hsl(var(--background)) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid hsl(var(--border));
-  box-shadow: 0 -4px 20px hsl(var(--foreground) / 0.1);
   contain: layout paint;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* تأثيرات بصرية للقائمة */
-.mobile-bottom-nav::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    hsl(var(--primary) / 0.3) 50%,
-    transparent 100%
-  );
-}
-
-.mobile-bottom-nav::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    hsl(var(--border) / 0.3) 50%,
-    transparent 100%
-  );
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* تحسينات للأداء */
@@ -220,55 +178,4 @@
     overflow-y: auto !important;
     padding-bottom: 80px !important;
   }
-  
-  /* تحسينات إضافية للقائمة الثابتة */
-  .mobile-bottom-nav {
-    /* خلفية واضحة وصلبة */
-    background: hsl(var(--background)) !important;
-    
-    /* تأثير الضبابية المحسن */
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    
-    /* ظل محسن */
-    box-shadow: 
-      0 -8px 32px hsl(var(--foreground) / 0.08),
-      0 -4px 16px hsl(var(--foreground) / 0.04),
-      inset 0 1px 0 hsl(var(--background) / 0.8);
-    
-    /* تأكيد الرؤية */
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    z-index: 40 !important;
-  }
-  
-  /* تأثيرات التفاعل للأزرار */
-  .mobile-bottom-nav button,
-  .mobile-bottom-nav a {
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .mobile-bottom-nav button::before,
-  .mobile-bottom-nav a::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      hsl(var(--primary) / 0.1),
-      transparent
-    );
-    transition: left 0.5s;
-  }
-  
-  .mobile-bottom-nav button:hover::before,
-  .mobile-bottom-nav a:hover::before {
-    left: 100%;
-  }
-}
+} 

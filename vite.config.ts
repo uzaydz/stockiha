@@ -75,19 +75,28 @@ function fixRetryAllowedPlugin(): Plugin {
 
 // Plugin to redirect use-sync-external-store to React 19 built-in
 function useSyncExternalStorePlugin(): Plugin {
+  const virtualId = '\0use-sync-external-store-polyfill';
+  const resolvedPolyfillPath = path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts');
+
   return {
     name: 'use-sync-external-store-redirect',
     enforce: 'pre',
     resolveId(id: string) {
       if (
         id === 'use-sync-external-store' ||
-        id === 'use-sync-external-store/shim' ||
-        id === 'use-sync-external-store/shim/with-selector'
+        id.startsWith('use-sync-external-store/')
       ) {
-        return path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts');
+        return virtualId;
       }
       return null;
     }
+    ,
+    load(id: string) {
+      if (id === virtualId) {
+        return `export * from ${JSON.stringify(resolvedPolyfillPath)};\nexport { default } from ${JSON.stringify(resolvedPolyfillPath)};\n`;
+      }
+      return null;
+    },
   };
 }
 
@@ -124,7 +133,7 @@ function powersyncWorkerPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = req.url || '';
-        
+
         // خدمة ملفات wa-sqlite من node_modules (webpack chunk format)
         // مثال: node_modules_journeyapps_wa-sqlite_dist_wa-sqlite-async_mjs.js
         if (url.includes('node_modules_journeyapps_wa-sqlite_dist_')) {
@@ -136,7 +145,7 @@ function powersyncWorkerPlugin(): Plugin {
             // wa_sqlite_async_mjs -> wa-sqlite-async.mjs
             const fileName = chunkName.replace(/_/g, '-') + '.mjs';
             const filePath = path.resolve(__dirname, 'node_modules/@journeyapps/wa-sqlite/dist', fileName);
-            
+
             if (fs.existsSync(filePath)) {
               const content = fs.readFileSync(filePath);
               res.setHeader('Content-Type', 'application/javascript');
@@ -147,13 +156,13 @@ function powersyncWorkerPlugin(): Plugin {
             }
           }
         }
-        
+
         // خدمة ملفات wa-sqlite مباشرة (path format)
         // مثال: ../../node_modules/@journeyapps/wa-sqlite/dist/wa-sqlite-async.mjs
         if (url.includes('@journeyapps/wa-sqlite/dist/') || url.includes('journeyapps/wa-sqlite/dist/')) {
           const fileName = url.split('dist/').pop()?.split('?')[0] || '';
           const filePath = path.resolve(__dirname, 'node_modules/@journeyapps/wa-sqlite/dist', fileName);
-          
+
           if (fs.existsSync(filePath)) {
             const content = fs.readFileSync(filePath);
             res.setHeader('Content-Type', 'application/javascript');
@@ -163,7 +172,7 @@ function powersyncWorkerPlugin(): Plugin {
             return;
           }
         }
-        
+
         next();
       });
     }
@@ -251,8 +260,6 @@ function criticalCSSPlugin(): Plugin {
 // 🚀 VITE CONFIG - إعدادات محسنة للأداء
 // =================================================================
 
-export default desktopConfig as any;
-
 const WEB_CONFIG = defineConfig(({ command, mode }) => {
   const isDev = command === 'serve';
   const isProd = mode === 'production';
@@ -262,7 +269,9 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
   // تحميل متغيرات البيئة
 
   return {
-    base: './',
+    // على الويب يجب أن تكون المسارات مطلقة حتى تعمل صفحات مثل /tenant/signup
+    // (بدون هذا ستصبح ./assets => /tenant/assets وتؤدي إلى "Unexpected token '<'")
+    base: '/',
     envPrefix: 'VITE_', // ضمان حقن متغيرات VITE_ في import.meta.env
     server: {
       host: "0.0.0.0", // تغيير من "::" إلى "0.0.0.0" لضمان الوصول من جميع الأجهزة
@@ -640,10 +649,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'react': path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
 
-        // React 19 built-in hooks - redirect external package to our polyfill
-        'use-sync-external-store/shim/with-selector': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
-        'use-sync-external-store/shim': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
-        'use-sync-external-store': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        // React 19 built-in hooks - handled via `useSyncExternalStorePlugin()` to avoid subpath issues
 
         // ✅ polyfills أساسية للويب فقط
         'util': 'util',
@@ -954,6 +960,8 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
     // 🚀 PERFORMANCE OPTIMIZATION: Selective Pre-optimization
     optimizeDeps: {
       force: isDev,
+      // Some CJS packages are imported using ESM default/named exports; force interop in dev.
+      needsInterop: ['prop-types', 'react-is'],
       esbuildOptions: {
         target: 'esnext',
         supported: {
@@ -972,6 +980,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'react',
         'react/jsx-runtime',
         'react-dom/client',
+        'react-is',
 
         // Core Routing (فقط للتنقل الأساسي)
         'react-router-dom',
@@ -1124,6 +1133,13 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
     worker: {
       // ⚡ PowerSync requires classic workers (importScripts), not ES modules
       format: 'iife',
+      // ✅ إجبار worker output على chunk واحد لتجنب خطأ Rollup:
+      // "UMD and IIFE output formats are not supported for code-splitting builds."
+      rollupOptions: {
+        output: {
+          inlineDynamicImports: true,
+        },
+      },
       plugins: () => [
         react({
           jsxImportSource: 'react',
@@ -1131,4 +1147,17 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       ],
     },
   };
+});
+
+export default defineConfig((ctx) => {
+  const env = loadEnv(ctx.mode, process.cwd(), '');
+  const buildTarget = env.VITE_BUILD_TARGET || process.env.VITE_BUILD_TARGET;
+  const deploymentPlatform = env.VITE_DEPLOYMENT_PLATFORM || process.env.VITE_DEPLOYMENT_PLATFORM;
+
+  const useDesktop =
+    buildTarget === 'desktop' ||
+    deploymentPlatform === 'desktop';
+
+  const selectedConfig: any = useDesktop ? desktopConfig : WEB_CONFIG;
+  return typeof selectedConfig === 'function' ? selectedConfig(ctx) : selectedConfig;
 });

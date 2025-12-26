@@ -15,6 +15,7 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useOptimizedOrdersDataV2 } from '@/hooks/useOptimizedOrdersDataV2';
 import { useOrderOperations } from '@/hooks/useOrdersData';
 import { useConfirmationAssignments } from '@/hooks/useConfirmationAssignments';
@@ -161,6 +162,8 @@ interface OrdersContextValue {
   updateOrderStatus: (orderId: string, status: string) => Promise<ActionResult>;
   updateCallConfirmation: (orderId: string, statusId: number, notes?: string) => Promise<void>;
   sendToProvider: (orderId: string, providerCode: string, stopdeskId?: number) => Promise<void>;
+  addCallConfirmationStatus: (name: string, color: string, icon?: string | null) => Promise<number>;
+  deleteCallConfirmationStatus: (id: number) => Promise<void>;
 
   // Inventory Settings
   autoDeductInventory: boolean;
@@ -204,6 +207,7 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
   const { currentOrganization } = useTenant();
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const organizationId = currentOrganization?.id;
   const currentUserId = user?.id;
@@ -217,6 +221,8 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
 
   // Debounce refs for call confirmation
   const callConfirmTimeoutsRef = useRef<Map<string, number>>(new Map());
+  // Cache: prevent refetching group assignments for the same orders repeatedly
+  const groupAssignmentsFetchedRef = useRef<Set<string>>(new Set());
 
   // Data hook
   const {
@@ -305,13 +311,16 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
 
   // Order counts with defaults
   const orderCounts: OrderCounts = useMemo(() => ({
-    all: (rawOrderCounts as any)?.all || 0,
+    all:
+      Number((rawOrderCounts as any)?.all || 0) ||
+      Number((rawOrderStats as any)?.totalOrders || 0) ||
+      (Object.values(rawOrderCounts as any || {}).reduce((sum: number, v: any) => sum + Number(v || 0), 0)),
     pending: (rawOrderCounts as any)?.pending || 0,
     processing: (rawOrderCounts as any)?.processing || 0,
     shipped: (rawOrderCounts as any)?.shipped || 0,
     delivered: (rawOrderCounts as any)?.delivered || 0,
     cancelled: (rawOrderCounts as any)?.cancelled || 0,
-  }), [rawOrderCounts]);
+  }), [rawOrderCounts, rawOrderStats]);
 
   // Order stats with defaults
   const orderStats: OrderStats = useMemo(() => ({
@@ -322,16 +331,18 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
 
   // Pagination
   const pagination: PaginationState = useMemo(() => {
-    const totalPages = Math.ceil((totalCount || 0) / (hookPageSize || 20));
+    const pageSizeSafe = hookPageSize || 20;
+    const totalPagesFromCount = totalCount > 0 ? Math.ceil(totalCount / pageSizeSafe) : 0;
+    const totalPages = Math.max(1, totalPagesFromCount || (hasMore ? currentPage + 1 : currentPage));
     return {
       currentPage,
-      pageSize: hookPageSize || 20,
+      pageSize: pageSizeSafe,
       totalItems: totalCount || 0,
       totalPages,
-      hasNextPage: currentPage < totalPages,
+      hasNextPage: !!hasMore,
       hasPreviousPage: currentPage > 1,
     };
-  }, [currentPage, totalCount, hookPageSize]);
+  }, [currentPage, totalCount, hookPageSize, hasMore]);
 
   // ============================================
   // Effects
@@ -354,11 +365,15 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
   useEffect(() => {
     if (!organizationId || !enrichedOrders.length) return;
 
+    // Only run the fallback query when the orders payload *did not include*
+    // `assigned_staff_id` at all (undefined). If it is present but null, the order is
+    // simply unassigned and querying `online_order_assignments` is wasted work.
     const missingOrderIds = enrichedOrders
-      .filter((o: any) => !o?.assignment?.staff_id)
+      .filter((o: any) => !o?.assignment?.staff_id && typeof o?.assigned_staff_id === 'undefined')
       .map((o: any) => o.id);
 
-    if (missingOrderIds.length === 0) return;
+    const notFetchedYet = missingOrderIds.filter((id: string) => !groupAssignmentsFetchedRef.current.has(id));
+    if (notFetchedYet.length === 0) return;
 
     let cancelled = false;
 
@@ -366,7 +381,7 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
       const { data, error } = await supabase
         .from('online_order_assignments')
         .select('order_id, staff_id, status')
-        .in('order_id', missingOrderIds)
+        .in('order_id', notFetchedYet)
         .eq('organization_id', organizationId)
         .in('status', ['assigned', 'accepted']);
 
@@ -381,6 +396,10 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
 
       if (Object.keys(map).length > 0) {
         dispatch({ type: 'MERGE_GROUP_ASSIGNMENTS', payload: map });
+      }
+
+      for (const id of notFetchedYet) {
+        groupAssignmentsFetchedRef.current.add(id);
       }
     })();
 
@@ -534,6 +553,42 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
     callConfirmTimeoutsRef.current.set(orderId, timeoutId);
   }, [currentUserId, organizationId, toast, updateOrderLocally]);
 
+  const addCallConfirmationStatus = useCallback(async (
+    name: string,
+    color: string,
+    icon?: string | null
+  ): Promise<number> => {
+    if (!organizationId) throw new Error('لم يتم العثور على المنظمة');
+    const { data, error } = await supabase
+      .from('call_confirmation_statuses')
+      .insert({
+        organization_id: organizationId,
+        name,
+        color,
+        icon: icon ?? null,
+        is_default: false,
+      } as any)
+      .select('id')
+      .single();
+
+    if (error) throw error;
+
+    queryClient.invalidateQueries({ queryKey: ['orders-shared-data', organizationId] });
+    return Number((data as any)?.id);
+  }, [organizationId, queryClient]);
+
+  const deleteCallConfirmationStatus = useCallback(async (id: number) => {
+    if (!organizationId) throw new Error('لم يتم العثور على المنظمة');
+    const { error } = await supabase
+      .from('call_confirmation_statuses')
+      .delete()
+      .eq('organization_id', organizationId)
+      .eq('id', id);
+
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['orders-shared-data', organizationId] });
+  }, [organizationId, queryClient]);
+
   const sendToProvider = useCallback(async (
     orderId: string,
     providerCode: string,
@@ -660,14 +715,34 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
     dispatch({ type: 'SET_UPDATING_INVENTORY_SETTINGS', payload: true });
 
     try {
+      // لا نكتب custom_js من الصفر حتى لا نمسح إعدادات أخرى (مثل trackingPixels)
+      const { data: existing, error: readError } = await supabase
+        .from('organization_settings')
+        .select('custom_js')
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (readError) throw readError;
+
+      let merged: Record<string, unknown> = {};
+      if (existing?.custom_js) {
+        try {
+          const parsed = JSON.parse(existing.custom_js as any);
+          if (parsed && typeof parsed === 'object') merged = parsed;
+        } catch {
+          merged = {};
+        }
+      }
+
+      merged.auto_deduct_inventory = enabled;
+
       const { error } = await supabase
         .from('organization_settings')
         .upsert({
           organization_id: organizationId,
-          custom_js: JSON.stringify({ auto_deduct_inventory: enabled }),
+          custom_js: JSON.stringify(merged),
           updated_at: new Date().toISOString(),
-        })
-        .eq('organization_id', organizationId);
+        });
 
       if (error) throw error;
 
@@ -742,6 +817,8 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
     updateOrderStatus,
     updateCallConfirmation,
     sendToProvider,
+    addCallConfirmationStatus,
+    deleteCallConfirmationStatus,
 
     // Inventory Settings
     autoDeductInventory: state.autoDeductInventory,
@@ -790,6 +867,8 @@ export const OrdersProvider: React.FC<OrdersProviderProps> = ({
     updateOrderStatus,
     updateCallConfirmation,
     sendToProvider,
+    addCallConfirmationStatus,
+    deleteCallConfirmationStatus,
     state.autoDeductInventory,
     state.updatingInventorySettings,
     toggleAutoDeductInventory,

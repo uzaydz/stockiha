@@ -907,7 +907,16 @@ export const getActiveOrPausedSession = async (staffId: string, organizationId: 
  * يتم استدعاؤها دورياً لمنع تراكم جلسات نشطة قديمة
  * ⚡ CRITICAL FIX: إضافة انتظار حتى تهيئة قاعدة البيانات
  */
+const lastCloseOldSessionsByOrg = new Map<string, number>();
+const CLOSE_OLD_SESSIONS_DEDUPE_MS = 60 * 1000;
+
 export const closeOldActiveSessions = async (organizationId: string): Promise<number> => {
+  const lastRun = lastCloseOldSessionsByOrg.get(organizationId) || 0;
+  if (Date.now() - lastRun < CLOSE_OLD_SESSIONS_DEDUPE_MS) {
+    return 0;
+  }
+  lastCloseOldSessionsByOrg.set(organizationId, Date.now());
+
   // ⚡ CRITICAL FIX: انتظر حتى تهيئة قاعدة البيانات
   try {
     const { dbInitManager } = await import('@/lib/db/DatabaseInitializationManager');

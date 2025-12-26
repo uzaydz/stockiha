@@ -165,7 +165,7 @@ const POSMobileSidebar: React.FC<POSMobileSidebarProps> = memo(({ isOpen, onClos
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent
         side="right"
-        className="mobile-sidebar w-[85vw] max-w-[320px] p-0 flex flex-col border-none shadow-2xl"
+        className="mobile-sidebar w-[85vw] max-w-[320px] p-0 flex flex-col border-none shadow-2xl z-[200]"
       >
         {/* --- Header --- */}
         <SheetHeader className="px-4 py-4 border-b border-slate-800/50 relative overflow-hidden">
@@ -264,8 +264,8 @@ const POSMobileSidebar: React.FC<POSMobileSidebarProps> = memo(({ isOpen, onClos
                   {unifiedPerms.sessionDuration > 0 && (
                     <span className="text-[10px] text-slate-500 flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {unifiedPerms.sessionDuration < 60 
-                        ? `${unifiedPerms.sessionDuration} دقيقة` 
+                      {unifiedPerms.sessionDuration < 60
+                        ? `${unifiedPerms.sessionDuration} دقيقة`
                         : `${Math.floor(unifiedPerms.sessionDuration / 60)} ساعة`
                       }
                     </span>
@@ -309,7 +309,7 @@ const POSMobileSidebar: React.FC<POSMobileSidebarProps> = memo(({ isOpen, onClos
 
           {/* زر تبديل الموظف السريع */}
           {(currentStaff || isAdminMode) && (
-            <QuickStaffSwitch 
+            <QuickStaffSwitch
               iconOnly={false}
               className="w-full justify-center gap-2 p-3 rounded-xl bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 hover:text-yellow-300 border border-yellow-500/20"
               onSwitch={onClose}

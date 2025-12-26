@@ -278,8 +278,9 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
 
   const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
-      // تفعيل التحديث التلقائي للتوكن لضمان بقاء الجلسة صالحة
-      autoRefreshToken: initialOnline,
+      // ✅ تفعيل التحديث التلقائي للتوكن دائماً - حتى في حالة offline
+      // سيحاول Supabase تجديد التوكن تلقائياً قبل انتهائه
+      autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false, // تعطيل لمنع مشاكل URL
       flowType: 'pkce',
@@ -308,7 +309,7 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
         'x-application-name': 'bazaar-console',
         'X-Client-Version': '3.0.0'
       },
-      // 🚀 تحسين timeout للشبكات البطيئة
+      // 🚀 تحسين timeout للشبكات البطيئة + 401 Error Interceptor
       fetch: async (url: RequestInfo | URL, options: RequestInit = {}) => {
         // فحص navigator.onLine كبديل
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -325,6 +326,42 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
             ...options,
             signal: controller.signal,
           });
+
+          // ⚡ فحص 401 Unauthorized ومحاولة تجديد التوكن
+          if (response.status === 401) {
+            console.warn('[Supabase] 🔑 401 Unauthorized - attempting token refresh...');
+
+            try {
+              // محاولة تجديد التوكن
+              const { data, error: refreshError } = await client.auth.refreshSession();
+
+              if (!refreshError && data.session) {
+                console.log('[Supabase] ✅ Token refreshed - retrying request');
+
+                // إعادة المحاولة بـ token جديد
+                const newOptions = {
+                  ...options,
+                  headers: {
+                    ...(options.headers || {}),
+                    'Authorization': `Bearer ${data.session.access_token}`
+                  }
+                };
+
+                // إعادة الطلب مع التوكن الجديد
+                const retryResponse = await fetch(url, newOptions);
+                return retryResponse;
+              } else {
+                // فشل التجديد - تسجيل خروج
+                console.error('[Supabase] ❌ Token refresh failed - session invalid');
+
+                // لا نقوم بتسجيل الخروج تلقائياً - نترك هذا للمكونات
+                // await client.auth.signOut();
+              }
+            } catch (refreshError) {
+              console.error('[Supabase] ❌ Error during token refresh:', refreshError);
+            }
+          }
+
           return response;
         } catch (error) {
           throw error;

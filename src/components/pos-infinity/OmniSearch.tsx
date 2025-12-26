@@ -50,6 +50,19 @@ interface OmniSearchProps {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Constants for Barcode Detection
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ⚡ إعدادات كشف الباركود
+const BARCODE_DETECTION_CONFIG = {
+  minLength: 4,              // الحد الأدنى لطول الباركود (تم تخفيضه لدعم باركودات قصيرة)
+  maxLength: 30,             // الحد الأقصى لطول الباركود
+  maxKeyInterval: 100,       // أقصى فترة بين الأحرف (ms) لاعتباره إدخال سريع من ماسح
+  autoProcessTimeout: 200,   // مدة انتظار قبل معالجة الباركود تلقائياً (ms)
+  barcodePattern: /^[0-9A-Za-z\-]+$/ // نمط الباركود الصالح (مع دعم الشرطة)
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Component
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -67,8 +80,16 @@ const OmniSearch = forwardRef<OmniSearchRef, OmniSearchProps>(({
   const [isFocused, setIsFocused] = useState(false);
   const [barcodeMode, setBarcodeMode] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
+  const [localInputValue, setLocalInputValue] = useState(''); // ⚡ قيمة محلية للإدخال السريع
   const inputRef = useRef<HTMLInputElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // ⚡ متغيرات كشف الباركود - محسّنة
+  const lastKeyTimeRef = useRef<number>(0);
+  const barcodeBufferRef = useRef<string>('');
+  const isScannerInputRef = useRef<boolean>(false);
+  const autoProcessTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const consecutiveFastKeysRef = useRef<number>(0);
 
   // ⚡ الاختصارات المخصصة
   const { shortcuts, reload: reloadShortcuts } = useCustomShortcuts();
@@ -131,11 +152,220 @@ const OmniSearch = forwardRef<OmniSearchRef, OmniSearchProps>(({
     }
   }, [barcodeInput, onBarcodeSearch]);
 
-  // ⚡ معالجة مسح الحقل - تخزين مؤقت
+  // ⚡ معالجة مسح الحقل
   const handleClear = useCallback(() => {
     onChange('');
+    // إعادة تعيين متغيرات كشف الباركود
+    barcodeBufferRef.current = '';
+    isScannerInputRef.current = false;
+    consecutiveFastKeysRef.current = 0;
+    if (autoProcessTimeoutRef.current) {
+      clearTimeout(autoProcessTimeoutRef.current);
+      autoProcessTimeoutRef.current = null;
+    }
     inputRef.current?.focus();
   }, [onChange]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⚡ منطق كشف الباركود التلقائي - محسّن بالكامل
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // معالجة الباركود المكتشف وإضافته للسلة
+  const processAndAddBarcode = useCallback((barcode: string) => {
+    const cleanBarcode = barcode.trim();
+
+    // التحقق من صحة الباركود
+    if (
+      cleanBarcode.length >= BARCODE_DETECTION_CONFIG.minLength &&
+      cleanBarcode.length <= BARCODE_DETECTION_CONFIG.maxLength &&
+      BARCODE_DETECTION_CONFIG.barcodePattern.test(cleanBarcode)
+    ) {
+      console.log('[OmniSearch] 📦 باركود مكتشف - إضافة للسلة مباشرة:', cleanBarcode);
+
+      // مسح حقل البحث
+      onChange('');
+      if (isScannerInputRef.current) {
+        inputRef.current?.blur();
+      }
+
+      // إعادة تعيين جميع متغيرات الكشف
+      barcodeBufferRef.current = '';
+      isScannerInputRef.current = false;
+      consecutiveFastKeysRef.current = 0;
+      lastKeyTimeRef.current = 0;
+
+      if (autoProcessTimeoutRef.current) {
+        clearTimeout(autoProcessTimeoutRef.current);
+        autoProcessTimeoutRef.current = null;
+      }
+
+      // استدعاء وظيفة البحث بالباركود (ستضيف للسلة مباشرة)
+      onBarcodeSearch(cleanBarcode);
+
+      return true;
+    }
+
+    return false;
+  }, [onChange, onBarcodeSearch]);
+
+  // ⚡ مزامنة localInputValue مع value الخارجي
+  useEffect(() => {
+    if (!isScannerInputRef.current) {
+      setLocalInputValue(value);
+    }
+  }, [value]);
+
+  const isBarcodeCandidate = useCallback((value: string) => {
+    return value.length >= BARCODE_DETECTION_CONFIG.minLength &&
+      value.length <= BARCODE_DETECTION_CONFIG.maxLength &&
+      BARCODE_DETECTION_CONFIG.barcodePattern.test(value);
+  }, []);
+
+  const isNumericBarcodeCandidate = useCallback((value: string) => {
+    return isBarcodeCandidate(value) && /^\d+$/.test(value);
+  }, [isBarcodeCandidate]);
+
+  // ⚡ معالجة onChange مخصصة - تمنع البحث النصي عند الإدخال السريع
+  const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    const currentTime = Date.now();
+    const timeDiff = currentTime - lastKeyTimeRef.current;
+
+    // تحديث وقت آخر مفتاح
+    lastKeyTimeRef.current = currentTime;
+
+    // ⚡ تحديث القيمة المحلية دائماً (للعرض في UI)
+    setLocalInputValue(newValue);
+
+    // تنظيف timeout السابق
+    if (autoProcessTimeoutRef.current) {
+      clearTimeout(autoProcessTimeoutRef.current);
+      autoProcessTimeoutRef.current = null;
+    }
+
+    // كشف الإدخال السريع (من الماسح الضوئي)
+    // إذا كانت الفترة بين الأحرف أقل من 100ms، فهذا إدخال سريع
+    const isFastInput = timeDiff > 0 && timeDiff < BARCODE_DETECTION_CONFIG.maxKeyInterval;
+
+    if (isFastInput) {
+      consecutiveFastKeysRef.current++;
+    } else if (timeDiff > 300) {
+      // إعادة تعيين إذا مرت فترة طويلة (بداية إدخال جديد)
+      consecutiveFastKeysRef.current = 1;
+      isScannerInputRef.current = false;
+    }
+
+    // ⚡ تحديث الـ buffer دائماً
+    barcodeBufferRef.current = newValue;
+
+    // إذا كان إدخال سريع (2+ أحرف متتالية سريعة)
+    if (consecutiveFastKeysRef.current >= 2) {
+      isScannerInputRef.current = true;
+
+      console.log('[OmniSearch] ⚡ إدخال سريع مكتشف:', {
+        buffer: newValue,
+        timeDiff,
+        consecutiveFast: consecutiveFastKeysRef.current
+      });
+
+      // تعيين timeout للمعالجة التلقائية بعد توقف الإدخال
+      autoProcessTimeoutRef.current = setTimeout(() => {
+        const currentBuffer = barcodeBufferRef.current;
+
+        console.log('[OmniSearch] ⏱️ انتهى الإدخال السريع. التحقق:', {
+          buffer: currentBuffer,
+          length: currentBuffer.length,
+          minLength: BARCODE_DETECTION_CONFIG.minLength
+        });
+
+        if (currentBuffer.length >= BARCODE_DETECTION_CONFIG.minLength &&
+          BARCODE_DETECTION_CONFIG.barcodePattern.test(currentBuffer)) {
+          console.log('[OmniSearch] ✅ معالجة كباركود:', currentBuffer);
+          processAndAddBarcode(currentBuffer);
+          // ⚡ مسح القيمة المحلية بعد المعالجة
+          setLocalInputValue('');
+        } else {
+          // إذا لم يكن باركود صالح، عالجه كبحث عادي
+          console.log('[OmniSearch] 📝 معالجة كبحث عادي:', currentBuffer);
+          onChange(currentBuffer);
+        }
+
+        // إعادة تعيين
+        isScannerInputRef.current = false;
+        consecutiveFastKeysRef.current = 0;
+        barcodeBufferRef.current = '';
+        autoProcessTimeoutRef.current = null;
+      }, BARCODE_DETECTION_CONFIG.autoProcessTimeout);
+
+      // ⚠️ مهم! لا نستدعي onChange الآن - ننتظر انتهاء الإدخال
+      return;
+    }
+
+    // ⚡ إدخال باركود رقمي بطيء: عالجه كسكانر وليس بحث
+    if (isNumericBarcodeCandidate(newValue)) {
+      autoProcessTimeoutRef.current = setTimeout(() => {
+        const currentBuffer = barcodeBufferRef.current;
+
+        if (isNumericBarcodeCandidate(currentBuffer)) {
+          processAndAddBarcode(currentBuffer);
+          setLocalInputValue('');
+        } else {
+          onChange(currentBuffer);
+        }
+
+        isScannerInputRef.current = false;
+        consecutiveFastKeysRef.current = 0;
+        barcodeBufferRef.current = '';
+        autoProcessTimeoutRef.current = null;
+      }, BARCODE_DETECTION_CONFIG.autoProcessTimeout);
+      return;
+    }
+
+    // إدخال عادي (بطيء من لوحة المفاتيح) - تحديث الـ parent
+    onChange(newValue);
+  }, [isNumericBarcodeCandidate, onChange, processAndAddBarcode]);
+
+  // ⚡ معالجة Enter
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    // معالجة Enter فقط
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      const currentValue = (e.target as HTMLInputElement).value.trim();
+
+      // تنظيف timeout
+      if (autoProcessTimeoutRef.current) {
+        clearTimeout(autoProcessTimeoutRef.current);
+        autoProcessTimeoutRef.current = null;
+      }
+
+      // إذا كانت القيمة تبدو كباركود (8-20 حرف، أرقام/حروف فقط)، عالجها كباركود
+      if (
+        currentValue.length >= BARCODE_DETECTION_CONFIG.minLength &&
+        currentValue.length <= BARCODE_DETECTION_CONFIG.maxLength &&
+        BARCODE_DETECTION_CONFIG.barcodePattern.test(currentValue)
+      ) {
+        console.log('[OmniSearch] ⏎ Enter مع قيمة تبدو كباركود:', currentValue);
+        processAndAddBarcode(currentValue);
+        return;
+      }
+
+      // إعادة تعيين المتغيرات
+      barcodeBufferRef.current = '';
+      isScannerInputRef.current = false;
+      consecutiveFastKeysRef.current = 0;
+    }
+  }, [processAndAddBarcode]);
+
+  // تنظيف عند إلغاء المكون
+  useEffect(() => {
+    return () => {
+      if (autoProcessTimeoutRef.current) {
+        clearTimeout(autoProcessTimeoutRef.current);
+      }
+    };
+  }, []);
+
 
   // اختصار لوحة المفاتيح - يستخدم الاختصارات المخصصة
   useEffect(() => {
@@ -277,8 +507,10 @@ const OmniSearch = forwardRef<OmniSearchRef, OmniSearchProps>(({
         <Input
           ref={inputRef}
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          data-pos-search-input="true"
+          value={localInputValue}
+          onChange={handleSearchInputChange}
+          onKeyDown={handleInputKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder || `بحث عن منتج... (${searchShortcut})`}
@@ -362,6 +594,7 @@ const OmniSearch = forwardRef<OmniSearchRef, OmniSearchProps>(({
               <Input
                 ref={barcodeInputRef}
                 type="text"
+                data-pos-barcode-input="true"
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
                 placeholder="امسح الباركود..."

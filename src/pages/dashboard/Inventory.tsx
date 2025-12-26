@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, memo } from 'react';
 import Layout from '@/components/Layout';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Loader2, Lock, RefreshCw, WifiOff, Wifi } from 'lucide-react';
+import { AlertCircle, Loader2, Lock, RefreshCw, WifiOff, Wifi, HelpCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { InventoryModernAdvanced } from '@/components/inventory';
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { getProducts as syncProductsOnline } from '@/lib/api/offlineProductsAdapter';
 import { toast } from 'sonner';
+import InventoryUserGuide from '@/components/inventory/InventoryUserGuide';
 
 interface InventoryProps extends POSSharedLayoutControls {}
 
@@ -28,6 +29,9 @@ const InventoryComponent = ({
   const [canViewInventory, setCanViewInventory] = useState(false);
   const [canManageInventory, setCanManageInventory] = useState(false);
   const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
+
+  // دليل الاستخدام
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // استخدام hook المخزون المتقدم
   const {
@@ -216,8 +220,17 @@ const InventoryComponent = ({
             </p>
           </div>
 
-          {/* حالة الاتصال */}
+          {/* حالة الاتصال ودليل الاستخدام */}
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsGuideOpen(true)}
+              className="h-8"
+            >
+              <HelpCircle className="h-4 w-4 ml-1" />
+              <span className="hidden sm:inline">دليل الاستخدام</span>
+            </Button>
             {isOnline ? (
               <Badge className="bg-green-50 text-green-700 border-green-200">
                 <Wifi className="h-3 w-3 ml-1" />
@@ -298,6 +311,12 @@ const InventoryComponent = ({
           onRefresh={refresh}
           onUpdateStock={updateStock}
           isUpdating={updating}
+        />
+
+        {/* دليل الاستخدام */}
+        <InventoryUserGuide
+          open={isGuideOpen}
+          onOpenChange={setIsGuideOpen}
         />
       </div>
     </div>

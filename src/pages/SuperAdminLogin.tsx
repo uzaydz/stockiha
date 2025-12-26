@@ -69,7 +69,7 @@ export default function SuperAdminLogin() {
     try {
       // استخدام RPC function للتحقق الآمن
       const { data, error } = await supabase
-        .rpc('get_user_basic_info', { p_auth_user_id: userId });
+        .rpc('get_user_basic_info' as any, { p_auth_user_id: userId });
 
       if (error) {
         console.error('[SuperAdminLogin] خطأ في التحقق من الصلاحيات:', error);
@@ -77,9 +77,9 @@ export default function SuperAdminLogin() {
       }
 
       if (data && data.length > 0) {
-        const userData = data[0];
+        const userData = data[0] as any;
         const isSuper = userData.is_super_admin === true;
-        
+
         if (process.env.NODE_ENV === 'development') {
           console.log('[SuperAdminLogin] نتيجة التحقق:', {
             userId,
@@ -87,7 +87,7 @@ export default function SuperAdminLogin() {
             email: userData.email
           });
         }
-        
+
         return isSuper;
       }
 
@@ -156,8 +156,13 @@ export default function SuperAdminLogin() {
         console.log('[SuperAdminLogin] تم تسجيل دخول Super Admin بنجاح');
       }
 
-      // إنتظار قصير للتأكد من تحديث AuthContext
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // ✅ مسح علامة explicit logout قبل التوجيه لضمان عدم تخطي استعادة الجلسة
+      try {
+        localStorage.removeItem('bazaar_explicit_logout');
+        console.log('[SuperAdminLogin] ✅ تم مسح علامة explicit logout');
+      } catch (e) {
+        console.error('[SuperAdminLogin] فشل في مسح explicit logout:', e);
+      }
 
       // توجيه المستخدم إلى لوحة المسؤول الرئيسي
       toast({
@@ -165,8 +170,13 @@ export default function SuperAdminLogin() {
         description: 'مرحباً بك في لوحة المسؤول الرئيسي',
       });
 
-      // استخدام navigate بدلاً من window.location لتجنب إعادة التحميل
-      navigate('/super-admin');
+      // ✅ استخدام window.location لضمان إعادة تحميل كاملة وتحديث AuthContext
+      console.log('[SuperAdminLogin] توجيه إلى لوحة السوبر أدمين...');
+
+      // انتظار قصير للسماح للـ toast بالظهور
+      setTimeout(() => {
+        window.location.href = '/super-admin';
+      }, 500);
     } catch (err: any) {
 
       // تحسين رسائل الخطأ - don't expose system details
@@ -211,7 +221,7 @@ export default function SuperAdminLogin() {
             يرجى تسجيل الدخول للوصول إلى لوحة التحكم الرئيسية
           </p>
         </div>
-        
+
         {/* Rate limit warning */}
         {rateLimitInfo && !rateLimitInfo.isBlocked && rateLimitInfo.attemptsLeft !== undefined && rateLimitInfo.attemptsLeft < 3 && (
           <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-500">
@@ -227,7 +237,7 @@ export default function SuperAdminLogin() {
             <p>{loginError}</p>
           </div>
         )}
-        
+
         {/* Login form */}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -251,7 +261,7 @@ export default function SuperAdminLogin() {
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="password"
@@ -283,20 +293,20 @@ export default function SuperAdminLogin() {
                 </FormItem>
               )}
             />
-            
+
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
             </Button>
           </form>
         </Form>
-        
+
         <div className="mt-4 text-center text-sm text-muted-foreground">
           <Link to="/" className="hover:text-primary underline underline-offset-4">
             العودة إلى الصفحة الرئيسية
           </Link>
         </div>
       </div>
-      
+
       {/* Background pattern */}
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
     </div>

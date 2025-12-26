@@ -138,11 +138,15 @@ export const usePrinterSettings = (): UsePrinterSettingsReturn => {
     key: K,
     value: LocalPrinterSettings[K]
   ) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      [key]: value,
-    }));
-  }, []);
+    setLocalSettings(prev => {
+      const next = {
+        ...prev,
+        [key]: value,
+      };
+      queryClient.setQueryData(['local-printer-settings', organizationId, deviceId], next);
+      return next;
+    });
+  }, [deviceId, organizationId, queryClient]);
 
   // حفظ إعدادات الطابعة
   const saveMutation = useMutation({

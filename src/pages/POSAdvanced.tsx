@@ -220,7 +220,8 @@ const POSAdvanced = () => {
     clearSearch,
     isSearching
   } = useDebouncedSearch({
-    delay: 300,
+    delay: 200,
+    minLength: 2,
     onDebouncedChange: (value) => handleSearchChange(value)
   });
 
@@ -298,6 +299,14 @@ const POSAdvanced = () => {
   const confirmDialog = useConfirmDialog();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const [hasInitialPOSLoaded, setHasInitialPOSLoaded] = useState(false);
+
+  useEffect(() => {
+    // ✅ لا نعرض شاشة "جاري تحميل نقطة البيع" بعد التحميل الأول حتى لو كانت نتائج البحث/الفلترة فارغة
+    if (!isLoading) {
+      setHasInitialPOSLoaded(true);
+    }
+  }, [isLoading]);
 
   // ═══════════════════════════════════════════════════════════════════
   // 📌 خريطة المنتجات للسكانر
@@ -549,6 +558,80 @@ const POSAdvanced = () => {
     toast.success('✅ تم تعليق الطلب بنجاح');
   }, [cartItems.length, addTab]);
 
+  // 📲 معالج استقبال السلة من جهاز آخر
+  const handleReceiveCart = useCallback((items: any[], mode: 'add' | 'replace') => {
+    if (mode === 'replace') {
+      clearCart();
+    }
+
+    const startIndex = mode === 'replace' ? 0 : cartItems.length;
+    let addedCount = 0;
+
+    // إضافة كل منتج للسلة
+    items.forEach((item, itemIndex) => {
+      // البحث عن المنتج في قائمة المنتجات
+      const product = products?.find((p: any) => p.id === item.productId);
+
+      if (product) {
+        // حفظ الـ index الحالي قبل الإضافة
+        const targetIndex = startIndex + addedCount;
+
+        // إضافة المنتج مرة واحدة فقط
+        if (item.colorId || item.sizeId) {
+          addVariantToCart(product, item.colorId, item.sizeId, item.variantPrice);
+        } else {
+          addItemToCart(product);
+        }
+
+        // تحديث الإعدادات الكاملة للمنتج المضاف (الكمية، الوزن، الكرتون، الطول، إلخ)
+        // استخدام delay متزايد لضمان ترتيب التحديثات
+        setTimeout(() => {
+          const sellingUnit = item.sellingUnit || 'piece';
+
+          if (updateItemFullConfig) {
+            updateItemFullConfig(targetIndex, {
+              sellingUnit,
+              quantity: item.quantity || 1,
+              weight: item.weight,
+              weightUnit: item.weightUnit,
+              boxCount: item.boxCount,
+              length: item.length,
+              customPrice: item.customPrice || item.price,
+              saleType: item.saleType || 'retail'
+            });
+          } else {
+            // fallback: تحديث الكمية فقط
+            if (item.quantity > 1) {
+              updateItemQuantity(targetIndex, item.quantity);
+            }
+          }
+
+          // تحديث الدفعة إذا وجدت
+          if (item.batchId && updateItemBatch) {
+            updateItemBatch(targetIndex, item.batchId, item.batchNumber, item.expiryDate);
+          }
+
+          // تحديث الأرقام التسلسلية إذا وجدت
+          if (item.serialNumbers?.length > 0 && updateItemSerialNumbers) {
+            updateItemSerialNumbers(targetIndex, item.serialNumbers);
+          }
+
+          // تحديث السعر المخصص
+          if (item.customPrice && updateItemPrice) {
+            updateItemPrice(targetIndex, item.customPrice);
+          }
+        }, 100 + (itemIndex * 50)); // delay متزايد لكل منتج
+
+        addedCount++;
+      } else {
+        // إذا لم يتم العثور على المنتج
+        toast.warning(`المنتج "${item.productName}" غير موجود في القائمة`);
+      }
+    });
+
+    toast.success(`تم استلام ${addedCount} منتج من جهاز آخر`);
+  }, [clearCart, cartItems.length, products, addItemToCart, addVariantToCart, updateItemFullConfig, updateItemQuantity, updateItemBatch, updateItemSerialNumbers, updateItemPrice]);
+
   const handleTitaniumCheckout = useCallback(() => {
     if (isLossMode) { submitLoss(); }
     else if (isReturnMode) { handleProcessReturn({}); }
@@ -587,7 +670,7 @@ const POSAdvanced = () => {
     const posShortcuts = createPOSShortcuts({
       onHelp: () => keyboardShortcuts.showShortcutsHelp(),
       onSearch: () => searchInputRef.current?.focus(),
-      onClearSearch: () => handleSearchChange(''),
+      onClearSearch: () => clearSearch(),
       onFocusBarcode: () => barcodeInputRef.current?.focus(),
       onRefresh: refreshData,
       onToggleCart: () => setIsMobileCartOpen(prev => !prev),
@@ -665,7 +748,7 @@ const POSAdvanced = () => {
     selectedServices, selectedSubscriptions, refreshData,
     toggleReturnMode, toggleLossMode, exitLossMode,
     addTab, removeTab, activeTabId, tabs, handleSaveHeldOrder,
-    isPrintDialogOpen, keyboardShortcuts, handleSearchChange
+    isPrintDialogOpen, keyboardShortcuts, clearSearch
   ]);
 
   // ═══════════════════════════════════════════════════════════════════
@@ -707,7 +790,7 @@ const POSAdvanced = () => {
 
   const hasExistingProducts = products?.length > 0 || allProducts?.length > 0;
 
-  if (isLoading && !hasExistingProducts && !loadingTimeout) {
+  if (!hasInitialPOSLoaded && isLoading && !loadingTimeout) {
     return (
       <POSPureLayout onRefresh={refreshData} isRefreshing={true} connectionStatus="reconnecting">
         <POSAdvancedInitialLoading />
@@ -741,7 +824,7 @@ const POSAdvanced = () => {
         isScannerLoading={isScannerLoading}
         scanBarcode={async (barcode: string) => {
           const response = await scanBarcode(barcode);
-          return { success: response.success, data: response.data as any };
+          return { success: response.success, data: (response.data?.fullProduct ?? response.data) as any };
         }}
         addItemToCart={addItemToCart}
         addItemToReturnCart={addItemToReturnCart}
@@ -758,8 +841,8 @@ const POSAdvanced = () => {
           isLossMode={isLossMode}
           toggleReturnMode={toggleReturnMode}
           toggleLossMode={toggleLossMode}
-          searchQuery={searchQuery}
-          onSearchChange={handleSearchChange}
+          searchQuery={searchInputValue}
+          onSearchChange={setSearchInputValue}
           onBarcodeSearch={(value) => handleBarcodeLookup(value, 'manual')}
           isScannerLoading={isScannerLoading}
           categoryFilter={categoryFilter}
@@ -835,6 +918,7 @@ const POSAdvanced = () => {
               serialNumber: serial
             });
           }}
+          onReceiveCart={handleReceiveCart}
         />
       </div>
 
@@ -876,6 +960,7 @@ const POSAdvanced = () => {
               serialNumber: serial
             });
           }}
+          onReceiveCart={handleReceiveCart}
         />
       )}
 

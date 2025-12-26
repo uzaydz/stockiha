@@ -41,6 +41,13 @@ export enum Permission {
   VIEW_INVENTORY = 'viewInventory',
   MANAGE_INVENTORY = 'manageInventory',
 
+  // === الجرد (Stocktake) ===
+  START_STOCKTAKE = 'startStocktake',
+  PERFORM_STOCKTAKE = 'performStocktake',
+  REVIEW_STOCKTAKE = 'reviewStocktake',
+  APPROVE_STOCKTAKE = 'approveStocktake',
+  DELETE_STOCKTAKE = 'deleteStocktake',
+
   // === الطلبات ===
   VIEW_ORDERS = 'viewOrders',
   VIEW_POS_ORDERS = 'viewPOSOrders',
@@ -116,7 +123,15 @@ export const PERMISSION_HIERARCHY: Record<string, string[]> = {
   ],
 
   // manageInventory تشمل عرض المخزون
-  manageInventory: ['viewInventory'],
+  manageInventory: [
+    'viewInventory',
+    // stocktake ops (defaults to allowed when inventory is managed)
+    'startStocktake',
+    'performStocktake',
+    'reviewStocktake',
+    'approveStocktake',
+    'deleteStocktake',
+  ],
 
   // manageOrders تشمل جميع صلاحيات الطلبات
   manageOrders: [
@@ -369,6 +384,11 @@ export const PERMISSION_DISPLAY_NAMES: Record<string, string> = {
   manageProductCategories: 'إدارة فئات المنتجات',
   viewInventory: 'عرض المخزون',
   manageInventory: 'إدارة المخزون',
+  startStocktake: 'بدء جلسة جرد',
+  performStocktake: 'تنفيذ الجرد (مسح/عد)',
+  reviewStocktake: 'مراجعة الجرد (إغلاق للمراجعة)',
+  approveStocktake: 'اعتماد الجرد وتعديل المخزون',
+  deleteStocktake: 'حذف جلسات الجرد',
   viewOrders: 'عرض الطلبات',
   viewPOSOrders: 'عرض طلبات نقطة البيع',
   manageOrders: 'إدارة الطلبات',

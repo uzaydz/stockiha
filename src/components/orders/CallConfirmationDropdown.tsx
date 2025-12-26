@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrdersData } from "@/context/OrdersDataContext";
-import type { CallConfirmationStatus } from "@/context/OrdersDataContext";
+import type { CallConfirmationStatus } from "@/components/orders/table/OrderTableTypes";
 
 // نوع خصائص مكون القائمة المنسدلة
 type CallConfirmationDropdownProps = {
@@ -44,6 +44,8 @@ type CallConfirmationDropdownProps = {
   className?: string;
   userId?: string;
   statuses?: CallConfirmationStatus[]; // اختياري: يمكن تمريره بدلاً من استخدام context
+  onAddCallConfirmationStatus?: (name: string, color: string, icon?: string) => Promise<number>;
+  onDeleteCallConfirmationStatus?: (id: number) => Promise<void>;
 };
 
 const CallConfirmationDropdown = ({
@@ -54,6 +56,8 @@ const CallConfirmationDropdown = ({
   showAddNew = true,
   className = "",
   statuses: statusesProp,
+  onAddCallConfirmationStatus,
+  onDeleteCallConfirmationStatus,
 }: CallConfirmationDropdownProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
@@ -80,8 +84,8 @@ const CallConfirmationDropdown = ({
     // استخدام البيانات الممررة كprops
     statuses = statusesProp;
     loading = false;
-    addCallConfirmationStatus = undefined; // لا يتوفر إضافة حالات جديدة عند استخدام props
-    deleteCallConfirmationStatus = undefined;
+    addCallConfirmationStatus = onAddCallConfirmationStatus; // يمكن توفيرها من props
+    deleteCallConfirmationStatus = onDeleteCallConfirmationStatus;
   } else {
     // استخدام Context (fallback)
     try {

@@ -25,6 +25,7 @@ class PermissionSyncService {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private retryCount = 0;
   private isInitialized = false;
+  private lastSyncAt = 0;
 
   // ⚡ v2.0: حفظ references للـ event handlers لإمكانية الإزالة
   private onlineHandler: (() => void) | null = null;
@@ -160,7 +161,7 @@ class PermissionSyncService {
   /**
    * مزامنة الصلاحيات من السيرفر
    */
-  async syncFromServer(authUserId?: string): Promise<boolean> {
+  async syncFromServer(authUserId?: string, force: boolean = false): Promise<boolean> {
     if (this.isSyncing) {
       console.log('[PermissionSyncService] Already syncing, skipping...');
       return false;
@@ -168,6 +169,11 @@ class PermissionSyncService {
 
     if (!navigator.onLine) {
       console.log('[PermissionSyncService] Offline - cannot sync');
+      return false;
+    }
+
+    const now = Date.now();
+    if (!force && this.lastSyncAt && (now - this.lastSyncAt) < 2 * 60 * 1000) {
       return false;
     }
 
@@ -195,6 +201,43 @@ class PermissionSyncService {
 
       if (error) {
         console.error('[PermissionSyncService] RPC error:', error.message);
+
+        // ⚡ فحص نوع الخطأ - JWT expired أو 401
+        const isAuthError = error.message?.includes('JWT') ||
+          error.message?.includes('expired') ||
+          error.message?.includes('401') ||
+          error.message?.includes('Unauthorized');
+
+        if (isAuthError) {
+          console.warn('[PermissionSyncService] 🔑 Auth error detected - attempting token refresh...');
+
+          try {
+            // محاولة تجديد التوكن
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+            if (!refreshError && refreshData.session) {
+              console.log('[PermissionSyncService] ✅ Token refreshed - retrying sync');
+
+              // إعادة المحاولة مرة واحدة فقط بعد التجديد
+              const retryResult = await this.retrySyncAfterRefresh(userId);
+              return retryResult;
+            } else {
+              // فشل التجديد - الجلسة غير صالحة
+              console.error('[PermissionSyncService] ❌ Token refresh failed - session invalid');
+
+              // مسح البيانات المحلية
+              permissionService.clearCache();
+
+              // لا نقوم بتسجيل الخروج تلقائياً - نترك هذا للمكونات
+              // يمكن للمكونات الاستماع لتغيرات auth state
+              return false;
+            }
+          } catch (refreshError) {
+            console.error('[PermissionSyncService] ❌ Error during token refresh:', refreshError);
+          }
+        }
+
+        // أخطاء أخرى - جدولة إعادة محاولة
         this.scheduleRetry();
         return false;
       }
@@ -254,6 +297,7 @@ class PermissionSyncService {
         permCount: Object.keys(permissionData.permissions).length
       });
 
+      this.lastSyncAt = Date.now();
       this.retryCount = 0;
       return true;
     } catch (error) {
@@ -262,6 +306,78 @@ class PermissionSyncService {
       return false;
     } finally {
       this.isSyncing = false;
+    }
+  }
+
+  /**
+   * ⚡ إعادة محاولة المزامنة بعد تجديد التوكن
+   * تُستدعى مرة واحدة فقط بعد نجاح token refresh
+   */
+  private async retrySyncAfterRefresh(userId: string): Promise<boolean> {
+    try {
+      // استدعاء RPC مرة أخرى بعد تجديد التوكن
+      const { data: rows, error } = await supabase.rpc('get_user_with_permissions_unified', {
+        p_auth_user_id: userId,
+        p_include_subscription_data: false,
+        p_calculate_permissions: true
+      });
+
+      if (error) {
+        console.error('[PermissionSyncService] Retry after refresh failed:', error.message);
+        return false;
+      }
+
+      const row = Array.isArray(rows) ? rows[0] : rows;
+
+      if (!row) {
+        console.warn('[PermissionSyncService] No permissions data returned after refresh');
+        return false;
+      }
+
+      // تحويل وحفظ البيانات (نفس منطق المزامنة العادية)
+      const permissionData: UserPermissionData = {
+        userId: row.user_id,
+        authUserId: row.auth_user_id,
+        email: row.email || '',
+        name: row.name || '',
+        organizationId: row.organization_id || null,
+        role: row.role || UserRole.AUTHENTICATED,
+        permissions: row.permissions || {},
+        isOrgAdmin: !!row.is_org_admin,
+        isSuperAdmin: !!row.is_super_admin,
+        isActive: row.is_active !== false,
+        lastSyncedAt: new Date().toISOString()
+      };
+
+      // إضافة صلاحيات كاملة للمديرين
+      if (permissionData.isOrgAdmin || permissionData.isSuperAdmin) {
+        permissionData.permissions = {
+          ...permissionData.permissions,
+          viewInventory: true,
+          manageInventory: true,
+          manageProducts: true,
+          viewProducts: true,
+          editProducts: true,
+          deleteProducts: true,
+          addProducts: true,
+          viewOrders: true,
+          manageOrders: true,
+          viewCustomers: true,
+          manageCustomers: true
+        };
+      }
+
+      // حفظ في localStorage و SQLite
+      permissionService.saveToLocalStorage(permissionData);
+      await permissionService.saveToSQLite(permissionData);
+      permissionService.clearCache();
+
+      console.log('[PermissionSyncService] ✅ Retry after refresh succeeded');
+      this.retryCount = 0;
+      return true;
+    } catch (error) {
+      console.error('[PermissionSyncService] Error in retry after refresh:', error);
+      return false;
     }
   }
 

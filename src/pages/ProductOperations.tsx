@@ -6,7 +6,8 @@ import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
-import { Package, Tag, Database, Activity, Loader2 } from 'lucide-react';
+import { Package, Tag, Database, Activity, Loader2, HelpCircle } from 'lucide-react';
+import ProductsUserGuide from '@/components/product/ProductsUserGuide';
 
 const ProductsTab = React.lazy(() => import('./dashboard/ProductsCached'));
 const CategoriesTab = React.lazy(() => import('./dashboard/Categories'));
@@ -104,6 +105,7 @@ const ProductOperationsPage: React.FC = () => {
     isRefreshing: false,
   });
   const [refreshHandler, setRefreshHandler] = useState<RefreshHandler>(null);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const activeTab = resolvedTab;
   const activeTabMeta = TAB_CONFIG.find((tab) => tab.id === activeTab) ?? TAB_CONFIG[0];
@@ -223,11 +225,20 @@ const ProductOperationsPage: React.FC = () => {
       <div className="space-y-3 sm:space-y-4">
         {/* Header */}
         <div className="sticky top-0 z-10 space-y-3 p-3 sm:p-4 border-b border-border/50 bg-background/95 backdrop-blur">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">إدارة المنتجات</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              إدارة موحدة للمنتجات، الفئات، المخزون وتتبعه من واجهة واحدة.
-            </p>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">إدارة المنتجات</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                إدارة موحدة للمنتجات، الفئات، المخزون وتتبعه من واجهة واحدة.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsGuideOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+            >
+              <HelpCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">دليل الاستخدام</span>
+            </button>
           </div>
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
@@ -259,15 +270,22 @@ const ProductOperationsPage: React.FC = () => {
   );
 
   return (
-    <POSPureLayout
-      onRefresh={handleLayoutRefresh}
-      isRefreshing={Boolean(layoutState.isRefreshing)}
-      connectionStatus={layoutState.connectionStatus ?? 'connected'}
-      executionTime={layoutState.executionTime}
-      disableScroll={true}
-    >
-      {layoutContent}
-    </POSPureLayout>
+    <>
+      <POSPureLayout
+        onRefresh={handleLayoutRefresh}
+        isRefreshing={Boolean(layoutState.isRefreshing)}
+        connectionStatus={layoutState.connectionStatus ?? 'connected'}
+        executionTime={layoutState.executionTime}
+        disableScroll={true}
+      >
+        {layoutContent}
+      </POSPureLayout>
+
+      <ProductsUserGuide
+        open={isGuideOpen}
+        onOpenChange={setIsGuideOpen}
+      />
+    </>
   );
 };
 

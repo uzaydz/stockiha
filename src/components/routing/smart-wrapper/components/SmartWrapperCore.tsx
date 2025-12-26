@@ -33,7 +33,8 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
   // تحسين: استخدام useMemo لتجنب إعادة الحساب غير الضرورية
   const pathname = useMemo(() => location.pathname, [location.pathname]);
   
-  try { console.log('🧭 [SmartWrapperCore] render start', { pathname }); } catch {}
+  // Debug logging (disabled by default to reduce noise)
+  // try { console.log('🧭 [SmartWrapperCore] render start', { pathname }); } catch {}
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const renderCount = useRef(0);
@@ -71,7 +72,7 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
   // 🔄 تنظيف عند تغيير المسار
   useEffect(() => {
     if (lastPathname.current !== pathname) {
-      console.log('➡️ [SmartWrapperCore] pathname changed', { from: lastPathname.current, to: pathname });
+      // Debug: console.log('➡️ [SmartWrapperCore] pathname changed', { from: lastPathname.current, to: pathname });
       lastPathname.current = pathname;
     }
   }, [pathname]);
@@ -79,7 +80,7 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
   // تحديد نوع الصفحة والـ providers المطلوبة
   const { pageType, config } = useMemo(() => {
     const newPageType = determinePageType(pathname);
-    console.log('🧩 [SmartWrapperCore] determinePageType', { pathname, pageType: newPageType });
+    // Debug: console.log('🧩 [SmartWrapperCore] determinePageType', { pathname, pageType: newPageType });
     
     // التحقق من التغييرات
     if (lastPathname.current === pathname && isInitialized.current) {
@@ -97,7 +98,7 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
       'public-store', 'landing', 'thank-you', 'minimal', 'max-store'
     ]);
     const Wrapper = minimalTypes.has(pageType as any) ? MinimalCoreInfrastructureWrapper : CoreInfrastructureWrapper;
-    console.log('🏗️ [SmartWrapperCore] choosing wrapper', { pageType, wrapper: minimalTypes.has(pageType as any) ? 'minimal' : 'core' });
+    // Debug: console.log('🏗️ [SmartWrapperCore] choosing wrapper', { pageType, wrapper: minimalTypes.has(pageType as any) ? 'minimal' : 'core' });
 
     return (
       <Wrapper>
@@ -129,10 +130,5 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
 
 SmartWrapperCore.displayName = 'SmartWrapperCore';
 
-// مقارنة مخصصة لمنع إعادة الرسم غير الضرورية
-const areEqual = (prevProps: SmartWrapperCoreProps, nextProps: SmartWrapperCoreProps) => {
-  // مقارنة الأطفال فقط - إذا لم يتغيروا، لا تعيد الرسم
-  return prevProps.children === nextProps.children;
-};
-
-export default React.memo(SmartWrapperCore, areEqual);
+// ⚡ تم إزالة double memo wrapping - المكون ملفوف بـ memo بالفعل في السطر 22
+export default SmartWrapperCore;

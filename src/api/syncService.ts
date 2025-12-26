@@ -27,12 +27,45 @@ import { unifiedOrderService } from '@/services/UnifiedOrderService';
 import { saveRemoteInvoices, saveRemoteInvoiceItems } from '@/api/localInvoiceService';
 import { imageSyncService } from '@/api/imageSyncService';
 
+type ServerProductRow = Record<string, unknown> & {
+  id: string;
+  product_colors?: unknown[];
+  product_sizes?: unknown[];
+  product_images?: unknown[];
+};
+
+const buildIdentifierCandidates = (identifier: string): string[] => {
+  const clean = (identifier || '').trim();
+  if (!clean) return [];
+
+  const base = clean.replaceAll(',', '').replaceAll('%', '').replaceAll('_', '');
+  const candidates = new Set<string>([base]);
+
+  if (/^\d+$/.test(base)) {
+    const noLeadingZeros = base.replace(/^0+/, '');
+    if (noLeadingZeros && noLeadingZeros !== base) candidates.add(noLeadingZeros);
+
+    for (const len of [12, 13, 14]) {
+      if (base.length < len) candidates.add(base.padStart(len, '0'));
+      if (noLeadingZeros && noLeadingZeros.length < len) candidates.add(noLeadingZeros.padStart(len, '0'));
+    }
+  }
+
+  return [...candidates].filter(Boolean);
+};
+
+const toPostgrestInList = (values: string[]): string => {
+  const quoted = values.map((v) => `"${v.replaceAll('"', '').replaceAll(',', '')}"`);
+  return `(${quoted.join(',')})`;
+};
+
 // Constants
 const POS_SETTINGS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 let lastPosSettingsSyncTime = 0;
 
 /**
  * ⚡ مزامنة المنتجات من السيرفر (Server → Local)
+ * v2.0: يدعم حذف المنتجات اليتيمة (المحذوفة على السيرفر)
  */
 export const syncProductsFromServer = async (organizationId: string): Promise<number> => {
   try {
@@ -50,6 +83,9 @@ export const syncProductsFromServer = async (organizationId: string): Promise<nu
       .order('updated_at', { ascending: false });
 
     if (error) throw error;
+
+    // ⚡ جمع IDs المنتجات من السيرفر
+    const serverProductIds = new Set((products || []).map(p => p.id));
 
     let savedCount = 0;
     for (const product of products || []) {
@@ -86,6 +122,54 @@ export const syncProductsFromServer = async (organizationId: string): Promise<nu
       }
     }
 
+    // ⚡ v2.0: حذف المنتجات اليتيمة (موجودة محلياً لكن ليست على السيرفر)
+    try {
+      const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+      if (powerSyncService.db) {
+        const localProducts = await powerSyncService.query<{ id: string }>({
+          sql: 'SELECT id FROM products WHERE organization_id = ?',
+          params: [organizationId]
+        });
+
+        const orphanedIds = (localProducts || [])
+          .map(p => p.id)
+          .filter(id => !serverProductIds.has(id));
+
+        if (orphanedIds.length > 0) {
+          console.log(`[syncProductsFromServer] 🗑️ حذف ${orphanedIds.length} منتج يتيم...`);
+
+          // حذف المنتجات اليتيمة مباشرة
+          for (const id of orphanedIds) {
+            try {
+              await powerSyncService.db.execute(
+                'DELETE FROM products WHERE id = ?',
+                [id]
+              );
+              // حذف الألوان والمقاسات والصور المرتبطة
+              await powerSyncService.db.execute(
+                'DELETE FROM product_colors WHERE product_id = ?',
+                [id]
+              );
+              await powerSyncService.db.execute(
+                'DELETE FROM product_sizes WHERE product_id = ?',
+                [id]
+              );
+              await powerSyncService.db.execute(
+                'DELETE FROM product_images WHERE product_id = ?',
+                [id]
+              );
+            } catch (delErr) {
+              console.warn(`[syncProductsFromServer] تعذر حذف منتج ${id}:`, delErr);
+            }
+          }
+
+          console.log(`[syncProductsFromServer] ✅ تم حذف ${orphanedIds.length} منتج يتيم`);
+        }
+      }
+    } catch (orphanErr) {
+      console.warn('[syncProductsFromServer] ⚠️ تعذر فحص المنتجات اليتيمة:', orphanErr);
+    }
+
     // مزامنة الصور
     await imageSyncService.syncProductImages(organizationId);
 
@@ -94,6 +178,116 @@ export const syncProductsFromServer = async (organizationId: string): Promise<nu
   } catch (error) {
     console.error('[syncProductsFromServer] ❌ خطأ:', error);
     return 0;
+  }
+};
+
+/**
+ * ⚡ مزامنة منتج واحد بالباركود/sku/box_barcode (Server → Local)
+ * الهدف: عند ظهور المنتج في الـ POS أونلاين، نضمن حفظه محلياً للاستخدام Offline لاحقاً.
+ */
+export const syncProductByIdentifierFromServer = async (
+  organizationId: string,
+  identifier: string
+): Promise<{ success: boolean; productId?: string; error?: string }> => {
+  try {
+    const candidates = buildIdentifierCandidates(identifier);
+    if (candidates.length === 0) return { success: false, error: 'Missing identifier' };
+
+    const list = toPostgrestInList(candidates);
+
+    const { data: product, error } = await supabase
+      .from('products')
+      .select(
+        `
+        *,
+        product_colors(*),
+        product_sizes(*),
+        product_images(*)
+      `
+      )
+      .eq('organization_id', organizationId)
+      .or(`barcode.in.${list},sku.in.${list},box_barcode.in.${list}`)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!product) {
+      const probe = candidates[0];
+      const { data: productIlike, error: ilikeError } = await supabase
+        .from('products')
+        .select(
+          `
+          *,
+          product_colors(*),
+          product_sizes(*),
+          product_images(*)
+        `
+        )
+        .eq('organization_id', organizationId)
+        .or(`barcode.ilike.${probe},sku.ilike.${probe},box_barcode.ilike.${probe}`)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ilikeError) throw ilikeError;
+      if (!productIlike) {
+        console.warn('[syncProductByIdentifierFromServer] Not found', {
+          organizationId,
+          identifier,
+          candidates: candidates.slice(0, 6),
+        });
+        return { success: false, error: 'Not found on server' };
+      }
+
+      const row = productIlike as ServerProductRow;
+      const { product_colors, product_sizes, product_images, ...productData } = row;
+
+      await deltaWriteService.saveFromServer('products', productData);
+
+      if (Array.isArray(product_colors) && product_colors.length) {
+        for (const color of product_colors) {
+          await deltaWriteService.saveFromServer('product_colors', color);
+        }
+      }
+      if (Array.isArray(product_sizes) && product_sizes.length) {
+        for (const size of product_sizes) {
+          await deltaWriteService.saveFromServer('product_sizes', size);
+        }
+      }
+      if (Array.isArray(product_images) && product_images.length) {
+        for (const image of product_images) {
+          await deltaWriteService.saveFromServer('product_images', image);
+        }
+      }
+
+      return { success: true, productId: productData.id as string };
+    }
+
+    const row = product as ServerProductRow;
+    const { product_colors, product_sizes, product_images, ...productData } = row;
+
+    await deltaWriteService.saveFromServer('products', productData);
+
+    if (Array.isArray(product_colors) && product_colors.length) {
+      for (const color of product_colors) {
+        await deltaWriteService.saveFromServer('product_colors', color);
+      }
+    }
+    if (Array.isArray(product_sizes) && product_sizes.length) {
+      for (const size of product_sizes) {
+        await deltaWriteService.saveFromServer('product_sizes', size);
+      }
+    }
+    if (Array.isArray(product_images) && product_images.length) {
+      for (const image of product_images) {
+        await deltaWriteService.saveFromServer('product_images', image);
+      }
+    }
+
+    return { success: true, productId: productData.id as string };
+  } catch (e: unknown) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to sync product' };
   }
 };
 

@@ -24,7 +24,9 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
+  HelpCircle,
 } from 'lucide-react';
+import AnalyticsUserGuide from './AnalyticsUserGuide';
 import { cn } from '@/lib/utils';
 import { format, subDays, subMonths, startOfDay, endOfDay, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -166,6 +168,7 @@ const AnalyticsDashboard: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCustomDate, setShowCustomDate] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // Calculate date range from preset or custom
   const dateRange = useMemo(() => {
@@ -279,6 +282,20 @@ const AnalyticsDashboard: React.FC = () => {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
+              {/* Help Button */}
+              <button
+                onClick={() => setIsGuideOpen(true)}
+                className={cn(
+                  'p-2.5 rounded-xl transition-all',
+                  'bg-zinc-100 dark:bg-zinc-800',
+                  'hover:bg-zinc-200 dark:hover:bg-zinc-700',
+                  'text-zinc-600 dark:text-zinc-400'
+                )}
+                title="دليل الاستخدام"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
+
               {/* Refresh Button */}
               <button
                 onClick={handleRefresh}
@@ -430,6 +447,9 @@ const AnalyticsDashboard: React.FC = () => {
           </AnimatePresence>
         </Suspense>
       </main>
+
+      {/* ===== User Guide ===== */}
+      <AnalyticsUserGuide open={isGuideOpen} onOpenChange={setIsGuideOpen} />
     </div>
   );
 };

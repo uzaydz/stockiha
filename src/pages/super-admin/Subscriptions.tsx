@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { SuperAdminPureLayout } from '@/components/super-admin-layout';
 import { PlanCard } from '@/components/super-admin/subscriptions/PlanCard';
 import { EditPlanDialog } from '@/components/super-admin/subscriptions/EditPlanDialog';
 import { CreatePlanDialog } from '@/components/super-admin/subscriptions/CreatePlanDialog';
@@ -41,20 +41,20 @@ export default function SuperAdminSubscriptions() {
   useEffect(() => {
     fetchSubscriptionPlans();
   }, []);
-  
+
   // جلب خطط الاشتراك من قاعدة البيانات
   const fetchSubscriptionPlans = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const { data, error } = await supabase
         .from('subscription_plans')
         .select('*')
         .order('display_order', { ascending: true });
-        
+
       if (error) throw error;
-      
+
       if (data) {
         setPlans(data);
       } else {
@@ -177,13 +177,13 @@ export default function SuperAdminSubscriptions() {
       setIsLoading(false);
     }
   };
-  
+
   // معالجة تحرير خطة
   const handleEditPlan = (plan: SubscriptionPlan) => {
     setCurrentPlan(plan);
     setEditDialogOpen(true);
   };
-  
+
   // معالجة تحديث خطة
   const handleUpdatePlan = async (updatedPlan: SubscriptionPlan) => {
     try {
@@ -205,24 +205,24 @@ export default function SuperAdminSubscriptions() {
           updated_at: new Date().toISOString()
         })
         .eq('id', updatedPlan.id);
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
-      setPlans(plans.map(plan => 
+      setPlans(plans.map(plan =>
         plan.id === updatedPlan.id ? updatedPlan : plan
       ));
-      
+
       // إغلاق مربع الحوار
       setEditDialogOpen(false);
-      
+
       // إظهار رسالة نجاح
       toast({
         title: "تم تحديث الخطة",
         description: `تم تحديث خطة "${updatedPlan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -231,7 +231,7 @@ export default function SuperAdminSubscriptions() {
       });
     }
   };
-  
+
   // معالجة إنشاء خطة جديدة
   const handleCreatePlan = async (newPlan: Omit<SubscriptionPlan, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -244,20 +244,20 @@ export default function SuperAdminSubscriptions() {
           updated_at: new Date().toISOString()
         })
         .select();
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
       const createdPlan = data[0] as SubscriptionPlan;
       setPlans([...plans, createdPlan]);
-      
+
       // إظهار رسالة نجاح
       toast({
         title: "تم إنشاء الخطة",
         description: `تم إنشاء خطة "${newPlan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -266,33 +266,33 @@ export default function SuperAdminSubscriptions() {
       });
     }
   };
-  
+
   // معالجة تغيير حالة التفعيل
   const handleToggleActive = async (plan: SubscriptionPlan, isActive: boolean) => {
     try {
       // في بيئة الإنتاج، سيتم تحديث الحالة في قاعدة البيانات
       const { error } = await supabase
         .from('subscription_plans')
-        .update({ 
+        .update({
           is_active: isActive,
           updated_at: new Date().toISOString()
         })
         .eq('id', plan.id);
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
-      setPlans(plans.map(p => 
+      setPlans(plans.map(p =>
         p.id === plan.id ? { ...p, is_active: isActive } : p
       ));
-      
+
       // إظهار رسالة نجاح
       toast({
         title: isActive ? "تم تفعيل الخطة" : "تم إلغاء تفعيل الخطة",
         description: `تم ${isActive ? 'تفعيل' : 'إلغاء تفعيل'} خطة "${plan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -301,33 +301,33 @@ export default function SuperAdminSubscriptions() {
       });
     }
   };
-  
+
   // معالجة حذف خطة
   const handleDeletePlan = async (plan: SubscriptionPlan) => {
     // لا يمكن حذف الخطط النشطة
     if (plan.is_active) return;
-    
+
     if (!window.confirm(`هل أنت متأكد من حذف خطة "${plan.name}"؟`)) return;
-    
+
     try {
       // في بيئة الإنتاج، سيتم حذف الخطة من قاعدة البيانات
       const { error } = await supabase
         .from('subscription_plans')
         .delete()
         .eq('id', plan.id);
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
       setPlans(plans.filter(p => p.id !== plan.id));
-      
+
       // إظهار رسالة نجاح
       toast({
         title: "تم حذف الخطة",
         description: `تم حذف خطة "${plan.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -336,9 +336,9 @@ export default function SuperAdminSubscriptions() {
       });
     }
   };
-  
+
   return (
-    <SuperAdminLayout>
+    <SuperAdminPureLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
@@ -347,13 +347,13 @@ export default function SuperAdminSubscriptions() {
           </div>
           <CreatePlanDialog onCreatePlan={handleCreatePlan} />
         </div>
-        
+
         <Tabs defaultValue="plans" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="plans">الخطط والتسعير</TabsTrigger>
             <TabsTrigger value="analytics">تحليلات الاشتراكات</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="plans" className="space-y-6">
             {isLoading ? (
               <div className="flex justify-center items-center h-64">
@@ -370,10 +370,10 @@ export default function SuperAdminSubscriptions() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {plans.map((plan) => (
-                  <PlanCard 
-                    key={plan.id} 
-                    plan={plan} 
-                    onEdit={handleEditPlan} 
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    onEdit={handleEditPlan}
                     onDelete={handleDeletePlan}
                     onToggleActive={handleToggleActive}
                   />
@@ -381,20 +381,20 @@ export default function SuperAdminSubscriptions() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="analytics">
             <SubscriptionAnalytics analytics={mockAnalytics} />
           </TabsContent>
         </Tabs>
-        
+
         {/* مربع حوار تعديل الخطة */}
-        <EditPlanDialog 
-          open={editDialogOpen} 
-          onOpenChange={setEditDialogOpen} 
+        <EditPlanDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
           plan={currentPlan}
           onSave={handleUpdatePlan}
         />
       </div>
-    </SuperAdminLayout>
+    </SuperAdminPureLayout>
   );
 }

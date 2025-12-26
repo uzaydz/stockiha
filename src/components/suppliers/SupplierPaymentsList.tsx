@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  SupplierPayment, 
-  Supplier, 
-  getSupplierPayments, 
+import {
+  SupplierPayment,
+  Supplier,
+  getSupplierPayments,
   getAllSupplierPayments,
   getSuppliers,
   recordPayment
 } from '@/api/supplierService';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card';
 import {
   Table,
@@ -26,17 +26,17 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger  } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
-import { 
-  MoreVertical, 
-  Search, 
-  Plus, 
-  Loader2, 
-  Eye, 
-  FileEdit, 
-  Trash, 
+import {
+  MoreVertical,
+  Search,
+  Plus,
+  Loader2,
+  Eye,
+  FileEdit,
+  Trash,
   CreditCard,
   RefreshCw
 } from 'lucide-react';
@@ -50,7 +50,7 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
   const { user } = useAuth();
   const { toast } = useToast();
   const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
-  
+
   const [payments, setPayments] = useState<SupplierPayment[]>([]);
   const [filteredPayments, setFilteredPayments] = useState<SupplierPayment[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -60,26 +60,26 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
   const [dateFilter, setDateFilter] = useState('all');
   const [selectedSupplierId, setSelectedSupplierId] = useState('all');
   const [refreshKey, setRefreshKey] = useState(0);
-  
+
   // تحديد organization_id عند تهيئة المكون
   useEffect(() => {
     // محاولة الحصول على organization_id من كائن المستخدم
     if (user && 'organization_id' in user) {
-      
+
       setOrganizationId((user as any).organization_id);
       return;
     }
-    
+
     // محاولة الحصول من التخزين المحلي
     const storedOrgId = localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      
+
       setOrganizationId(storedOrgId);
       return;
     }
-    
+
     // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
-    
+
     setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
   }, [user]);
 
@@ -87,7 +87,7 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
   useEffect(() => {
     const loadSuppliers = async () => {
       if (!organizationId) return;
-      
+
       try {
         const suppliers = await getSuppliers(organizationId);
         setSuppliers(suppliers);
@@ -99,18 +99,18 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
         });
       }
     };
-    
+
     loadSuppliers();
   }, [organizationId, toast]);
 
   // تحميل المدفوعات
   const loadPayments = async () => {
     if (!organizationId) return;
-    
+
     setIsLoading(true);
     try {
       let allPayments: SupplierPayment[] = [];
-      
+
       if (selectedSupplierId !== 'all') {
         // إذا كان مورّد محدد، جلب مدفوعاته فقط
         const payments = await getSupplierPayments(organizationId, selectedSupplierId);
@@ -119,7 +119,7 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
         // جلب مدفوعات كل المورّدين باستخدام الوظيفة الجديدة
         allPayments = await getAllSupplierPayments(organizationId);
       }
-      
+
       setPayments(allPayments);
       setFilteredPayments(allPayments);
     } catch (error) {
@@ -143,19 +143,19 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
   // تطبيق الفلاتر
   useEffect(() => {
     if (!payments.length) return;
-    
+
     let result = [...payments];
-    
+
     // تطبيق بحث نصي
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const supplierMap = Object.fromEntries(suppliers.map(s => [s.id, s.name]));
-      
+
       result = result.filter(payment => {
         const supplierName = supplierMap[payment.supplier_id]?.toLowerCase() || '';
         const referenceNumber = payment.reference_number?.toLowerCase() || '';
         const notes = payment.notes?.toLowerCase() || '';
-        
+
         return (
           supplierName.includes(query) ||
           referenceNumber.includes(query) ||
@@ -164,17 +164,17 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
         );
       });
     }
-    
+
     // تطبيق فلتر المورّد
     if (selectedSupplierId !== 'all') {
       result = result.filter(payment => payment.supplier_id === selectedSupplierId);
     }
-    
+
     // تطبيق فلتر طريقة الدفع
     if (paymentMethodFilter !== 'all') {
       result = result.filter(payment => payment.payment_method === paymentMethodFilter);
     }
-    
+
     // تطبيق فلتر التاريخ
     if (dateFilter !== 'all') {
       const now = new Date();
@@ -182,10 +182,10 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
       const thisWeekStart = new Date(today);
       thisWeekStart.setDate(today.getDate() - today.getDay());
       const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      
+
       result = result.filter(payment => {
         const paymentDate = new Date(payment.payment_date);
-        
+
         switch (dateFilter) {
           case 'today':
             return paymentDate >= today;
@@ -198,7 +198,7 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
         }
       });
     }
-    
+
     setFilteredPayments(result);
   }, [payments, searchQuery, selectedSupplierId, paymentMethodFilter, dateFilter, suppliers]);
 
@@ -223,10 +223,10 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
   // إضافة وظيفة لإعادة تحميل البيانات
   const refreshPayments = async () => {
     setRefreshKey(oldKey => oldKey + 1);
-    
+
     // إعادة تحميل المدفوعات
     await loadPayments();
-    
+
     // استدعاء وظيفة onRefresh إذا كانت موجودة
     if (onRefresh) {
       onRefresh();
@@ -279,7 +279,7 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
                 ))}
               </SelectContent>
             </Select>
-            
+
             <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="طريقة الدفع" />
@@ -293,7 +293,7 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
                 <SelectItem value="other">أخرى</SelectItem>
               </SelectContent>
             </Select>
-            
+
             <Select value={dateFilter} onValueChange={setDateFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="فترة الدفع" />
@@ -307,7 +307,7 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
             </Select>
           </div>
         </div>
-        
+
         {/* جدول المدفوعات */}
         {isLoading ? (
           <div className="flex justify-center items-center py-8">
@@ -334,14 +334,14 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
               <TableBody>
                 {filteredPayments.map(payment => {
                   const supplierName = suppliers.find(s => s.id === payment.supplier_id)?.name || 'غير معروف';
-                  
+
                   return (
                     <TableRow key={payment.id}>
                       <TableCell className="font-medium">{supplierName}</TableCell>
                       <TableCell>
                         {format(new Date(payment.payment_date), 'PPP', { locale: ar })}
                       </TableCell>
-                      <TableCell>{payment.amount.toLocaleString('ar-EG')} ج.م</TableCell>
+                      <TableCell>{payment.amount.toLocaleString('fr-FR')} دج</TableCell>
                       <TableCell>
                         <Badge variant="outline">
                           {getPaymentMethodText(payment.payment_method)}
@@ -360,14 +360,14 @@ export function SupplierPaymentsList({ onRefresh }: { onRefresh?: () => void }) 
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => navigate(`/dashboard/suppliers/payments/${payment.id}`)}
                             >
                               <Eye className="ml-2 h-4 w-4" />
                               عرض التفاصيل
                             </DropdownMenuItem>
                             {payment.purchase_id && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => navigate(`/dashboard/suppliers/purchases/${payment.purchase_id}`)}
                               >
                                 <Eye className="ml-2 h-4 w-4" />

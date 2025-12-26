@@ -125,7 +125,7 @@ const BarcodeLivePreview: React.FC<BarcodeLivePreviewProps> = ({
                         else if (product.organization_subdomain) baseUrl = `https://${product.organization_subdomain}.stockiha.com`;
 
                         const slugPart = product.product_slug ? encodeURIComponent(product.product_slug) : product.product_id;
-                        const url = `${baseUrl}/products/${slugPart}`;
+                        const url = `${baseUrl}/product-purchase-max-v3/${slugPart}`;
 
                         const qrCode = new QRCodeStyling({
                             width: 100,

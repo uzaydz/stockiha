@@ -125,8 +125,10 @@ export const AssistantOrchestrator = {
       const response = await GeniusIntelligence.think(query, enrichedContext, opts?.history, opts?.signal);
       console.log(`⏱️ [AssistantOrchestrator] GeniusIntelligence.think returned at ${new Date().toISOString()}`);
 
+      // 🚀 Forward the widget from GeniusResponse to the final result
       return {
         answer: response.answer,
+        widget: response.widget, // 🆕 WIDGET SUPPORT
         data: {
           confidence: response.confidence,
           suggestions: response.suggestions,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { AppImages } from '@/lib/appImages';
 import { SmartAssistantChat } from './SmartAssistantChat';
 
 interface SmartAssistantButtonProps {
@@ -33,9 +34,9 @@ export const SmartAssistantButton: React.FC<SmartAssistantButtonProps> = ({ clas
                 )}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <img 
-                  src="./images/selkia-logo.webp" 
-                  alt="SIRA AI" 
+                <img
+                  src={AppImages.selkiaLogo}
+                  alt="SIRA AI"
                   className="w-8 h-8 object-contain relative z-10 group-hover:scale-110 transition-transform duration-300"
                 />
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background animate-pulse" />
@@ -57,10 +58,10 @@ export const SmartAssistantButton: React.FC<SmartAssistantButtonProps> = ({ clas
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button 
-              onClick={() => setOpen(true)} 
-              variant="outline" 
-              size="sm" 
+            <Button
+              onClick={() => setOpen(true)}
+              variant="outline"
+              size="sm"
               className={cn(
                 'gap-2.5 h-10 px-4 rounded-xl',
                 'bg-gradient-to-r from-background to-muted/30',
@@ -73,9 +74,9 @@ export const SmartAssistantButton: React.FC<SmartAssistantButtonProps> = ({ clas
               )}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <img 
-                src="./images/selkia-logo.webp" 
-                alt="SIRA AI" 
+              <img
+                src={AppImages.selkiaLogo}
+                alt="SIRA AI"
                 className="w-5 h-5 object-contain relative z-10 group-hover:scale-110 transition-transform duration-300"
               />
               <span className="text-sm font-semibold relative z-10">SIRA – تتحدث لغة تجارتك</span>

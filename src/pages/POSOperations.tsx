@@ -92,9 +92,9 @@ const POSOperationsPage: React.FC = () => {
       return TAB_CONFIG;
     }
 
-    const canOrders = perms.ready ? perms.anyOf(['accessPOS', 'canViewPosOrders', 'canManagePosOrders']) : false;
-    const canCustomers = perms.ready ? perms.anyOf(['viewCustomers', 'manageCustomers', 'accessPOS']) : false;
-    const canDebts = perms.ready ? perms.anyOf(['canViewDebts', 'canManageDebts', 'accessPOS']) : false;
+    const canOrders = perms.ready ? perms.anyOf(['canAccessPosOperations', 'canViewPosOrders', 'canManagePosOrders']) : false;
+    const canCustomers = perms.ready ? perms.anyOf(['canAccessPosOperations']) : false;
+    const canDebts = perms.ready ? perms.anyOf(['canViewDebts', 'canManageDebts']) : false;
     const canReturns = perms.ready ? perms.anyOf(['canViewReturns', 'canManageReturns']) : false;
     const canLosses = perms.ready ? perms.anyOf(['canViewLosses', 'canManageLosses']) : false;
     const canInvoices = perms.ready ? perms.anyOf(['canViewInvoices', 'canManageInvoices']) : false;
@@ -175,7 +175,9 @@ const POSOperationsPage: React.FC = () => {
   }, [activeTab]);
 
   const handleRegisterRefresh = useCallback((handler: RefreshHandler) => {
-    setRefreshHandler(handler);
+    // ⚡ FIX: استخدام arrow function لمنع React من استدعاء الدالة كـ updater
+    // بدون () => handler، React يعتقد أن handler هي updater function ويستدعيها!
+    setRefreshHandler(() => handler);
   }, []);
 
   const handleChildLayoutStateChange = useCallback((state: POSLayoutState) => {

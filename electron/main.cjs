@@ -1,12 +1,15 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, globalShortcut, protocol, net } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, globalShortcut, protocol, net, session } = require('electron');
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 const { SQLiteManager } = require('./sqliteManager.cjs');
 const { updaterManager } = require('./updater.cjs');
 const printManager = require('./printManager.cjs');
+const { initializeSecureStorage, SecureStorage } = require('./secureStorage.cjs');
+const { ALLOWED_DOMAINS } = require('./security-config.cjs');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚡ PERFORMANCE OPTIMIZATIONS - تحسينات الأداء لـ Electron
@@ -89,6 +92,78 @@ const isDev = process.env.NODE_ENV === 'development' ||
 
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
+
+const LOCALHOSTS = new Set(['localhost', '127.0.0.1']);
+const CONNECTIVITY_DOMAINS = [
+  'www.google.com',
+  'connectivitycheck.gstatic.com',
+  'www.cloudflare.com',
+  'captive.apple.com',
+];
+
+function isAllowedDomain(hostname, allowedDomains) {
+  return allowedDomains.some(domain =>
+    hostname === domain || hostname.endsWith(`.${domain}`)
+  );
+}
+
+function isAllowedExternalUrl(rawUrl) {
+  try {
+    const parsedUrl = new URL(rawUrl);
+    const protocol = parsedUrl.protocol.toLowerCase();
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    if (protocol === 'mailto:' || protocol === 'tel:') return true;
+
+    const isHttp = protocol === 'http:' || protocol === 'https:';
+    if (!isHttp) return false;
+
+    if (LOCALHOSTS.has(hostname)) {
+      return isDev;
+    }
+
+    if (protocol !== 'https:') {
+      return false;
+    }
+
+    return isAllowedDomain(hostname, ALLOWED_DOMAINS);
+  } catch {
+    return false;
+  }
+}
+
+function openExternalSafe(rawUrl) {
+  if (!isAllowedExternalUrl(rawUrl)) {
+    console.warn('[Electron Security] Blocked external navigation:', rawUrl);
+    return false;
+  }
+  shell.openExternal(rawUrl);
+  return true;
+}
+
+function isAllowedConnectivityUrl(rawUrl) {
+  try {
+    const parsedUrl = new URL(rawUrl);
+    const protocol = parsedUrl.protocol.toLowerCase();
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    const isHttp = protocol === 'http:' || protocol === 'https:';
+    if (!isHttp) return false;
+
+    if (LOCALHOSTS.has(hostname)) {
+      return isDev;
+    }
+
+    const isHttpsRequired = protocol === 'https:' || hostname === 'captive.apple.com';
+    if (!isHttpsRequired && protocol !== 'https:') {
+      return false;
+    }
+
+    return isAllowedDomain(hostname, [...ALLOWED_DOMAINS, ...CONNECTIVITY_DOMAINS]);
+  } catch {
+    return false;
+  }
+}
 
 // إخفاء تحذيرات الأمان في وضع التطوير فقط
 if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || process.env.ELECTRON_IS_DEV === 'true') {
@@ -226,12 +301,6 @@ function createMainWindow() {
     maxWidth: 2560,
     maxHeight: 1600,
     icon: iconPath,
-    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
-    titleBarOverlay: {
-      color: '#0f172a',
-      symbolColor: '#ffffff',
-      height: 48
-    },
     // إعدادات شريط العنوان لـ Windows
     title: 'سطوكيها - منصة إدارة المتاجر',
     // إعدادات التحكم في النافذة
@@ -243,7 +312,7 @@ function createMainWindow() {
     alwaysOnTop: false,
     skipTaskbar: false,
     fullscreenable: true,
-    // إعدادات إضافية للتحكم
+    // إعدادات إضافية للتحكم - إزالة frame لإخفاء جميع الأزرار الافتراضية
     frame: false,
     transparent: false,
     hasShadow: true,
@@ -256,7 +325,7 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false, // تعطيل sandbox لتحميل الموارد المحلية
+      sandbox: !isDev, // تفعيل sandbox في الإنتاج وتعطيله في التطوير لتجنب مشاكل التطوير
       enableRemoteModule: false,
       // ✅ استخدام preload script الآمن والمحسن - تحسينات أمنية رئيسية
       preload: path.join(__dirname, 'preload.secure.cjs'),
@@ -531,7 +600,7 @@ function createMainWindow() {
         const isLocalDev = parsedUrl.protocol === 'http:' && parsedUrl.host === 'localhost:8080';
         if (!isLocalDev) {
           event.preventDefault();
-          shell.openExternal(navigationUrl);
+          openExternalSafe(navigationUrl);
         }
         return;
       }
@@ -539,7 +608,7 @@ function createMainWindow() {
       // 3. في الإنتاج: لا نسمح إلا بالتنقل داخل index.html (HashRouter يدير الباقي)
       if (parsedUrl.protocol !== 'file:') {
         event.preventDefault();
-        shell.openExternal(navigationUrl);
+        openExternalSafe(navigationUrl);
         return;
       }
 
@@ -636,7 +705,7 @@ function createMainWindow() {
 
   // منع التنقل الخارجي
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
   });
 
@@ -765,6 +834,15 @@ function createMenu() {
           // ❌ إزالة F12 - محجوز لـ POS (بيع سريع)
           accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {
+            if (!isDev) {
+              dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: 'غير متاح',
+                message: 'أدوات المطور غير متاحة في وضع الإنتاج.',
+                buttons: ['حسناً']
+              });
+              return;
+            }
             mainWindow.webContents.toggleDevTools();
           }
         },
@@ -851,13 +929,13 @@ function createMenu() {
         {
           label: 'دليل المستخدم',
           click: () => {
-            shell.openExternal('https://stockiha.com/docs');
+            openExternalSafe('https://stockiha.com/docs');
           }
         },
         {
           label: 'الدعم الفني',
           click: () => {
-            shell.openExternal('https://stockiha.com/support');
+            openExternalSafe('https://stockiha.com/support');
           }
         },
         { type: 'separator' },
@@ -865,6 +943,15 @@ function createMenu() {
           label: 'أدوات المطور',
           accelerator: 'CmdOrCtrl+Shift+I',
           click: () => {
+            if (!isDev) {
+              dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: 'غير متاح',
+                message: 'أدوات المطور غير متاحة في وضع الإنتاج.',
+                buttons: ['حسناً']
+              });
+              return;
+            }
             mainWindow.webContents.toggleDevTools();
           }
         }
@@ -1013,9 +1100,24 @@ function registerGlobalShortcuts() {
 }
 
 // إدارة الأحداث
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // تسجيل وقت بدء التطبيق
   global.appStartTime = Date.now();
+
+  try {
+    const encryptionKey = await getOrCreateSecureSessionKey();
+    await initializeSecureStorage(encryptionKey);
+  } catch (error) {
+    console.error('[Electron] Failed to initialize secure storage:', error);
+  }
+
+  if (session?.defaultSession) {
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      console.warn('[Electron Security] Permission request blocked:', permission);
+      callback(false);
+    });
+    session.defaultSession.setPermissionCheckHandler(() => false);
+  }
 
   createApp();
 
@@ -1145,7 +1247,7 @@ app.on('web-contents-created', (event, contents) => {
   // منع نوافذ جديدة
   contents.on('new-window', (event, navigationUrl) => {
     event.preventDefault();
-    shell.openExternal(navigationUrl);
+    openExternalSafe(navigationUrl);
   });
 
   // منع التنقل الخارجي
@@ -1225,6 +1327,10 @@ ipcMain.handle('window:maximize', () => {
 // فتح DevTools
 ipcMain.handle('window:toggle-devtools', () => {
   if (mainWindow) {
+    if (!isDev) {
+      console.warn('[Electron Security] DevTools blocked in production');
+      return false;
+    }
     mainWindow.webContents.toggleDevTools();
   }
 });
@@ -2056,6 +2162,10 @@ ipcMain.handle('window-is-full-screen', () => {
 
 ipcMain.handle('window-toggle-devtools', () => {
   if (mainWindow) {
+    if (!isDev) {
+      console.warn('[Electron Security] DevTools blocked in production');
+      return false;
+    }
     mainWindow.webContents.toggleDevTools();
   }
 });
@@ -2091,6 +2201,10 @@ ipcMain.handle('make-request', async (event, options) => {
   const https = require('https');
   const http = require('http');
   const url = require('url');
+
+  if (!isDev) {
+    return { success: false, error: 'Requests are disabled in production' };
+  }
 
   return new Promise((resolve) => {
     const parsedUrl = url.parse(options.url);
@@ -2131,19 +2245,8 @@ ipcMain.handle('make-request', async (event, options) => {
 // ملاحظة: نستخدم try-catch وننتظر حتى تكون النافذة جاهزة
 ipcMain.handle('storage:get', async (event, key) => {
   try {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      console.warn('[Storage] Window not available');
-      return null;
-    }
-    // انتظر حتى تنتهي الصفحة من التحميل
-    if (mainWindow.webContents.isLoading()) {
-      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
-    }
-    const safeKey = String(key).replace(/'/g, "\\'");
-    return await mainWindow.webContents.executeJavaScript(
-      `(function() { try { return localStorage.getItem('${safeKey}'); } catch(e) { return null; } })()`,
-      true
-    );
+    const storageKey = String(key || '');
+    return SecureStorage.get(storageKey, null);
   } catch (error) {
     console.error('خطأ في قراءة localStorage:', error);
     return null;
@@ -2152,20 +2255,9 @@ ipcMain.handle('storage:get', async (event, key) => {
 
 ipcMain.handle('storage:set', async (event, key, value) => {
   try {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      console.warn('[Storage] Window not available');
-      return false;
-    }
-    if (mainWindow.webContents.isLoading()) {
-      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
-    }
-    const safeKey = String(key).replace(/'/g, "\\'");
-    const safeValue = String(value).replace(/'/g, "\\'").replace(/\n/g, '\\n');
-    await mainWindow.webContents.executeJavaScript(
-      `(function() { try { localStorage.setItem('${safeKey}', '${safeValue}'); return true; } catch(e) { return false; } })()`,
-      true
-    );
-    return true;
+    const storageKey = String(key || '');
+    const result = SecureStorage.set(storageKey, value);
+    return result && result.success === true;
   } catch (error) {
     console.error('خطأ في كتابة localStorage:', error);
     return false;
@@ -2174,19 +2266,9 @@ ipcMain.handle('storage:set', async (event, key, value) => {
 
 ipcMain.handle('storage:remove', async (event, key) => {
   try {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      console.warn('[Storage] Window not available');
-      return false;
-    }
-    if (mainWindow.webContents.isLoading()) {
-      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
-    }
-    const safeKey = String(key).replace(/'/g, "\\'");
-    await mainWindow.webContents.executeJavaScript(
-      `(function() { try { localStorage.removeItem('${safeKey}'); return true; } catch(e) { return false; } })()`,
-      true
-    );
-    return true;
+    const storageKey = String(key || '');
+    const result = SecureStorage.remove(storageKey);
+    return result && result.success === true;
   } catch (error) {
     console.error('خطأ في حذف localStorage:', error);
     return false;
@@ -2195,20 +2277,20 @@ ipcMain.handle('storage:remove', async (event, key) => {
 
 ipcMain.handle('storage:clear', async () => {
   try {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      console.warn('[Storage] Window not available');
-      return false;
-    }
-    if (mainWindow.webContents.isLoading()) {
-      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
-    }
-    await mainWindow.webContents.executeJavaScript(
-      `(function() { try { localStorage.clear(); return true; } catch(e) { return false; } })()`,
-      true
-    );
-    return true;
+    const result = SecureStorage.clear();
+    return result && result.success === true;
   } catch (error) {
     console.error('خطأ في مسح localStorage:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('storage:has', async (event, key) => {
+  try {
+    const storageKey = String(key || '');
+    return SecureStorage.has(storageKey);
+  } catch (error) {
+    console.error('خطأ في التحقق من localStorage:', error);
     return false;
   }
 });
@@ -2285,7 +2367,27 @@ ipcMain.handle('print:html', async (event, options) => {
 
 // طباعة باركود
 ipcMain.handle('print:barcode', async (event, options) => {
-  return await printManager.printBarcode(options);
+  try {
+    console.log('[main.cjs] 🎯 print:barcode handler called with:', {
+      barcodesCount: options.barcodes?.length,
+      printerName: options.printerName,
+      labelSize: options.labelSize,
+      templateId: options.templateId,
+      hasCustomHtml: !!options.customHtml,
+      customHtmlLength: options.customHtml?.length || 0
+    });
+
+    const result = await printManager.printBarcode(options);
+
+    console.log('[main.cjs] 🎯 print:barcode result:', result);
+    return result;
+  } catch (error) {
+    console.error('[main.cjs] ❌ print:barcode error:', error);
+    return {
+      success: false,
+      error: error.message || 'Unknown error in barcode printing'
+    };
+  }
 });
 
 // فتح درج النقود
@@ -2341,7 +2443,18 @@ ipcMain.handle('net:ping', async (event, url, timeout = 5000) => {
 
   return new Promise((resolve) => {
     try {
-      const parsedUrl = new URL(url || 'https://www.google.com/generate_204');
+      const targetUrl = url || 'https://www.google.com/generate_204';
+      if (!isAllowedConnectivityUrl(targetUrl)) {
+        resolve({
+          success: false,
+          reachable: false,
+          error: 'URL not allowed',
+          latency: Date.now() - startTime
+        });
+        return;
+      }
+
+      const parsedUrl = new URL(targetUrl);
       const isHttps = parsedUrl.protocol === 'https:';
       const client = isHttps ? https : http;
 
@@ -2408,8 +2521,17 @@ ipcMain.handle('net:multi-ping', async (event, urls, timeout = 3000) => {
     'https://www.cloudflare.com/cdn-cgi/trace'
   ];
 
-  const endpointsToCheck = urls && urls.length > 0 ? urls : defaultUrls;
   const startTime = Date.now();
+  const requestedUrls = urls && urls.length > 0 ? urls : defaultUrls;
+  const endpointsToCheck = requestedUrls.filter(isAllowedConnectivityUrl);
+  if (endpointsToCheck.length === 0) {
+    return {
+      success: false,
+      isOnline: false,
+      error: 'No allowed endpoints provided',
+      latency: Date.now() - startTime
+    };
+  }
 
   // نستخدم Promise.any للحصول على أول نجاح
   try {

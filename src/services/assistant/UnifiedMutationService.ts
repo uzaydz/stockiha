@@ -56,13 +56,23 @@ export const UnifiedMutationService = {
     const colors = (productObj.colors || productObj.product_colors || []) as any[];
     let currentQty = 0;
     if (sizeId) {
-      const c = colors.find((x: any) => x?.id === (colorId || x?.id));
-      const sizes = c?.sizes || c?.product_sizes || [];
-      const s = sizes.find((u: any) => u?.id === sizeId);
-      currentQty = Number(s?.quantity ?? 0) || 0;
+      // Need to find which color contains this size, or if sizes are top level (rare but possible in some schemas)
+      // Assuming standard: product -> color -> sizes
+      // We search all colors to find the size
+      let foundSize = null;
+      for (const col of colors) {
+        const sizes = col.sizes || col.product_sizes || [];
+        const s = sizes.find((u: any) => u?.id === sizeId);
+        if (s) {
+          foundSize = s;
+          break;
+        }
+      }
+      currentQty = Number(foundSize?.quantity ?? 0) || 0;
     } else if (colorId) {
       const c = colors.find((x: any) => x?.id === colorId);
       if (c?.has_sizes) {
+        // Sum of sizes for this color
         const sizes = c?.sizes || c?.product_sizes || [];
         currentQty = sizes.reduce((sum: number, u: any) => sum + (Number(u?.quantity ?? 0) || 0), 0);
       } else {
@@ -86,7 +96,7 @@ export const UnifiedMutationService = {
       });
     } catch (e) {
       // إذا فشل بسبب عدم المصادقة أو RLS، سيبقى التحديث محلياً وتُحاول المزامنة لاحقاً
-      try { void import('@/api/syncService').then(m => (m.syncUnsyncedProducts?.())); } catch {}
+      try { void import('@/api/syncService').then(m => (m.syncUnsyncedProducts?.())); } catch { }
     }
 
     return updatedLocal;
@@ -100,8 +110,8 @@ export const UnifiedMutationService = {
     const updated = await updateLocalProduct(args.productId, { name: newName, name_lower, name_search } as any);
     // تحديث كاش منتجات POS لتنعكس التسمية فوراً دون إعادة جلب
     if (updated) {
-      try { replaceProductInPOSCache(updated as any); } catch {}
-      try { patchProductInAllPOSCaches(updated.id, { name: newName }); } catch {}
+      try { replaceProductInPOSCache(updated as any); } catch { }
+      try { patchProductInAllPOSCaches(updated.id, { name: newName }); } catch { }
       // ⚡ Offline-First: استخدام UnifiedProductService (PowerSync)
       try {
         const { unifiedProductService } = await import('@/services/UnifiedProductService');
@@ -119,7 +129,7 @@ export const UnifiedMutationService = {
       } catch (powerSyncError) {
         console.warn('[UnifiedMutation] ⚠️ PowerSync update failed, product saved locally:', powerSyncError);
       }
-      
+
       // ⚡ المزامنة تحدث تلقائياً عبر PowerSync عند الاتصال
     }
     return updated;
@@ -173,6 +183,7 @@ export const UnifiedMutationService = {
     };
     await deltaWriteService.create('customer_debt_payments' as any, payment, organizationId);
 
+    // Distribute payment across debts
     for (const d of debts) {
       if (remaining <= 0) break;
       const rest = Math.max(0, d.remaining_amount || 0);
@@ -193,6 +204,9 @@ export const UnifiedMutationService = {
       affected.push({ id: d.id, paid: pay, remaining: newRemaining, status });
       affectedWithOrder.push({ id: d.id, orderId: d.order_id, paid: pay, remaining: newRemaining, status });
     }
+
+    // If remaining > 0 (overpayment), it's just credit (handled by the payment record itself being > applied)
+    // In future we might want to store 'credit' explicitly
 
     // ⚡ جلب الديون المفتوحة بعد التحديث
     const allDebtsAfter = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts' as any, organizationId);
@@ -215,14 +229,12 @@ export const UnifiedMutationService = {
             })
             .eq('id', a.orderId);
           if (!error) {
-            try { await updateCustomerDebtSyncStatus(a.id, true); } catch {}
+            try { await updateCustomerDebtSyncStatus(a.id, true); } catch { }
           }
         })
       );
     } catch {
       // سيحاول نظام المزامنة لاحقاً
-      // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - لا حاجة لاستدعاء صريح
-      // try { void import('@/api/syncCustomerDebts').then(m => (m.syncPendingCustomerDebts?.())); } catch {}
     }
 
     return { totalBefore, totalAfter, applied, debtsAffected: affected };
@@ -271,15 +283,6 @@ export const UnifiedMutationService = {
     if (!result.success) {
       console.error('[createCustomerDebt] Failed to save via Delta Sync:', result.error);
       throw new Error(`Failed to create customer debt: ${result.error}`);
-    }
-
-    // محاولة المزامنة مع السيرفر
-    try {
-      // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - لا حاجة لاستدعاء صريح
-      // const { syncPendingCustomerDebts } = await import('@/api/syncCustomerDebts');
-      // void syncPendingCustomerDebts();
-    } catch (error) {
-      console.error('[createCustomerDebt] خطأ في المزامنة:', error);
     }
 
     return { debtId, amount };

@@ -16,8 +16,20 @@
   --titlebar-height: 48px;
 }
 
+@media (max-width: 640px) {
+  :root {
+    --titlebar-height: 44px;
+  }
+}
+
 body {
   margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Desktop app keeps strict internal scrolling */
+body.electron-app {
   overflow: hidden;
 }
 
@@ -29,6 +41,17 @@ body.appleshell-active .desktop-titlebar {
 /* Make space rules neutral; AppleShell manages its own paddings */
 body.appleshell-active .app-shell {
   padding-top: 0 !important;
+}
+
+/* POSPureLayout manages titlebar spacing itself */
+body.pos-shell-active .app-shell {
+  padding-top: 0 !important;
+}
+
+body.pos-shell-active,
+body.pos-shell-active .app-shell,
+body.pos-shell-active .app-shell__content {
+  background: #080f1a !important;
 }
 
 /* Apple window helpers */

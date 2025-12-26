@@ -254,7 +254,7 @@ class DeltaWriteServiceClass {
 
     // ⚡ تجاهل الكتابة في الجداول المُزامنة - PowerSync يتولى جلبها تلقائيًا
     if (syncedTables.includes(table)) {
-      console.log(`[DeltaWrite] ℹ️ Skipping ${table} - managed by PowerSync sync`);
+      // لا نسجل - لتقليل الضوضاء في console
       return { success: true, id: data.id || '' };
     }
 

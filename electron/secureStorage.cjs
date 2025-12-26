@@ -10,9 +10,41 @@
  * - error handling آمن
  */
 
-const Store = require('electron-store');
 const { app } = require('electron');
+const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
+
+let Store = null;
+let storeLoadAttempted = false;
+
+async function resolveElectronStore() {
+  if (Store || storeLoadAttempted) {
+    return Store;
+  }
+
+  storeLoadAttempted = true;
+
+  try {
+    Store = require('electron-store');
+    return Store;
+  } catch (error) {
+    const errorCode = error?.code;
+    if (errorCode !== 'ERR_REQUIRE_ESM' && errorCode !== 'MODULE_NOT_FOUND') {
+      console.warn('[SecureStorage] electron-store require failed:', error?.message || error);
+    }
+  }
+
+  try {
+    const mod = await import('electron-store');
+    Store = mod?.default || mod;
+    return Store;
+  } catch (error) {
+    console.warn('[SecureStorage] electron-store not available, using JSON fallback:', error?.message || error);
+  }
+
+  return null;
+}
 
 // ============================================================================
 // Store Configuration
@@ -43,7 +75,7 @@ const schema = {
 
   // User preferences
   lastSync: {
-    type: 'string', // ISO date string
+    type: ['string', 'null'], // ISO date string or null
     default: null,
   },
 
@@ -55,32 +87,141 @@ const schema = {
 };
 
 // ============================================================================
-// Initialize Stores
+// Initialize Stores (lazy, with dynamic encryption key)
 // ============================================================================
 
-// Main store (encrypted for sensitive data)
-const mainStore = new Store({
-  name: 'config',
-  cwd: app.getPath('userData'),
-  schema,
-  encryptionKey: 'stockiha-secure-encryption-key-2024', // TODO: Use dynamic key
-  clearInvalidConfig: true,
-});
+let mainStore = null;
+let sessionStore = null;
+let cacheStore = null;
+let storesInitialized = false;
 
-// Session store (temporary, cleared on app restart)
-const sessionStore = new Store({
-  name: 'session',
-  cwd: path.join(app.getPath('userData'), 'temp'),
-  encryptionKey: 'stockiha-session-key-2024',
-  clearInvalidConfig: true,
-});
+function deriveKey(baseKey, purpose) {
+  return crypto
+    .createHash('sha256')
+    .update(`${baseKey}:${purpose}`)
+    .digest('hex');
+}
 
-// Cache store (not encrypted, for non-sensitive data)
-const cacheStore = new Store({
-  name: 'cache',
-  cwd: path.join(app.getPath('userData'), 'cache'),
-  clearInvalidConfig: true,
-});
+class JsonStore {
+  constructor({ name, cwd }) {
+    this.name = name;
+    this.cwd = cwd;
+    fs.mkdirSync(cwd, { recursive: true });
+    this.path = path.join(cwd, `${name}.json`);
+    this._store = this._read();
+  }
+
+  _read() {
+    try {
+      if (!fs.existsSync(this.path)) return {};
+      const raw = fs.readFileSync(this.path, 'utf8');
+      if (!raw) return {};
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+
+  _write() {
+    try {
+      fs.writeFileSync(this.path, JSON.stringify(this._store || {}), 'utf8');
+    } catch (error) {
+      console.error('[SecureStorage] Failed to write JSON store:', error?.message || error);
+    }
+  }
+
+  get(key, defaultValue) {
+    return Object.prototype.hasOwnProperty.call(this._store, key)
+      ? this._store[key]
+      : defaultValue;
+  }
+
+  set(key, value) {
+    this._store[key] = value;
+    this._write();
+  }
+
+  delete(key) {
+    delete this._store[key];
+    this._write();
+  }
+
+  clear() {
+    this._store = {};
+    this._write();
+  }
+
+  has(key) {
+    return Object.prototype.hasOwnProperty.call(this._store, key);
+  }
+
+  get store() {
+    return this._store || {};
+  }
+
+  get size() {
+    return Object.keys(this._store || {}).length;
+  }
+}
+
+async function initializeSecureStorage(encryptionKey) {
+  if (storesInitialized) return true;
+  if (!encryptionKey || typeof encryptionKey !== 'string') {
+    throw new Error('Secure storage encryption key is required');
+  }
+
+  const userDataPath = app.getPath('userData');
+  const mainKey = deriveKey(encryptionKey, 'main');
+  const sessionKey = deriveKey(encryptionKey, 'session');
+
+  const rawStoreModule = await resolveElectronStore();
+  const StoreModule = typeof rawStoreModule === 'function'
+    ? rawStoreModule
+    : (rawStoreModule && typeof rawStoreModule.default === 'function' ? rawStoreModule.default : null);
+
+  if (StoreModule) {
+    // Main store (encrypted for sensitive data)
+    mainStore = new StoreModule({
+      name: 'config',
+      cwd: userDataPath,
+      schema,
+      encryptionKey: mainKey,
+      clearInvalidConfig: true,
+    });
+
+    // Session store (temporary, cleared on app restart)
+    sessionStore = new StoreModule({
+      name: 'session',
+      cwd: path.join(userDataPath, 'temp'),
+      encryptionKey: sessionKey,
+      clearInvalidConfig: true,
+    });
+
+    // Cache store (not encrypted, for non-sensitive data)
+    cacheStore = new StoreModule({
+      name: 'cache',
+      cwd: path.join(userDataPath, 'cache'),
+      clearInvalidConfig: true,
+    });
+  } else {
+    console.warn('[SecureStorage] Using JSON fallback store (no encryption).');
+    mainStore = new JsonStore({ name: 'config', cwd: userDataPath });
+    sessionStore = new JsonStore({ name: 'session', cwd: path.join(userDataPath, 'temp') });
+    cacheStore = new JsonStore({ name: 'cache', cwd: path.join(userDataPath, 'cache') });
+  }
+
+  sessionStore.clear();
+  CacheStorage.cleanExpired();
+
+  storesInitialized = true;
+  return true;
+}
+
+function ensureStores() {
+  if (!storesInitialized || !mainStore || !sessionStore || !cacheStore) {
+    throw new Error('Secure storage is not initialized');
+  }
+}
 
 // ============================================================================
 // Validation Functions
@@ -91,13 +232,27 @@ function validateKey(key) {
     throw new Error('Key must be a string');
   }
 
-  if (key.length === 0 || key.length > 100) {
-    throw new Error('Key length must be between 1 and 100 characters');
+  if (key.length === 0 || key.length > 200) {
+    throw new Error('Key length must be between 1 and 200 characters');
   }
 
-  // Only allow alphanumeric, underscore, hyphen, dot, colon
-  if (!/^[a-zA-Z0-9_.-:]+$/.test(key)) {
-    throw new Error('Key contains invalid characters');
+  if (/[\x00-\x1F\x7F]/.test(key)) {
+    throw new Error('Key contains control characters');
+  }
+
+  const lowered = key.toLowerCase();
+  if (lowered === '__proto__' || lowered === 'constructor' || lowered === 'prototype') {
+    throw new Error('Key contains unsafe value');
+  }
+
+  if (key.includes('.')) {
+    const parts = key.split('.');
+    for (const part of parts) {
+      const partLowered = part.toLowerCase();
+      if (partLowered === '__proto__' || partLowered === 'constructor' || partLowered === 'prototype') {
+        throw new Error('Key contains unsafe value');
+      }
+    }
   }
 
   return true;
@@ -129,6 +284,7 @@ class SecureStorage {
    */
   static get(key, defaultValue = null) {
     try {
+      ensureStores();
       validateKey(key);
       return mainStore.get(key, defaultValue);
     } catch (error) {
@@ -142,6 +298,7 @@ class SecureStorage {
    */
   static set(key, value) {
     try {
+      ensureStores();
       validateKey(key);
       validateValue(value);
       mainStore.set(key, value);
@@ -157,6 +314,7 @@ class SecureStorage {
    */
   static remove(key) {
     try {
+      ensureStores();
       validateKey(key);
       mainStore.delete(key);
       return { success: true };
@@ -171,6 +329,7 @@ class SecureStorage {
    */
   static clear() {
     try {
+      ensureStores();
       mainStore.clear();
       return { success: true };
     } catch (error) {
@@ -184,6 +343,7 @@ class SecureStorage {
    */
   static has(key) {
     try {
+      ensureStores();
       validateKey(key);
       return mainStore.has(key);
     } catch (error) {
@@ -197,6 +357,7 @@ class SecureStorage {
    */
   static keys() {
     try {
+      ensureStores();
       const store = mainStore.store;
       return Object.keys(store);
     } catch (error) {
@@ -210,6 +371,7 @@ class SecureStorage {
    */
   static size() {
     try {
+      ensureStores();
       return mainStore.size;
     } catch (error) {
       console.error('Storage size error:', error);
@@ -221,6 +383,7 @@ class SecureStorage {
    * Get store path
    */
   static path() {
+    ensureStores();
     return mainStore.path;
   }
 }
@@ -232,6 +395,7 @@ class SecureStorage {
 class SessionStorage {
   static get(key, defaultValue = null) {
     try {
+      ensureStores();
       validateKey(key);
       return sessionStore.get(key, defaultValue);
     } catch (error) {
@@ -242,6 +406,7 @@ class SessionStorage {
 
   static set(key, value) {
     try {
+      ensureStores();
       validateKey(key);
       validateValue(value);
       sessionStore.set(key, value);
@@ -254,6 +419,7 @@ class SessionStorage {
 
   static remove(key) {
     try {
+      ensureStores();
       validateKey(key);
       sessionStore.delete(key);
       return { success: true };
@@ -265,6 +431,7 @@ class SessionStorage {
 
   static clear() {
     try {
+      ensureStores();
       sessionStore.clear();
       return { success: true };
     } catch (error) {
@@ -281,6 +448,7 @@ class SessionStorage {
 class CacheStorage {
   static get(key, defaultValue = null) {
     try {
+      ensureStores();
       validateKey(key);
       return cacheStore.get(key, defaultValue);
     } catch (error) {
@@ -291,6 +459,7 @@ class CacheStorage {
 
   static set(key, value, ttl = null) {
     try {
+      ensureStores();
       validateKey(key);
       validateValue(value);
 
@@ -310,6 +479,7 @@ class CacheStorage {
 
   static remove(key) {
     try {
+      ensureStores();
       validateKey(key);
       cacheStore.delete(key);
       return { success: true };
@@ -321,6 +491,7 @@ class CacheStorage {
 
   static clear() {
     try {
+      ensureStores();
       cacheStore.clear();
       return { success: true };
     } catch (error) {
@@ -334,6 +505,7 @@ class CacheStorage {
    */
   static cleanExpired() {
     try {
+      if (!cacheStore) return { success: true, cleaned: 0 };
       const store = cacheStore.store;
       const now = Date.now();
       let cleaned = 0;
@@ -355,20 +527,11 @@ class CacheStorage {
 }
 
 // ============================================================================
-// Auto-cleanup on app start
-// ============================================================================
-
-// Clear session store on app start
-sessionStore.clear();
-
-// Clean expired cache entries
-CacheStorage.cleanExpired();
-
-// ============================================================================
 // Export
 // ============================================================================
 
 module.exports = {
+  initializeSecureStorage,
   SecureStorage,
   SessionStorage,
   CacheStorage,

@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { localProductSearchService, BarcodeSearchResult } from '@/services/LocalProductSearchService';
+
+// ⚡ v3.0: Module-level deduplication للتحكم الشامل
+let _lastLoggedCount = -1;
+let _isGloballyChecking = false;
 
 interface ScannerProduct {
   id: string;
@@ -55,19 +59,31 @@ export const useAllProductsForScanner = () => {
         return;
       }
 
+      // ⚡ v3.0: منع التحقق المتزامن عبر جميع الـ instances
+      if (_isGloballyChecking) {
+        return;
+      }
+      _isGloballyChecking = true;
+
       try {
         setIsLoading(true);
         const count = await localProductSearchService.getLocalProductsCount(currentOrganization.id);
         setLocalProductsCount(count);
         setIsReady(count > 0);
         setError(null);
-        console.log(`[useAllProductsForScanner] ✅ ${count} منتج متاح محلياً للبحث`);
+
+        // ⚡ v3.0: سجل فقط عند تغيير العدد (global)
+        if (_lastLoggedCount !== count) {
+          _lastLoggedCount = count;
+          console.log(`[useAllProductsForScanner] ✅ ${count} منتج متاح محلياً للبحث`);
+        }
       } catch (err) {
         console.error('[useAllProductsForScanner] خطأ في التحقق من البيانات المحلية:', err);
         setError(err instanceof Error ? err.message : 'خطأ غير معروف');
         setIsReady(false);
       } finally {
         setIsLoading(false);
+        _isGloballyChecking = false;
       }
     };
 

@@ -57,11 +57,11 @@ const keys = Object.keys(dataToSave).filter(k => k !== 'id' && k !== 'created_at
     if (!organizationId) return null;
 
     try {
-      // ⚡ استخدام PowerSync
-      const result = await powerSyncService.get<LocalOrganizationSettings>(
-        'SELECT * FROM organization_settings WHERE organization_id = ? OR id = ?',
-        [organizationId, organizationId]
-      );
+      // ⚡ استخدام PowerSync - queryOne بدلاً من get (المنتهية)
+      const result = await powerSyncService.queryOne<LocalOrganizationSettings>({
+        sql: 'SELECT * FROM organization_settings WHERE organization_id = ? OR id = ?',
+        params: [organizationId, organizationId]
+      });
       
       if (result) {
         console.log('[localStoreSettings] ✅ تم الجلب من PowerSync');

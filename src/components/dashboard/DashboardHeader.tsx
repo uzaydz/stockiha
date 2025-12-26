@@ -114,8 +114,12 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
   // Auto-rotate content every 12 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveContent(prev => prev === 'verse' ? 'motivation' : 'verse');
-      setContentIndex(prev => Math.floor(Math.random() * (prev === 'verse' ? MOTIVATIONS.length : VERSES.length)));
+      setActiveContent(prev => {
+        const newContent = prev === 'verse' ? 'motivation' : 'verse';
+        // Update content index based on the NEW content type
+        setContentIndex(Math.floor(Math.random() * (newContent === 'verse' ? VERSES.length : MOTIVATIONS.length)));
+        return newContent;
+      });
     }, 12000);
 
     // Initial greeting setup
@@ -148,7 +152,16 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
   const activePeriodLabel = PERIODS.find(p => p.value === activeTimeframe)?.label;
 
   return (
-    <div className="w-full mb-4 sm:mb-6 md:mb-8 pt-2 sm:pt-4 md:pt-6 space-y-4 sm:space-y-6 md:space-y-8">
+    <div
+      className="mb-4 sm:mb-6 md:mb-8 pt-2 sm:pt-4 md:pt-6 space-y-4 sm:space-y-6 md:space-y-8"
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
+        boxSizing: 'border-box'
+      }}
+    >
 
       {/* ===== Top Bar: Time & Controls ===== */}
       <div className="flex items-center justify-between gap-2">
@@ -315,79 +328,110 @@ const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange 
         </div>
       </div>
 
-      {/* ===== Quick Navigation & System Switcher ===== */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl sm:rounded-2xl p-1.5 sm:p-2 shadow-sm flex flex-col gap-2 sm:gap-3 md:flex-row md:gap-4 md:items-center overflow-hidden">
+      {/* ===== Quick Navigation & System Switcher (Ultra-Minimalist Professional Design) ===== */}
+      <div className="w-full max-w-full isolate">
+        <div className="relative w-full rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm">
 
-        {/* System Switcher */}
-        <div className="flex p-0.5 sm:p-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg sm:rounded-xl w-full md:w-auto flex-shrink-0">
-          <button
-            onClick={() => setSystemMode('full')}
-            className={cn(
-              "flex-1 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-2 justify-center",
-              systemMode === 'full'
-                ? "bg-white dark:bg-zinc-800 text-orange-600 shadow-sm"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300"
-            )}
-          >
-            <Laptop className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="whitespace-nowrap">النظام الكامل</span>
-          </button>
-          <button
-            onClick={() => setSystemMode('merchant')}
-            className={cn(
-              "flex-1 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-2 justify-center",
-              systemMode === 'merchant'
-                ? "bg-white dark:bg-zinc-800 text-emerald-600 shadow-sm"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300"
-            )}
-          >
-            <StoreIcon className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="whitespace-nowrap">واجهة التاجر</span>
-          </button>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-[auto_auto_1fr] items-center p-1 gap-2 h-auto md:h-14">
 
-        {/* Horizontal Separator (Desktop) */}
-        <div className="hidden md:block w-px h-8 bg-zinc-100 dark:bg-zinc-800"></div>
+            {/* 1. System Switcher (Segmented Control Style) */}
+            <div className="bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-xl flex items-center gap-0.5 w-full md:w-auto relative">
+              <button
+                onClick={() => setSystemMode('full')}
+                className={cn(
+                  "relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 isolate z-10",
+                  systemMode === 'full'
+                    ? "text-zinc-900 dark:text-white"
+                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                )}
+              >
+                {systemMode === 'full' && (
+                  <motion.div
+                    layoutId="activeSystemTab"
+                    className="absolute inset-0 bg-white dark:bg-zinc-700 shadow-[0_1px_2px_rgba(0,0,0,0.05)] rounded-lg -z-10"
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+                <Laptop className="w-3.5 h-3.5" />
+                <span className="whitespace-nowrap">النظام الكامل</span>
+              </button>
 
-        {/* Horizontal Scroll Menu with proper containment */}
-        <div className="relative flex-1 w-full min-w-0">
+              <button
+                onClick={() => setSystemMode('merchant')}
+                className={cn(
+                  "relative flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 isolate z-10",
+                  systemMode === 'merchant'
+                    ? "text-zinc-900 dark:text-white"
+                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                )}
+              >
+                {systemMode === 'merchant' && (
+                  <motion.div
+                    layoutId="activeSystemTab"
+                    className="absolute inset-0 bg-white dark:bg-zinc-700 shadow-[0_1px_2px_rgba(0,0,0,0.05)] rounded-lg -z-10"
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+                <StoreIcon className="w-3.5 h-3.5" />
+                <span className="whitespace-nowrap">واجهة التاجر</span>
+              </button>
+            </div>
 
-          {/* Left Fade */}
-          <div className="absolute left-0 top-0 bottom-0 w-6 sm:w-8 bg-gradient-to-r from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none"></div>
+            {/* 2. Vertical Divider */}
+            <div className="hidden md:block w-px h-6 bg-zinc-200 dark:bg-zinc-800 mx-1"></div>
 
-          {/* Scroll Container */}
-          <div
-            ref={scrollContainerRef}
-            className="flex items-center gap-1.5 sm:gap-2 md:gap-3 overflow-x-auto pb-1 sm:pb-2 md:pb-0 scrollbar-hide px-1 w-full"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            <AnimatePresence mode="popLayout">
-              {filteredNavItems.map((item, idx) => (
-                <motion.div
-                  key={item.href}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex-shrink-0"
-                >
-                  <Link
-                    to={item.href}
-                    draggable="false"
-                    className="flex items-center gap-1 sm:gap-1.5 md:gap-2 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700/50 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-orange-50 dark:hover:bg-orange-900/10 hover:border-orange-200 dark:hover:border-orange-500/20 hover:text-orange-600 transition-all whitespace-nowrap group select-none"
-                  >
-                    <item.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-zinc-400 group-hover:text-orange-500 transition-colors" />
-                    <span className="hidden xs:inline">{item.title}</span>
-                  </Link>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {/* 3. Navigation Items (Clean List) */}
+            <div className="relative min-w-0 w-full overflow-hidden">
+
+              {/* Subtle Fade Edges */}
+              <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none"></div>
+              <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none"></div>
+
+              {/* Force hide scrollbar for all browsers */}
+              <style>{`
+                .hide-scrollbar::-webkit-scrollbar {
+                  display: none;
+                }
+                .hide-scrollbar {
+                  -ms-overflow-style: none;
+                  scrollbar-width: none;
+                }
+              `}</style>
+              <div
+                ref={scrollContainerRef}
+                className="flex items-center gap-1 overflow-x-auto hide-scrollbar py-1 px-2 w-full"
+                style={{
+                  scrollBehavior: 'smooth',
+                  WebkitOverflowScrolling: 'touch',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none'
+                }}
+              >
+                <AnimatePresence mode="popLayout">
+                  {filteredNavItems.map((item) => (
+                    <motion.div
+                      key={item.href}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex-shrink-0"
+                    >
+                      <Link
+                        to={item.href}
+                        className="group flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors duration-200"
+                      >
+                        <item.icon className="w-4 h-4 text-zinc-400 group-hover:text-orange-500 transition-colors" />
+                        <span className="whitespace-nowrap">{item.title}</span>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+
           </div>
-
-          {/* Right Fade */}
-          <div className="absolute right-0 top-0 bottom-0 w-6 sm:w-8 bg-gradient-to-l from-white dark:from-zinc-900 to-transparent z-10 pointer-events-none"></div>
         </div>
-
       </div>
 
     </div>

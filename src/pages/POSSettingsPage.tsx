@@ -27,7 +27,6 @@ import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import StoreInfoSettings from '@/components/pos/settings/StoreInfoSettings';
 import ReceiptAppearanceSettings from '@/components/pos/settings/ReceiptAppearanceSettings';
 import PrintingSettings from '@/components/pos/settings/PrintingSettings';
-import ReceiptPreview from '@/components/pos/settings/ReceiptPreview';
 
 // استيراد هوك إعدادات نقطة البيع وأنواع البيانات
 import { usePOSData } from '@/context/POSDataContext';
@@ -226,9 +225,9 @@ const POSSettingsPage: React.FC = () => {
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* الجانب الأيسر - التبويبات والإعدادات */}
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 gap-8">
+            {/* التبويبات والإعدادات */}
+            <div>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <TabsList className="grid grid-cols-4 w-full">
                   <TabsTrigger 
@@ -308,57 +307,6 @@ const POSSettingsPage: React.FC = () => {
                   </TabsContent>
                 </div>
               </Tabs>
-            </div>
-
-            {/* الجانب الأيمن - معاينة الوصل */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-24">
-                <Card className="h-fit">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-primary" />
-                      معاينة الوصل
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <ReceiptPreview settings={settings} />
-                      
-                      {/* أزرار التحكم السريع */}
-                      <div className="space-y-2 pt-4 border-t border-border">
-                        <Button 
-                          variant="outline" 
-                          onClick={resetToDefaults}
-                          className="w-full flex items-center gap-2"
-                          size="sm"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                          إعادة تعيين
-                        </Button>
-                        
-                        <Button 
-                          onClick={saveSettings}
-                          disabled={isSaving}
-                          className="w-full flex items-center gap-2"
-                          size="sm"
-                        >
-                          {isSaving ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              جاري الحفظ...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="h-4 w-4" />
-                              حفظ الإعدادات
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
             </div>
           </div>
         </div>

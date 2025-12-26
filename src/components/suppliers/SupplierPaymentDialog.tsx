@@ -2,22 +2,22 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription, 
-  DialogFooter 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
 } from '@/components/ui/dialog';
-import { 
-  Form, 
-  FormControl, 
-  FormDescription, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,10 +29,10 @@ import { cn } from '@/lib/utils';
 import { CalendarIcon, CreditCard, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { 
-  Supplier, 
-  SupplierPurchase, 
-  SupplierPayment 
+import {
+  Supplier,
+  SupplierPurchase,
+  SupplierPayment
 } from '@/api/supplierService';
 
 // تعريف مخطط التحقق من الصحة
@@ -86,7 +86,7 @@ export function SupplierPaymentDialog({
 }: SupplierPaymentDialogProps) {
   const [availablePurchases, setAvailablePurchases] = useState<SupplierPurchase[]>([]);
   const [isFullPayment, setIsFullPayment] = useState(false);
-  
+
   // إعداد نموذج React Hook Form
   const form = useForm<FormValues>({
     resolver: zodResolver(paymentFormSchema),
@@ -100,7 +100,7 @@ export function SupplierPaymentDialog({
       notes: '',
     },
   });
-  
+
   // تحديث القيم الافتراضية عند تغيير البيانات
   useEffect(() => {
     if (payment) {
@@ -119,11 +119,11 @@ export function SupplierPaymentDialog({
       if (selectedSupplierId) {
         form.setValue('supplier_id', selectedSupplierId);
       }
-      
+
       // إذا كان هناك مشتريات محددة
       if (selectedPurchaseId) {
         form.setValue('purchase_id', selectedPurchaseId);
-        
+
         // تعيين المبلغ للمبلغ المتبقي
         const selectedPurchase = supplierPurchases.find(p => p.id === selectedPurchaseId);
         if (selectedPurchase && selectedPurchase.balance_due > 0) {
@@ -132,25 +132,25 @@ export function SupplierPaymentDialog({
       }
     }
   }, [payment, selectedSupplierId, selectedPurchaseId, form, supplierPurchases]);
-  
+
   // تحديث المشتريات المتاحة عند تغيير المورد
   useEffect(() => {
     const supplierId = form.watch('supplier_id');
     const filteredPurchases = supplierPurchases.filter(
-      purchase => purchase.supplier_id === supplierId && 
-      purchase.status !== 'paid' && 
-      purchase.status !== 'cancelled'
+      purchase => purchase.supplier_id === supplierId &&
+        purchase.status !== 'paid' &&
+        purchase.status !== 'cancelled'
     );
     setAvailablePurchases(filteredPurchases);
   }, [form.watch('supplier_id'), supplierPurchases]);
-  
+
   // تحديث المبلغ المتبقي عند اختيار مشتريات
   useEffect(() => {
     const purchaseId = form.watch('purchase_id');
-    
+
     // إعادة تعيين حالة الدفع الكامل عند تغيير المشتريات
     setIsFullPayment(false);
-    
+
     if (purchaseId && purchaseId !== 'none') {
       const selectedPurchase = supplierPurchases.find(p => p.id === purchaseId);
       if (selectedPurchase && selectedPurchase.balance_due > 0) {
@@ -162,7 +162,7 @@ export function SupplierPaymentDialog({
   // معالجة تسديد المبلغ بالكامل
   const handleFullPayment = () => {
     const purchaseId = form.getValues('purchase_id');
-    
+
     if (purchaseId && purchaseId !== 'none') {
       const selectedPurchase = supplierPurchases.find(p => p.id === purchaseId);
       if (selectedPurchase && selectedPurchase.balance_due > 0) {
@@ -173,7 +173,7 @@ export function SupplierPaymentDialog({
       }
     }
   };
-  
+
   // معالجة تقديم النموذج
   const onSubmit = async (values: FormValues) => {
     try {
@@ -182,13 +182,13 @@ export function SupplierPaymentDialog({
         ...values,
         is_full_payment: isFullPayment
       };
-      
+
       await onSave(paymentData);
       form.reset();
     } catch (error) {
     }
   };
-  
+
   // تحويل طريقة الدفع إلى نص عربي
   const getPaymentMethodText = (method: string) => {
     switch (method) {
@@ -206,7 +206,7 @@ export function SupplierPaymentDialog({
         return method;
     }
   };
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -216,7 +216,7 @@ export function SupplierPaymentDialog({
             {payment ? 'تعديل تفاصيل الدفعة للمورد' : 'إضافة دفعة جديدة للمورد'}
           </DialogDescription>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* المورد */}
@@ -252,7 +252,7 @@ export function SupplierPaymentDialog({
                 </FormItem>
               )}
             />
-            
+
             {/* المشتريات المرتبطة (اختياري) */}
             <FormField
               control={form.control}
@@ -278,7 +278,7 @@ export function SupplierPaymentDialog({
                       <SelectItem value="none">بدون ربط بمشتريات</SelectItem>
                       {availablePurchases.map((purchase) => (
                         <SelectItem key={purchase.id} value={purchase.id}>
-                          {purchase.purchase_number} - {purchase.balance_due.toLocaleString('ar-EG')} ج.م
+                          {purchase.purchase_number} - {purchase.balance_due.toLocaleString('fr-FR')} دج
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -290,7 +290,7 @@ export function SupplierPaymentDialog({
                 </FormItem>
               )}
             />
-            
+
             {/* تاريخ الدفع */}
             <FormField
               control={form.control}
@@ -334,7 +334,7 @@ export function SupplierPaymentDialog({
                 </FormItem>
               )}
             />
-            
+
             {/* المبلغ */}
             <FormField
               control={form.control}
@@ -344,9 +344,9 @@ export function SupplierPaymentDialog({
                   <div className="flex justify-between items-center">
                     <FormLabel>المبلغ <span className="text-red-500">*</span></FormLabel>
                     {form.watch('purchase_id') && form.watch('purchase_id') !== 'none' && (
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         size="sm"
                         onClick={handleFullPayment}
                         disabled={isLoading}
@@ -368,7 +368,7 @@ export function SupplierPaymentDialog({
                         disabled={isLoading}
                       />
                       <div className="absolute inset-y-0 left-0 flex items-center px-3 pointer-events-none text-gray-500">
-                        ج.م
+                        دج
                       </div>
                     </div>
                   </FormControl>
@@ -379,7 +379,7 @@ export function SupplierPaymentDialog({
                 </FormItem>
               )}
             />
-            
+
             {/* طريقة الدفع */}
             <FormField
               control={form.control}
@@ -413,7 +413,7 @@ export function SupplierPaymentDialog({
                 </FormItem>
               )}
             />
-            
+
             {/* رقم المرجع */}
             <FormField
               control={form.control}
@@ -436,7 +436,7 @@ export function SupplierPaymentDialog({
                 </FormItem>
               )}
             />
-            
+
             {/* ملاحظات */}
             <FormField
               control={form.control}
@@ -460,17 +460,17 @@ export function SupplierPaymentDialog({
                 </FormItem>
               )}
             />
-            
+
             <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={onClose}
                 disabled={isLoading}
               >
                 إلغاء
               </Button>
-              <Button 
+              <Button
                 type="submit"
                 disabled={isLoading}
               >

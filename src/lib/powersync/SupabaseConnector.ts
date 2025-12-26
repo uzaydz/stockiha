@@ -1,8 +1,14 @@
 /**
- * 🔌 Supabase PowerSync Connector v2.0
+ * 🔌 Supabase PowerSync Connector v3.0
  * يربط PowerSync مع Supabase Backend
  *
- * ⚡ التحسينات في v2.0:
+ * ⚡ التحسينات في v3.0:
+ * - استخدام ملف config.ts مركزي
+ * - إضافة retry logic للعمليات الفاشلة
+ * - تحسين logging مع DEBUG_MODE
+ * - تحسين معالجة الأخطاء
+ *
+ * ⚡ التحسينات السابقة (v2.0):
  * - Batch Uploads: تجميع العمليات المتشابهة في طلب واحد
  * - تقليل وقت المزامنة من دقائق إلى ثوانٍ
  * - معالجة أخطاء أفضل لكل دفعة
@@ -15,19 +21,31 @@ import {
   UpdateType,
 } from '@powersync/web';
 import { supabase } from '@/lib/supabase-unified';
+import {
+  POWERSYNC_CONFIG,
+  GLOBAL_KEYS,
+  STORAGE_KEYS,
+  DEPENDENT_TABLES,
+  TABLES_WITHOUT_UPDATED_AT,
+  debugLog,
+  syncErrorLog,
+  syncWarnLog,
+} from './config';
 
 // ⚡ حفظ الدالة الأصلية لـ getSession قبل أي اعتراض
 // هذا ضروري لتجنب حلقة لا نهائية مع authInterceptorV2
 const originalGetSession = supabase.auth.getSession.bind(supabase.auth);
 
-// ⚡ Configuration for batch processing
+// ⚡ Configuration for batch processing - من config.ts
 const BATCH_CONFIG = {
   /** Maximum records per batch upsert */
-  MAX_BATCH_SIZE: 50,
+  MAX_BATCH_SIZE: POWERSYNC_CONFIG.MAX_BATCH_SIZE,
   /** Enable batch processing */
   ENABLE_BATCHING: true,
   /** Log batch details */
-  DEBUG_BATCHING: false,
+  DEBUG_BATCHING: POWERSYNC_CONFIG.DEBUG_BATCHING,
+  /** Maximum retry attempts for failed batches */
+  MAX_RETRY_ATTEMPTS: POWERSYNC_CONFIG.MAX_RETRY_ATTEMPTS,
 };
 
 export class SupabaseConnector implements PowerSyncBackendConnector {
@@ -44,8 +62,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       organizationId: null
     };
 
-  // ⚡ مدة صلاحية الـ cache (5 دقائق)
-  private readonly CREDENTIALS_CACHE_TTL = 5 * 60 * 1000;
+  // ⚡ مدة صلاحية الـ cache - من config.ts
+  private readonly CREDENTIALS_CACHE_TTL = POWERSYNC_CONFIG.CREDENTIALS_CACHE_TTL;
 
   // ⚡ منع الطلبات المتزامنة
   private fetchingCredentials: Promise<any> | null = null;
@@ -87,8 +105,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
    * ⚡ الدالة الداخلية لجلب Credentials
    */
   private async _fetchCredentialsInternal() {
-    console.log('[SupabaseConnector] 🔐 Fetching credentials...');
-    console.log('[SupabaseConnector] 📡 PowerSync URL:', import.meta.env.VITE_POWERSYNC_URL || 'NOT SET');
+    debugLog('Connector', '🔐 Fetching credentials...');
+    debugLog('Connector', '📡 PowerSync URL:', import.meta.env.VITE_POWERSYNC_URL || 'NOT SET');
 
     try {
       // ⚡ جلب الجلسة الحالية من Supabase باستخدام الدالة الأصلية
@@ -99,12 +117,12 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       } = await originalGetSession();
 
       if (error) {
-        console.error('[SupabaseConnector] Session error:', error);
+        syncErrorLog('Connector', 'Session error:', error);
         throw error;
       }
 
       if (!session) {
-        console.warn('[SupabaseConnector] No active session');
+        syncWarnLog('Connector', 'No active session');
         throw new Error('No active Supabase session');
       }
 
@@ -115,15 +133,15 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       const endpoint = import.meta.env.VITE_POWERSYNC_URL || '';
 
       if (!endpoint) {
-        console.error('[SupabaseConnector] PowerSync endpoint not configured');
+        syncErrorLog('Connector', 'PowerSync endpoint not configured');
         throw new Error('PowerSync endpoint (VITE_POWERSYNC_URL) not configured');
       }
 
-      console.log('[SupabaseConnector] ✅ Credentials fetched successfully');
-      console.log('[SupabaseConnector] Organization ID:', this.organizationId);
+      debugLog('Connector', '✅ Credentials fetched successfully');
+      debugLog('Connector', 'Organization ID:', this.organizationId);
 
-      // ⚡ DEBUG: فحص وجود البيانات في Supabase
-      if (this.organizationId) {
+      // ⚡ DEBUG: فحص وجود البيانات في Supabase (فقط في وضع DEBUG)
+      if (this.organizationId && POWERSYNC_CONFIG.DEBUG_MODE) {
         try {
           const { count: productsCount } = await supabase
             .from('products')
@@ -135,22 +153,21 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
             .select('*', { count: 'exact', head: true })
             .eq('organization_id', this.organizationId);
 
-          console.log('[SupabaseConnector] 📊 Supabase Data Check:', {
+          debugLog('Connector', '📊 Supabase Data Check:', {
             organizationId: this.organizationId,
             productsInSupabase: productsCount || 0,
             customersInSupabase: customersCount || 0
           });
 
           if (productsCount === 0 && customersCount === 0) {
-            console.warn('[SupabaseConnector] ⚠️ No data found in Supabase for this organization!');
-            console.warn('[SupabaseConnector] ⚠️ If you expect data, check organization_id in your tables');
+            syncWarnLog('Connector', '⚠️ No data found in Supabase for this organization!');
           }
         } catch (e) {
-          console.warn('[SupabaseConnector] Could not check Supabase data:', e);
+          // تجاهل في الإنتاج
         }
       }
 
-      // ⚡ DEBUG: فحص سجل المستخدم في جدول users - هذا ضروري لـ Sync Rules!
+      // ⚡ فحص سجل المستخدم في جدول users - هذا ضروري لـ Sync Rules!
       try {
         const { data: userRecord, error: userError } = await supabase
           .from('users')
@@ -162,56 +179,54 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
           throw new Error('User record not found in users table for auth_user_id');
         }
 
-        console.log('[SupabaseConnector] ✅ User record found:', {
+        debugLog('Connector', '✅ User record found:', {
           id: userRecord.id,
-          auth_user_id: userRecord.auth_user_id,
           organization_id: userRecord.organization_id,
-          email: userRecord.email
         });
 
         if (!userRecord.organization_id) {
-          throw new Error('User record is missing organization_id');
+          // Fallback: إذا كان لدينا organizationId من cache/session، استخدمه بدل تعطيل التطبيق
+          const cachedOrgId = this.organizationId || this.getOrganizationIdFromCache();
+          if (cachedOrgId) {
+            this.organizationId = cachedOrgId;
+            syncWarnLog('Connector', '⚠️ users.organization_id is NULL - using cached organizationId fallback:', cachedOrgId);
+          } else {
+            throw new Error('User record is missing organization_id');
+          }
         }
       } catch (e: any) {
-        console.error('[SupabaseConnector] ⚠️ CRITICAL user lookup failed:', e?.message || e);
+        syncErrorLog('Connector', '⚠️ CRITICAL user lookup failed:', e?.message || e);
         throw e;
       }
 
-      // ⚡ DEBUG: فحص محتوى JWT Token
-      try {
-        const tokenParts = session.access_token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(atob(tokenParts[1]));
+      // ⚡ DEBUG: فحص محتوى JWT Token (فقط في وضع DEBUG)
+      if (POWERSYNC_CONFIG.DEBUG_MODE) {
+        try {
+          const tokenParts = session.access_token.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
 
-          // ⚡ فحص شامل للـ organization_id في جميع المواقع الممكنة
-          const orgIdLocations = {
-            root: payload.organization_id,
-            user_metadata: payload.user_metadata?.organization_id,
-            app_metadata: payload.app_metadata?.organization_id,
-          };
+            // ⚡ فحص شامل للـ organization_id في جميع المواقع الممكنة
+            const orgIdLocations = {
+              root: payload.organization_id,
+              user_metadata: payload.user_metadata?.organization_id,
+              app_metadata: payload.app_metadata?.organization_id,
+            };
 
-          const foundOrgId = orgIdLocations.root || orgIdLocations.user_metadata || orgIdLocations.app_metadata;
+            const foundOrgId = orgIdLocations.root || orgIdLocations.user_metadata || orgIdLocations.app_metadata;
 
-          console.log('[SupabaseConnector] 🔍 JWT Token FULL payload:', payload);
-          console.log('[SupabaseConnector] 🔍 organization_id locations:', orgIdLocations);
-          console.log('[SupabaseConnector] 🔍 Found organization_id:', foundOrgId || '❌ NOT FOUND IN TOKEN');
+            debugLog('Connector', '🔍 JWT sub (user_id):', payload.sub);
+            debugLog('Connector', '🔍 organization_id in token:', foundOrgId || 'NOT FOUND');
 
-          // ⚡ DEBUG: فحص sub (user_id) - هذا ما يستخدمه PowerSync في request.user_id()
-          console.log('[SupabaseConnector] 🔍 JWT sub (user_id for PowerSync):', payload.sub);
-          console.log('[SupabaseConnector] 🔍 IMPORTANT: PowerSync uses `request.user_id()` which maps to JWT `sub` field');
-          console.log('[SupabaseConnector] 🔍 Sync Rules parameter: SELECT organization_id as org_id FROM users WHERE auth_user_id = request.user_id()');
-          console.log('[SupabaseConnector] 🔍 Expected match: users.auth_user_id should equal:', payload.sub);
-
-          if (!foundOrgId) {
-            console.error('[SupabaseConnector] ⚠️ WARNING: organization_id NOT in JWT Token!');
-            console.error('[SupabaseConnector] ⚠️ PowerSync Sync Rules require organization_id in token_parameters');
-            console.error('[SupabaseConnector] ⚠️ Make sure Custom Access Token Hook is ENABLED in Supabase Dashboard');
-          } else if (!this.organizationId) {
-            this.organizationId = foundOrgId;
+            if (!foundOrgId) {
+              syncWarnLog('Connector', '⚠️ organization_id NOT in JWT Token - using users table lookup');
+            } else if (!this.organizationId) {
+              this.organizationId = foundOrgId;
+            }
           }
+        } catch (e) {
+          // تجاهل خطأ فك التشفير
         }
-      } catch (e) {
-        console.warn('[SupabaseConnector] Could not decode JWT:', e);
       }
 
       const credentials = {
@@ -280,18 +295,15 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
   /**
    * ⚡ معالجة العمليات بشكل متسلسل (الطريقة القديمة)
-   * ⚡ v2.1: ترتيب العمليات لضمان الجداول الأساسية قبل التابعة
+   * ⚡ v3.0: ترتيب العمليات لضمان الجداول الأساسية قبل التابعة
    */
   private async processSequentialOperations(operations: CrudEntry[]): Promise<void> {
     const errors: Array<{ operation: CrudEntry; error: any }> = [];
 
-    // ⚡ v2.1: ترتيب العمليات - الجداول التابعة في النهاية
-    // ⚠️ customer_debts ليس جدولاً - هي RPC function تحسب الديون من orders
-    const dependentTables = ['order_items', 'product_colors', 'product_sizes', 'loss_items', 'return_items', 'invoice_items'];
-
+    // ⚡ v3.0: ترتيب العمليات - الجداول التابعة في النهاية - من config.ts
     const sortedOperations = [...operations].sort((a, b) => {
-      const aIsDependent = dependentTables.includes(a.table);
-      const bIsDependent = dependentTables.includes(b.table);
+      const aIsDependent = DEPENDENT_TABLES.includes(a.table as any);
+      const bIsDependent = DEPENDENT_TABLES.includes(b.table as any);
 
       if (aIsDependent && !bIsDependent) return 1;  // a بعد b
       if (!aIsDependent && bIsDependent) return -1; // a قبل b
@@ -302,7 +314,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       try {
         await this.processCrudOperation(operation);
       } catch (opError: any) {
-        console.error(`[SupabaseConnector] ❌ Operation failed:`, {
+        syncErrorLog('Sequential', `❌ Operation failed:`, {
           table: operation.table,
           op: operation.op,
           id: operation.id,
@@ -313,7 +325,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     }
 
     if (errors.length > 0) {
-      console.warn(`[SupabaseConnector] ⚠️ ${errors.length}/${operations.length} operations failed`);
+      syncWarnLog('Sequential', `⚠️ ${errors.length}/${operations.length} operations failed`);
     }
   }
 
@@ -340,10 +352,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       });
     }
 
-    // ⚡ v2.1: ترتيب الجداول حسب الأولوية (الأساسية أولاً، ثم التابعة)
-    // الجداول التابعة يجب أن تُزامن بعد الجداول الأساسية
-    // ⚠️ customer_debts ليس جدولاً - هي RPC function تحسب الديون من orders
-    const dependentTables = ['order_items', 'product_colors', 'product_sizes', 'loss_items', 'return_items', 'invoice_items'];
+    // ⚡ v3.0: ترتيب الجداول حسب الأولوية (الأساسية أولاً، ثم التابعة)
+    // الجداول التابعة يجب أن تُزامن بعد الجداول الأساسية - من config.ts
 
     // فصل الدفعات إلى أساسية وتابعة
     const primaryBatches: Array<[string, CrudEntry[]]> = [];
@@ -351,7 +361,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
     for (const [batchKey, batchOps] of Object.entries(batches)) {
       const [table] = batchKey.split(':');
-      if (dependentTables.includes(table)) {
+      if (DEPENDENT_TABLES.includes(table as any)) {
         dependentBatches.push([batchKey, batchOps]);
       } else {
         primaryBatches.push([batchKey, batchOps]);
@@ -432,7 +442,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   }
 
   /**
-   * ⚡ معالجة دفعة واحدة
+   * ⚡ معالجة دفعة واحدة مع retry logic
    */
   private async processBatch(
     table: string,
@@ -444,24 +454,47 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     if (operations.length === 0) return;
 
     if (BATCH_CONFIG.DEBUG_BATCHING) {
-      console.log(`[SupabaseConnector] 📦 Processing batch: ${table}:${opType} (${operations.length} records)`);
+      debugLog('Batch', `📦 Processing batch: ${table}:${opType} (${operations.length} records)`);
     }
 
-    switch (opType) {
-      case 'PUT':
-        await this.batchUpsert(supabaseTable, table, operations);
-        break;
+    // ⚡ v3.0: Retry logic مع exponential backoff
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= BATCH_CONFIG.MAX_RETRY_ATTEMPTS; attempt++) {
+      try {
+        switch (opType) {
+          case 'PUT':
+            await this.batchUpsert(supabaseTable, table, operations);
+            break;
 
-      case 'PATCH':
-        // PATCH لا يمكن تجميعه بسهولة، نعالجه فردياً
-        for (const op of operations) {
-          await this.processCrudOperation(op);
+          case 'PATCH':
+            // PATCH لا يمكن تجميعه بسهولة، نعالجه فردياً
+            for (const op of operations) {
+              await this.processCrudOperation(op);
+            }
+            break;
+
+          case 'DELETE':
+            await this.batchDelete(supabaseTable, operations);
+            break;
         }
-        break;
+        // نجاح - خروج من الحلقة
+        return;
+      } catch (error: any) {
+        lastError = error;
 
-      case 'DELETE':
-        await this.batchDelete(supabaseTable, operations);
-        break;
+        // إذا لم نصل للحد الأقصى، ننتظر ثم نعيد المحاولة
+        if (attempt < BATCH_CONFIG.MAX_RETRY_ATTEMPTS) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // 1s, 2s, 4s (max 5s)
+          debugLog('Batch', `⚠️ Retry ${attempt}/${BATCH_CONFIG.MAX_RETRY_ATTEMPTS} for ${table}:${opType} in ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // فشل بعد كل المحاولات
+    if (lastError) {
+      syncErrorLog('Batch', `❌ Failed after ${BATCH_CONFIG.MAX_RETRY_ATTEMPTS} attempts: ${table}:${opType}`, lastError);
+      throw lastError;
     }
   }
 
@@ -492,7 +525,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       .upsert(records, { onConflict: 'id' });
 
     if (error) {
-      console.error(`[SupabaseConnector] ❌ Batch upsert failed on ${supabaseTable}:`, {
+      syncErrorLog('Batch', `❌ Batch upsert failed on ${supabaseTable}:`, {
         error: error.message,
         code: error.code,
         recordCount: records.length
@@ -500,7 +533,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       throw error;
     }
 
-    console.log(`[SupabaseConnector] ✅ Batch upsert: ${supabaseTable} (${records.length} records)`);
+    debugLog('Batch', `✅ Batch upsert: ${supabaseTable} (${records.length} records)`);
   }
 
   /**
@@ -520,7 +553,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       .in('id', ids);
 
     if (error) {
-      console.error(`[SupabaseConnector] ❌ Batch delete failed on ${supabaseTable}:`, {
+      syncErrorLog('Batch', `❌ Batch delete failed on ${supabaseTable}:`, {
         error: error.message,
         code: error.code,
         idCount: ids.length
@@ -528,7 +561,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       throw error;
     }
 
-    console.log(`[SupabaseConnector] ✅ Batch delete: ${supabaseTable} (${ids.length} records)`);
+    debugLog('Batch', `✅ Batch delete: ${supabaseTable} (${ids.length} records)`);
   }
 
   /**
@@ -550,7 +583,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     // ⚡ PowerSync يخزن البيانات في opData وليس data
     const opData = (operation as any).opData || (operation as any).data || {};
 
-    console.log(`[SupabaseConnector] Processing ${op} on ${table} (id: ${id})`);
+    debugLog('CRUD', `Processing ${op} on ${table} (id: ${id})`);
 
     try {
       switch (op) {
@@ -570,13 +603,10 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
           break;
 
         default:
-          console.warn(`[SupabaseConnector] Unknown operation: ${op}`);
+          syncWarnLog('CRUD', `Unknown operation: ${op}`);
       }
     } catch (error) {
-      console.error(
-        `[SupabaseConnector] Failed to process ${op} on ${table}:`,
-        error
-      );
+      syncErrorLog('CRUD', `Failed to process ${op} on ${table}:`, error);
       throw error;
     }
   }
@@ -587,7 +617,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   private async upsertRecord(table: string, data: any): Promise<void> {
     // ⚡ حماية من البيانات الفارغة
     if (!data || typeof data !== 'object') {
-      console.error(`[SupabaseConnector] No data for upsert on ${table}`);
+      syncErrorLog('Upsert', `No data for upsert on ${table}`);
       return;
     }
 
@@ -606,15 +636,15 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     // تحويل اسم الجدول إلى اسم Supabase
     const supabaseTable = this.mapTableName(table);
 
-    // ⚡ Debug: طباعة البيانات للتصحيح
-    if (table === 'orders' || table === 'order_items') {
-      console.log(`[SupabaseConnector] 🔍 ${table} data BEFORE clean:`, JSON.stringify(cleanData, null, 2).slice(0, 500));
-      console.log(`[SupabaseConnector] 🔍 ${table} data AFTER clean:`, JSON.stringify(recordData, null, 2).slice(0, 500));
+    // ⚡ Debug: طباعة البيانات للتصحيح (فقط في وضع DEBUG)
+    if (POWERSYNC_CONFIG.DEBUG_SYNC && (table === 'orders' || table === 'order_items')) {
+      debugLog('Upsert', `🔍 ${table} data BEFORE clean:`, JSON.stringify(cleanData, null, 2).slice(0, 500));
+      debugLog('Upsert', `🔍 ${table} data AFTER clean:`, JSON.stringify(recordData, null, 2).slice(0, 500));
     }
 
-    console.log(`[SupabaseConnector] Upserting to ${supabaseTable}:`, {
+    debugLog('Upsert', `Upserting to ${supabaseTable}:`, {
       id: recordData.id,
-      keys: Object.keys(recordData).slice(0, 15)
+      keys: Object.keys(recordData).slice(0, 10)
     });
 
     // ⚡ تحديد مفتاح الـ conflict حسب الجدول
@@ -630,16 +660,15 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     });
 
     if (error) {
-      console.error(`[SupabaseConnector] Upsert error on ${table}:`, {
+      syncErrorLog('Upsert', `Upsert error on ${table}:`, {
         error: error.message,
         code: error.code,
-        details: error.details,
         hint: error.hint
       });
       throw error;
     }
 
-    console.log(`[SupabaseConnector] ✅ Upserted ${table}/${data.id}`);
+    debugLog('Upsert', `✅ Upserted ${table}/${data.id}`);
   }
 
   /**
@@ -648,7 +677,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   private async updateRecord(table: string, id: string, data: any): Promise<void> {
     // ⚡ حماية من البيانات الفارغة
     if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-      console.warn(`[SupabaseConnector] No data for update on ${table}/${id}`);
+      syncWarnLog('Update', `No data for update on ${table}/${id}`);
       return;
     }
 
@@ -666,11 +695,11 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       .eq('id', id);
 
     if (error) {
-      console.error(`[SupabaseConnector] Update error on ${table}:`, error);
+      syncErrorLog('Update', `Update error on ${table}:`, error);
       throw error;
     }
 
-    console.log(`[SupabaseConnector] ✅ Updated ${table}/${id}`);
+    debugLog('Update', `✅ Updated ${table}/${id}`);
   }
 
   /**
@@ -682,24 +711,21 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     const { error } = await supabase.from(supabaseTable).delete().eq('id', id);
 
     if (error) {
-      console.error(`[SupabaseConnector] Delete error on ${table}:`, error);
+      syncErrorLog('Delete', `Delete error on ${table}:`, error);
       throw error;
     }
 
-    console.log(`[SupabaseConnector] ✅ Deleted ${table}/${id}`);
+    debugLog('Delete', `✅ Deleted ${table}/${id}`);
   }
 
   /**
    * ⚡ تنظيف البيانات حسب الجدول - إزالة الحقول غير الموجودة في Supabase
    */
   private cleanDataForTable(table: string, data: any): any {
-    // الجداول التي لا تحتوي على updated_at
-    const tablesWithoutUpdatedAt = ['order_items', 'pos_order_items'];
-
     const cleaned = { ...data };
 
-    // إضافة updated_at فقط للجداول التي تدعمه
-    if (!tablesWithoutUpdatedAt.includes(table)) {
+    // إضافة updated_at فقط للجداول التي تدعمه - من config.ts
+    if (!TABLES_WITHOUT_UPDATED_AT.includes(table as any)) {
       cleaned.updated_at = new Date().toISOString();
     }
 
@@ -755,6 +781,26 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       // سيتم رفع الصور في cleanDataForTableAsync
       delete cleaned.image_base64;
       delete cleaned.images_base64;
+    }
+
+    // ⚡ Stocktake: إزالة الأعمدة المُولّدة في Postgres + ضمان JSON strings
+    if (table === 'stocktake_items') {
+      delete cleaned.delta; // generated always
+      delete cleaned.variant_key; // generated always
+    }
+    if (table === 'stocktake_events') {
+      // stocktake_events لا يحتوي على updated_at في Supabase
+      delete cleaned.updated_at;
+    }
+    if (table === 'stocktake_sessions') {
+      if (cleaned.scope && typeof cleaned.scope === 'object') {
+        cleaned.scope = JSON.stringify(cleaned.scope);
+      }
+    }
+    if (table === 'stocktake_events') {
+      if (cleaned.payload && typeof cleaned.payload === 'object') {
+        cleaned.payload = JSON.stringify(cleaned.payload);
+      }
     }
 
     return cleaned;
@@ -1064,8 +1110,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
   }
 }
 
-// ⚡ تعريف global key للـ Singleton (حماية من Hot Reload)
-const CONNECTOR_GLOBAL_KEY = '__SUPABASE_CONNECTOR_INSTANCE__';
+// ⚡ تعريف global key للـ Singleton (حماية من Hot Reload) - من config.ts
+const CONNECTOR_GLOBAL_KEY = GLOBAL_KEYS.SUPABASE_CONNECTOR;
 
 // ⚡ تعريف النوع للـ window
 declare global {

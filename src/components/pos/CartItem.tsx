@@ -11,6 +11,7 @@ import { ensureArray } from '@/context/POSDataContext';
 import { SaleTypeSelector, SaleTypeBadge, SavingsSummary } from './SaleTypeSelector';
 import type { SaleType } from '@/lib/pricing/wholesalePricing';
 import { toProductPricingInfo, isSaleTypeAvailable } from '@/lib/pricing/wholesalePricing';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 
 export interface CartItemType {
   product: Product;
@@ -57,7 +58,7 @@ export default function CartItem({
 
   // استخراج معلومات المنتج
   const { product, quantity, colorName, colorCode, sizeName } = item;
-  const imageUrl = item.variantImage || product.thumbnailImage || '/placeholder-product.svg';
+  const imageUrl = item.variantImage || resolveProductImageSrc(product as any, '/placeholder-product.svg');
   const price = item.variantPrice !== undefined ? item.variantPrice : product.price;
   const totalPrice = price * quantity;
 

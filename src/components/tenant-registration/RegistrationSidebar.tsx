@@ -24,21 +24,23 @@ export const RegistrationSidebar = ({ currentStep = 1 }: RegistrationSidebarProp
 
     return (
         <div className="space-y-10">
-            <div className="space-y-2">
-                <h2 className="text-3xl font-bold text-slate-900 dark:text-white leading-tight">
-                    ابدأ رحلة <br />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-rose-600">نجاحك التجاري</span>
+            <div className="space-y-4">
+                <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 leading-tight tracking-tighter">
+                    ابدأ رحلة
+                    <span className="block text-brand drop-shadow-[0_0_30px_rgba(255,122,0,0.3)]">
+                        نجاحك التجاري.
+                    </span>
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 text-base leading-relaxed">
+                <p className="text-xl text-gray-400 font-light leading-relaxed">
                     انضم إلى آلاف التجار الذين يثقون بمنصتنا لإدارة وتنمية أعمالهم بكل احترافية.
                 </p>
             </div>
 
             <div className="relative space-y-0 py-4">
                 {/* Connection Line */}
-                <div className="absolute right-[22px] top-6 bottom-6 w-[2px] bg-slate-100 dark:bg-slate-800" />
-                <motion.div 
-                    className="absolute right-[22px] top-6 w-[2px] bg-orange-500 origin-top"
+                <div className="absolute right-[22px] top-6 bottom-6 w-[2px] bg-white/10" />
+                <motion.div
+                    className="absolute right-[22px] top-6 w-[2px] bg-brand origin-top"
                     initial={{ height: '0%' }}
                     animate={{ height: currentStep > 1 ? '100%' : '0%' }}
                     transition={{ duration: 0.5 }}
@@ -51,12 +53,12 @@ export const RegistrationSidebar = ({ currentStep = 1 }: RegistrationSidebarProp
                     return (
                         <div key={step.id} className="relative flex gap-6 items-start py-4 group">
                             {/* Icon Indicator */}
-                            <motion.div 
+                            <motion.div
                                 className={cn(
                                     "relative z-10 w-11 h-11 rounded-2xl flex items-center justify-center border transition-all duration-300 shrink-0",
-                                    isActive ? "bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-500/30 scale-110" :
+                                    isActive ? "bg-brand border-brand text-white shadow-[0_0_30px_rgba(255,122,0,0.3)] scale-110" :
                                         isCompleted ? "bg-green-500 border-green-500 text-white shadow-lg shadow-green-500/20" :
-                                            "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400"
+                                            "bg-[#0F0F0F] border-white/10 text-gray-500"
                                 )}
                                 animate={isActive ? { scale: 1.1 } : { scale: 1 }}
                             >
@@ -74,11 +76,11 @@ export const RegistrationSidebar = ({ currentStep = 1 }: RegistrationSidebarProp
                             )}>
                                 <h3 className={cn(
                                     "font-bold text-lg transition-colors",
-                                    isActive ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400"
+                                    isActive ? "text-white" : "text-gray-500"
                                 )}>
                                     {step.title}
                                 </h3>
-                                <p className="text-sm text-slate-400 mt-1.5 leading-relaxed max-w-[240px]">
+                                <p className="text-sm text-gray-600 mt-1.5 leading-relaxed max-w-[240px]">
                                     {step.description}
                                 </p>
                             </div>
@@ -88,20 +90,20 @@ export const RegistrationSidebar = ({ currentStep = 1 }: RegistrationSidebarProp
             </div>
 
             {/* Pro Tip Box */}
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-white dark:from-slate-800/50 dark:to-slate-800/30 border border-slate-100 dark:border-slate-700 relative overflow-hidden group"
+                className="p-5 rounded-2xl bg-[#0F0F0F]/80 backdrop-blur-xl border border-white/10 relative overflow-hidden group"
             >
-                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-orange-400 to-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-brand to-brand-hover opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex gap-3 relative z-10">
-                    <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0 text-orange-600 dark:text-orange-400 font-bold text-sm">
+                    <div className="w-8 h-8 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center shrink-0 text-brand font-bold text-sm">
                         💡
                     </div>
                     <div>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">نصيحة احترافية</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        <h4 className="font-bold text-sm text-white">نصيحة احترافية</h4>
+                        <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                             يمكنك دائماً تغيير إعدادات متجرك وتخصيص هويته لاحقاً من لوحة التحكم.
                         </p>
                     </div>

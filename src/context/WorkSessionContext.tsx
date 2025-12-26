@@ -29,6 +29,9 @@ interface WorkSessionContextType {
 }
 
 const WorkSessionContext = createContext<WorkSessionContextType | undefined>(undefined);
+const workSessionInitInFlight = new Map<string, Promise<void>>();
+const workSessionLastInit = new Map<string, number>();
+const WORKSESSION_INIT_DEDUPE_MS = 2000;
 
 export const WorkSessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentStaff, isAdminMode } = useStaffSession();
@@ -120,6 +123,17 @@ export const WorkSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     if (!currentOrganization?.id) return;
 
+    const orgId = currentOrganization.id;
+    const lastInit = workSessionLastInit.get(orgId) || 0;
+    if (Date.now() - lastInit < WORKSESSION_INIT_DEDUPE_MS) {
+      return;
+    }
+
+    const existing = workSessionInitInFlight.get(orgId);
+    if (existing) {
+      return;
+    }
+
     // ⚡ CRITICAL FIX: انتظر حتى تهيئة قاعدة البيانات قبل أي عملية
     const waitForDBAndRun = async () => {
       try {
@@ -184,7 +198,12 @@ export const WorkSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
     };
 
-    waitForDBAndRun();
+    const run = waitForDBAndRun();
+    workSessionInitInFlight.set(orgId, run);
+    workSessionLastInit.set(orgId, Date.now());
+    run.finally(() => {
+      workSessionInitInFlight.delete(orgId);
+    });
 
     // ⚡ تقليل الـ interval من 30 ثانية إلى 5 دقائق
     // هذا يوفر ~2,700 استدعاء يومياً لقاعدة البيانات

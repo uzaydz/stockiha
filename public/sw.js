@@ -1,7 +1,9 @@
 // Service Worker لتحسين الأداء والتخزين المؤقت - إصدار محدث لتجنب التضارب
-const CACHE_NAME = 'bazaar-v1.0.2';
-const STATIC_CACHE = 'static-v1.0.2';
-const DYNAMIC_CACHE = 'dynamic-v1.0.2';
+// ⚠️ يجب تغيير نسخة الكاش عند كل نشر لتجنب تقديم ملفات قديمة (HTML/JS mismatch)
+const CACHE_VERSION = 'v1.0.27';
+const CACHE_NAME = `bazaar-${CACHE_VERSION}`;
+const STATIC_CACHE = `static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
 // الملفات الحرجة للتخزين المؤقت
 const STATIC_ASSETS = [
@@ -100,13 +102,18 @@ self.addEventListener('fetch', (event) => {
               return response;
             }
 
+            // ✅ حماية: لا تقم بتخزين HTML لطلبات ليست صفحات (هذا سبب شائع لـ "Unexpected token '<'")
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html') && event.request.destination !== 'document') {
+              return response;
+            }
+
             // استنسخ الاستجابة
             const responseToCache = response.clone();
 
             // قرر الكاش المناسب
-            const cacheName = STATIC_ASSETS.some(asset => event.request.url.includes(asset))
-              ? STATIC_CACHE
-              : DYNAMIC_CACHE;
+            const requestPath = new URL(event.request.url).pathname;
+            const cacheName = STATIC_ASSETS.includes(requestPath) ? STATIC_CACHE : DYNAMIC_CACHE;
 
             // احفظ الملف في الكاش - تحسين لتجنب التضارب
             caches.open(cacheName)

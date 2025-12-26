@@ -123,18 +123,19 @@ const TitlebarNotificationsInner = memo(({ className, maxItems = 10 }: TitlebarN
           ref={bellRef}
           type="button"
           className={cn(
-            "relative flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
+            "relative flex items-center justify-center rounded-lg transition-colors",
+            "h-7 w-7 sm:h-8 sm:w-8", // حجم أصغر على الهاتف
             "text-white/70 hover:text-white hover:bg-white/10",
             stats.unread > 0 && "text-white",
             className
           )}
           aria-label="الإشعارات"
         >
-          <Bell className="h-4 w-4" />
+          <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
 
           {/* Badge */}
           {stats.unread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-[10px] text-white font-medium flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-0.5 sm:px-1 rounded-full bg-red-500 text-[9px] sm:text-[10px] text-white font-medium flex items-center justify-center">
               {stats.unread > 9 ? '9+' : stats.unread}
             </span>
           )}
@@ -142,7 +143,7 @@ const TitlebarNotificationsInner = memo(({ className, maxItems = 10 }: TitlebarN
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[360px] p-0 rounded-xl border bg-popover shadow-lg overflow-hidden"
+        className="w-[calc(100vw-16px)] sm:w-[360px] max-w-[360px] p-0 rounded-xl border bg-popover shadow-lg overflow-hidden"
         align="end"
         sideOffset={8}
       >

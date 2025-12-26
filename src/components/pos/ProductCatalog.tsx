@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 import { formatPrice } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion } from "framer-motion";
@@ -470,7 +471,9 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4 p-4">
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((product) => {
+              const imageSrc = resolveProductImageSrc(product as any, '/placeholder-product.svg');
+              return (
               <motion.div
                 key={product.id}
                 layout
@@ -488,7 +491,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
               >
                 <div className="relative aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30">
                   <img
-                    src={product.thumbnailImage || '/placeholder-product.svg'}
+                    src={imageSrc}
                     alt={product.name}
                     className="object-contain w-full h-full p-2"
                   />
@@ -538,11 +541,14 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                   </div>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         ) : viewMode === 'compact' ? (
           <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 p-4">
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((product) => {
+              const imageSrc = resolveProductImageSrc(product as any, '/placeholder-product.svg');
+              return (
               <motion.div
                 key={product.id}
                 layout
@@ -560,7 +566,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
               >
                 <div className="relative aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30">
                   <img
-                    src={product.thumbnailImage || '/placeholder-product.svg'}
+                    src={imageSrc}
                     alt={product.name}
                     className="object-contain w-full h-full p-1"
                   />
@@ -583,11 +589,14 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                   <p className="font-semibold text-xs text-primary">{formatPrice(product.price)}</p>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="p-4 space-y-2">
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((product) => {
+              const imageSrc = resolveProductImageSrc(product as any, '/placeholder-product.svg');
+              return (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -604,7 +613,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
               >
                 <div className="relative h-16 w-16 bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30">
                   <img
-                    src={product.thumbnailImage || '/placeholder-product.svg'}
+                    src={imageSrc}
                     alt={product.name}
                     className="object-contain w-full h-full p-1"
                   />
@@ -642,7 +651,8 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                   </div>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         )}
       </ScrollArea>

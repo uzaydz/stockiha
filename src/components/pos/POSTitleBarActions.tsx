@@ -23,7 +23,8 @@ import {
   Truck,
   CreditCard,
   CalendarDays,
-  Users
+  Users,
+  Lightbulb
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -107,10 +108,10 @@ const POSTitleBarActions: React.FC = () => {
   if (isAdminMode) {
     return (
       <div className="flex justify-center w-full h-full items-center">
-        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1 border border-white/5 backdrop-blur-sm">
-          <div className="flex items-center gap-2 px-3 h-7 rounded-lg bg-blue-500/10 text-blue-400">
-            <Shield className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">وضع المدير</span>
+        <div className="flex items-center gap-0.5 sm:gap-1 bg-white/5 rounded-lg sm:rounded-xl p-0.5 sm:p-1 border border-white/5 backdrop-blur-sm">
+          <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 h-6 sm:h-7 rounded-md sm:rounded-lg bg-blue-500/10 text-blue-400">
+            <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            <span className="text-[10px] sm:text-xs font-medium">وضع المدير</span>
           </div>
         </div>
       </div>
@@ -150,16 +151,16 @@ const POSTitleBarActions: React.FC = () => {
     <div className="flex justify-center w-full h-full items-center relative z-50">
 
       {/* 🟢 Unified Glass Container */}
-      <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1 border border-white/5 backdrop-blur-sm">
+      <div className="flex items-center gap-0.5 sm:gap-1 bg-white/5 rounded-lg sm:rounded-xl p-0.5 sm:p-1 border border-white/5 backdrop-blur-sm">
 
         {/* === SECTION 0: POS APPS MENU === */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex items-center justify-center h-7 w-7 rounded-lg transition-all duration-200 hover:bg-white/10 text-slate-300 hover:text-white outline-none active:scale-95"
+              className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 rounded-md sm:rounded-lg transition-all duration-200 hover:bg-white/10 text-slate-300 hover:text-white outline-none active:scale-95"
               title="تطبيقات نقطة البيع"
             >
-              <Grid className="h-4 w-4" />
+              <Grid className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </button>
           </DropdownMenuTrigger>
 
@@ -218,21 +219,21 @@ const POSTitleBarActions: React.FC = () => {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="h-4 w-px bg-white/10 mx-1" />
+        <div className="h-3 sm:h-4 w-px bg-white/10 mx-0.5 sm:mx-1" />
 
         {/* === SECTION 1: UNIFIED MODE SWITCHER === */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "flex items-center gap-2 h-7 px-2.5 rounded-lg transition-all duration-200 outline-none active:scale-95 group border border-transparent hover:border-white/5",
+                "flex items-center gap-1 sm:gap-2 h-6 sm:h-7 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg transition-all duration-200 outline-none active:scale-95 group border border-transparent hover:border-white/5",
                 modeConfig[mode].bg,
                 modeConfig[mode].color
               )}
             >
-              <ActiveIcon className={cn("h-3.5 w-3.5", mode === 'return' && "animate-spin-slow")} />
-              <span className="text-xs font-bold">{modeConfig[mode].label}</span>
-              <ChevronDown className={cn("h-3 w-3 opacity-70", modeConfig[mode].color)} />
+              <ActiveIcon className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5", mode === 'return' && "animate-spin-slow")} />
+              <span className="text-[10px] sm:text-xs font-bold">{modeConfig[mode].label}</span>
+              <ChevronDown className={cn("h-2.5 w-2.5 sm:h-3 sm:w-3 opacity-70", modeConfig[mode].color)} />
             </button>
           </DropdownMenuTrigger>
 
@@ -261,34 +262,34 @@ const POSTitleBarActions: React.FC = () => {
 
 
         {/* === DIVIDER === */}
-        <div className="h-4 w-px bg-white/10 mx-1" />
+        <div className="h-3 sm:h-4 w-px bg-white/10 mx-0.5 sm:mx-1" />
 
 
         {/* === SECTION 2: SESSION CONTROLS === */}
         {hasActiveSession && activeSession ? (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 sm:gap-1">
 
             {/* Session Status Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className={cn(
-                  "flex items-center gap-2 h-7 px-2 rounded-lg transition-all duration-200 hover:bg-white/5 outline-none group border border-transparent hover:border-white/5",
+                  "flex items-center gap-1 sm:gap-2 h-6 sm:h-7 px-1.5 sm:px-2 rounded-md sm:rounded-lg transition-all duration-200 hover:bg-white/5 outline-none group border border-transparent hover:border-white/5",
                   activeSession.status === 'active' ? "text-emerald-400" : "text-amber-400"
                 )}>
-                  <div className="relative flex items-center justify-center w-1.5 h-1.5">
+                  <div className="relative flex items-center justify-center w-1 h-1 sm:w-1.5 sm:h-1.5">
                     <span className={cn(
                       "absolute w-full h-full rounded-full animate-ping opacity-75",
                       activeSession.status === 'active' ? "bg-emerald-500" : "bg-amber-500"
                     )}></span>
                     <span className={cn(
-                      "relative w-1.5 h-1.5 rounded-full",
+                      "relative w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full",
                       activeSession.status === 'active' ? "bg-emerald-500" : "bg-amber-500"
                     )}></span>
                   </div>
-                  <span className="text-xs font-medium text-slate-300 group-hover:text-white transition-colors">
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-300 group-hover:text-white transition-colors">
                     {activeSession.status === 'active' ? 'نشطة' : 'متوقفة'}
                   </span>
-                  <ChevronDown className="h-3 w-3 text-slate-500 group-hover:text-white transition-colors" />
+                  <ChevronDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-500 group-hover:text-white transition-colors" />
                 </button>
               </DropdownMenuTrigger>
 
@@ -325,16 +326,16 @@ const POSTitleBarActions: React.FC = () => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <div className="h-4 w-px bg-white/10 mx-1" />
+            <div className="h-3 sm:h-4 w-px bg-white/10 mx-0.5 sm:mx-1" />
 
             {/* Opening Cash Display */}
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex items-center h-7 px-2 rounded-lg cursor-help hover:bg-white/5 transition-colors gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline-block">صندوق</span>
-                    <span className="text-xs font-bold text-white tabular-nums">{activeSession.opening_cash}</span>
-                    <span className="text-[9px] font-bold text-emerald-500">DA</span>
+                  <div className="flex items-center h-6 sm:h-7 px-1.5 sm:px-2 rounded-md sm:rounded-lg cursor-help hover:bg-white/5 transition-colors gap-1">
+                    <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline-block">صندوق</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-white tabular-nums">{activeSession.opening_cash}</span>
+                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-500">DA</span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-slate-900 border-slate-700 text-xs text-white">رصيد الافتتاح</TooltipContent>
@@ -343,14 +344,14 @@ const POSTitleBarActions: React.FC = () => {
 
           </div>
         ) : (
-          <div className="flex items-center px-1">
+          <div className="flex items-center px-0.5 sm:px-1">
             <Button
               onClick={() => setShowStartDialog(true)}
               variant="ghost"
               size="sm"
-              className="h-7 rounded-lg text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 gap-2 px-3 text-xs font-bold"
+              className="h-6 sm:h-7 rounded-md sm:rounded-lg text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 gap-1 sm:gap-2 px-2 sm:px-3 text-[10px] sm:text-xs font-bold"
             >
-              <PlayCircle className="h-3.5 w-3.5" />
+              <PlayCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>فتح وردية</span>
             </Button>
           </div>

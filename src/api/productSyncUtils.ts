@@ -23,40 +23,48 @@ interface EntityCountsCache {
 let entityCountsCache: EntityCountsCache | null = null;
 const SERVER_COUNT_CACHE_TTL = 5 * 60 * 1000; // 5 دقائق
 
+// ⚡ v2.0: منع تكرار المزامنة المتزامنة
+let isSyncing = false;
+let lastSyncTime = 0;
+const SYNC_COOLDOWN = 5000; // 5 ثوانٍ بين كل مزامنة
+
 /**
  * فحص عدد المنتجات المحلية في SQLite
- * ⚡ إصلاح: نحسب جميع المنتجات (بدون فلتر is_active) للمقارنة مع السيرفر
- * السيرفر RPC يحسب جميع المنتجات، لذا يجب أن نفعل نفس الشيء
+ * ⚡ v2.0: نحسب المنتجات النشطة فقط للمقارنة مع السيرفر RPC
+ * لأن RPC يحسب المنتجات النشطة فقط
  */
 export const getLocalProductsCount = async (organizationId: string): Promise<number> => {
   try {
-    // ⚡ PowerSync متاح دائماً
-    // ⚡ إصلاح: نحسب جميع المنتجات للمقارنة الصحيحة مع السيرفر
     if (!powerSyncService.db) {
       console.warn('[productSyncUtils] PowerSync DB not initialized');
       return 0;
     }
-    const result = await powerSyncService.query<any>({
-      sql: 'SELECT COUNT(*) as count FROM products WHERE organization_id = ?',
-      params: [organizationId]
-    });
 
-    const totalCount = result?.[0]?.count || 0;
-
-    // ⚡ DEBUG: عرض تفاصيل أكثر
+    // ⚡ v2.0: نحسب المنتجات النشطة فقط (للمقارنة الصحيحة مع RPC)
     const activeResult = await powerSyncService.query<any>({
       sql: 'SELECT COUNT(*) as count FROM products WHERE organization_id = ? AND (is_active = 1 OR is_active IS NULL)',
       params: [organizationId]
     });
     const activeCount = activeResult?.[0]?.count || 0;
 
-    console.log('[ProductSyncUtils] 📊 Local products count:', {
-      total: totalCount,
-      active: activeCount,
-      inactive: totalCount - activeCount
+    // ⚡ DEBUG: عرض تفاصيل أكثر (مرة واحدة فقط)
+    const totalResult = await powerSyncService.query<any>({
+      sql: 'SELECT COUNT(*) as count FROM products WHERE organization_id = ?',
+      params: [organizationId]
     });
+    const totalCount = totalResult?.[0]?.count || 0;
+    const inactiveCount = totalCount - activeCount;
 
-    return totalCount;
+    if (inactiveCount > 0) {
+      console.log('[ProductSyncUtils] 📊 Local products count:', {
+        total: totalCount,
+        active: activeCount,
+        inactive: inactiveCount
+      });
+    }
+
+    // نُرجع عدد المنتجات النشطة فقط
+    return activeCount;
   } catch (error) {
     console.error('[ProductSyncUtils] Error counting products:', error);
     return 0;
@@ -154,6 +162,24 @@ export const clearEntityCountsCache = () => {
 };
 
 /**
+ * ⚡ v2.0: الحصول على حالة المزامنة الحالية
+ */
+export const getSyncStatus = () => ({
+  isSyncing,
+  lastSyncTime,
+  cooldownRemaining: Math.max(0, SYNC_COOLDOWN - (Date.now() - lastSyncTime))
+});
+
+/**
+ * ⚡ v2.0: إعادة تعيين حالة المزامنة (للتصحيح فقط)
+ */
+export const resetSyncState = () => {
+  isSyncing = false;
+  lastSyncTime = 0;
+  console.log('[ProductSyncUtils] 🔄 Sync state reset');
+};
+
+/**
  * فحص إذا كانت SQLite فارغة من المنتجات
  */
 export const isSQLiteEmpty = async (organizationId: string): Promise<boolean> => {
@@ -168,6 +194,8 @@ export const isSQLiteEmpty = async (organizationId: string): Promise<boolean> =>
  * - إذا فارغ → يحمل
  * - إذا الفرق > 5 منتجات أو > 20% → يحمل
  * - إذا لم يتم التحديث منذ 24 ساعة → يحمل
+ *
+ * v2.0: منع تكرار المزامنة المتزامنة
  */
 export const ensureProductsInSQLite = async (organizationId: string): Promise<{
   needed: boolean;
@@ -176,6 +204,18 @@ export const ensureProductsInSQLite = async (organizationId: string): Promise<{
   error?: string;
   reason?: string;
 }> => {
+  // ⚡ v2.0: منع تكرار المزامنة المتزامنة
+  const now = Date.now();
+  if (isSyncing) {
+    console.log('[ProductSyncUtils] ⏳ Sync already in progress - skipping');
+    return { needed: false, success: true, count: 0, reason: 'sync_in_progress' };
+  }
+
+  if (now - lastSyncTime < SYNC_COOLDOWN) {
+    console.log('[ProductSyncUtils] ⏳ Sync cooldown active - skipping');
+    return { needed: false, success: true, count: 0, reason: 'cooldown' };
+  }
+
   try {
     const localCount = await getLocalProductsCount(organizationId);
 
@@ -188,11 +228,17 @@ export const ensureProductsInSQLite = async (organizationId: string): Promise<{
     // إذا فارغ، حمل فوراً
     if (localCount === 0) {
       console.log('[ProductSyncUtils] 📥 SQLite empty - downloading products...');
-      const savedCount = await syncProductsFromServer(organizationId);
-      localStorage.setItem(lastSyncKey, now.toString());
-      // مسح cache السيرفر
-      entityCountsCache = null;
-      return { needed: true, success: savedCount > 0, count: savedCount, reason: 'empty' };
+      isSyncing = true;
+      try {
+        const savedCount = await syncProductsFromServer(organizationId);
+        localStorage.setItem(lastSyncKey, now.toString());
+        lastSyncTime = now;
+        // مسح cache السيرفر
+        entityCountsCache = null;
+        return { needed: true, success: savedCount > 0, count: savedCount, reason: 'empty' };
+      } finally {
+        isSyncing = false;
+      }
     }
 
     // ⚡ مقارنة مع السيرفر (فقط إذا Online)
@@ -200,7 +246,9 @@ export const ensureProductsInSQLite = async (organizationId: string): Promise<{
     if (isOnline) {
       const serverCount = await getServerProductsCount(organizationId);
       const diff = serverCount - localCount;
+      const absDiff = Math.abs(diff);
       const diffPercentage = serverCount > 0 ? (diff / serverCount) * 100 : 0;
+      const absDiffPercentage = Math.abs(diffPercentage);
 
       console.log('[ProductSyncUtils] 📊 Products comparison:', {
         local: localCount,
@@ -210,24 +258,46 @@ export const ensureProductsInSQLite = async (organizationId: string): Promise<{
         hoursSinceLastSync: hoursSinceLastSync.toFixed(1)
       });
 
-      // ⚡ إصلاح: إذا الفرق كبير، أعد التحميل
-      // تم تخفيف الشرط: diff > 3 أو diffPercentage > 10% (بدلاً من 5 و 20%)
-      if (diff > 3 || diffPercentage > 10) {
-        console.log(`[ProductSyncUtils] 📥 Missing ${diff} products (${diffPercentage.toFixed(1)}%) - syncing...`);
-        const savedCount = await syncProductsFromServer(organizationId);
-        localStorage.setItem(lastSyncKey, now.toString());
-        entityCountsCache = null;
-        return { needed: true, success: savedCount > 0, count: savedCount, reason: 'missing_products' };
+      // ⚡ إصلاح v2: فحص الفرق المطلق (سواء كان محلي > سيرفر أو العكس)
+      // إذا الفرق المطلق > 3 أو > 10%، أعد المزامنة
+      if (absDiff > 3 || absDiffPercentage > 10) {
+        if (diff > 0) {
+          console.log(`[ProductSyncUtils] 📥 Missing ${diff} products locally - syncing...`);
+        } else {
+          console.log(`[ProductSyncUtils] 🗑️ Local has ${absDiff} orphaned products - forcing full sync...`);
+        }
+        isSyncing = true;
+        try {
+          const savedCount = await syncProductsFromServer(organizationId);
+          localStorage.setItem(lastSyncKey, now.toString());
+          lastSyncTime = now;
+          entityCountsCache = null;
+          return {
+            needed: true,
+            success: savedCount > 0,
+            count: savedCount,
+            reason: diff > 0 ? 'missing_products' : 'orphaned_products'
+          };
+        } finally {
+          isSyncing = false;
+        }
       }
 
       // ⚡ إذا لم يتم التحديث منذ 24 ساعة، حدث في الخلفية
       if (hoursSinceLastSync > 24) {
         console.log('[ProductSyncUtils] 📥 Last sync > 24h ago - syncing in background...');
         // لا ننتظر - نعود فوراً بالبيانات المحلية
-        syncProductsFromServer(organizationId).then(() => {
-          localStorage.setItem(lastSyncKey, now.toString());
-          entityCountsCache = null;
-        }).catch(() => {});
+        // ⚡ v2.0: نضع القفل للمزامنة الخلفية أيضاً
+        if (!isSyncing) {
+          isSyncing = true;
+          syncProductsFromServer(organizationId).then(() => {
+            localStorage.setItem(lastSyncKey, Date.now().toString());
+            lastSyncTime = Date.now();
+            entityCountsCache = null;
+          }).catch(() => {}).finally(() => {
+            isSyncing = false;
+          });
+        }
         return { needed: false, success: true, count: localCount, reason: 'background_refresh' };
       }
     }
@@ -248,16 +318,30 @@ export const ensureProductsInSQLite = async (organizationId: string): Promise<{
 /**
  * إعادة تحميل المنتجات من السيرفر (حتى لو كانت موجودة)
  * مفيد لتحديث البيانات المحلية
+ * ⚡ v2.0: يستخدم نفس آلية القفل لمنع التكرار
  */
 export const forceReloadProducts = async (organizationId: string): Promise<{
   success: boolean;
   count: number;
   error?: string;
 }> => {
+  // ⚡ v2.0: فحص القفل
+  if (isSyncing) {
+    console.log('[ProductSyncUtils] ⏳ Sync already in progress - skipping force reload');
+    return { success: false, count: 0, error: 'sync_in_progress' };
+  }
+
   console.log('[ProductSyncUtils] 🔄 Force reloading products from server...');
-  const savedCount = await syncProductsFromServer(organizationId);
-  return {
-    success: savedCount > 0,
-    count: savedCount
-  };
+  isSyncing = true;
+  try {
+    const savedCount = await syncProductsFromServer(organizationId);
+    lastSyncTime = Date.now();
+    entityCountsCache = null;
+    return {
+      success: savedCount > 0,
+      count: savedCount
+    };
+  } finally {
+    isSyncing = false;
+  }
 };

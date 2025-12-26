@@ -77,7 +77,7 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
       setDashboardData(data);
       
       console.log('✅ [POS Dashboard] تم جلب البيانات بنجاح');
-      toast.success('تم تحديث البيانات بنجاح');
+      // ⚡ إزالة Toast التلقائي - يظهر فقط عند التحديث اليدوي
     } catch (err) {
       console.error('❌ [POS Dashboard] خطأ في جلب البيانات:', err);
       const errorMessage = err instanceof Error ? err.message : 'حدث خطأ في جلب البيانات';
@@ -173,8 +173,9 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
     }
   ];
 
-  const handleRefresh = () => {
-    fetchDashboardData();
+  const handleRefresh = async () => {
+    await fetchDashboardData();
+    toast.success('تم تحديث البيانات بنجاح');
   };
 
   return (
@@ -183,35 +184,38 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
       isRefreshing={isLoading}
       connectionStatus="connected"
     >
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  لوحة تحكم نقطة البيع
-                </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  إدارة شاملة لنظام نقطة البيع
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" className="gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  تحديث
-                </Button>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Settings className="h-4 w-4" />
-                  الإعدادات
-                </Button>
+      {/* استخدام نفس البنية البسيطة مثل POSAdvanced */}
+      <div className="h-full w-full overflow-hidden p-2 bg-gray-50 dark:bg-gray-900">
+        <div className="h-full w-full flex flex-col gap-3 overflow-hidden">
+          {/* Header */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex-shrink-0 overflow-hidden">
+            <div className="px-4 py-3 sm:px-6 sm:py-4">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
+                    لوحة تحكم نقطة البيع
+                  </h1>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
+                    إدارة شاملة لنظام نقطة البيع
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                  <Button variant="outline" size="sm" className="gap-2" onClick={handleRefresh}>
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="hidden sm:inline">تحديث</span>
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">الإعدادات</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-      {/* Main Content */}
-      <div className="p-6">
+          {/* Main Content */}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="p-4 sm:p-6">
         {/* حالة التحميل */}
         {isLoading && !dashboardData && (
           <div className="flex items-center justify-center min-h-[400px]">
@@ -245,8 +249,8 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
 
         {/* المحتوى الرئيسي */}
         {!isLoading && !error && dashboardData && (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 h-full flex flex-col overflow-hidden">
+            <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
               <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
               <TabsTrigger value="sales">المبيعات</TabsTrigger>
               <TabsTrigger value="products">المنتجات</TabsTrigger>
@@ -254,7 +258,7 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
             </TabsList>
 
             {/* نظرة عامة */}
-            <TabsContent value="overview" className="space-y-6">
+            <TabsContent value="overview" className="space-y-4 flex-1 min-h-0 overflow-y-auto mt-0" data-state={activeTab === 'overview' ? 'active' : 'inactive'}>
               {/* إحصائيات سريعة */}
               <StatsOverview stats={statsData} />
 
@@ -303,7 +307,7 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
           </TabsContent>
 
           {/* المبيعات */}
-          <TabsContent value="sales" className="space-y-6">
+          <TabsContent value="sales" className="space-y-4 flex-1 min-h-0 overflow-y-auto mt-0" data-state={activeTab === 'sales' ? 'active' : 'inactive'}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <Card>
                 <CardHeader className="pb-2">
@@ -352,7 +356,7 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
           </TabsContent>
 
           {/* المنتجات */}
-          <TabsContent value="products" className="space-y-6">
+          <TabsContent value="products" className="space-y-4 flex-1 min-h-0 overflow-y-auto mt-0" data-state={activeTab === 'products' ? 'active' : 'inactive'}>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">إدارة المنتجات</h2>
               <Button className="gap-2">
@@ -364,7 +368,7 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
           </TabsContent>
 
           {/* العملاء */}
-          <TabsContent value="customers" className="space-y-6">
+          <TabsContent value="customers" className="space-y-4 flex-1 min-h-0 overflow-y-auto mt-0" data-state={activeTab === 'customers' ? 'active' : 'inactive'}>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">إدارة العملاء</h2>
               <Button className="gap-2">
@@ -396,8 +400,10 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
           </TabsContent>
         </Tabs>
         )}
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
     </POSPureLayout>
   );
 };

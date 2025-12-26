@@ -519,7 +519,7 @@ class UnifiedPrintService {
    * توليد HTML للوصل
    */
   generateReceiptHtml(data: ReceiptData, settings: Partial<PrintSettings>): string {
-    const template = settings.receipt_template || 'apple';
+    const template = (settings as any).receipt_template || 'apple';
 
     switch (template) {
       case 'apple':
@@ -528,6 +528,9 @@ class UnifiedPrintService {
         return this.generateModernReceipt(data, settings);
       case 'minimal':
         return this.generateMinimalReceipt(data, settings);
+      case 'custom':
+        // نفس قالب Apple كقاعدة، مع إمكانية حقن CSS مخصص على مستوى الطبقة التي تعرض HTML
+        return this.generateAppleReceipt(data, settings);
       case 'classic':
       default:
         return this.generateClassicReceipt(data, settings);

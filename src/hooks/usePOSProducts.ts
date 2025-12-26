@@ -57,11 +57,14 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
   const categoryId = options.categoryId ?? '';
   const stockFilter = options.stockFilter ?? 'all';
   const enabled = options.enabled ?? true;
+  const isDebug = import.meta.env.DEV && localStorage.getItem('debug_pos_products') === '1';
 
   // Debug log (فقط عند تغيير الصفحة فعلياً)
   const prevPageRef = useRef(page);
   if (prevPageRef.current !== page) {
-    console.log(`[usePOSProducts#${instanceId}] 📄 Page changed: ${prevPageRef.current} -> ${page}`);
+    if (isDebug) {
+      console.log(`[usePOSProducts#${instanceId}] 📄 Page changed: ${prevPageRef.current} -> ${page}`);
+    }
     prevPageRef.current = page;
   }
 
@@ -111,12 +114,16 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
     // ⚡ تجاهل الـ fetch إذا كان الكاش قد تم تحديثه محلياً (لتجنب الكتابة فوق التحديث)
     if (!forceRefresh && (skipNextFetchRef.current || Date.now() < skipNextFetchUntilRef.current)) {
-      console.log(`[usePOSProducts] ⏭️ Skipping fetch - local cache update in progress (until=${skipNextFetchUntilRef.current}, now=${Date.now()})`);
+      if (isDebug) {
+        console.log(`[usePOSProducts] ⏭️ Skipping fetch - local cache update in progress (until=${skipNextFetchUntilRef.current}, now=${Date.now()})`);
+      }
       skipNextFetchRef.current = false;
       return;
     }
 
-    console.log(`[usePOSProducts] 📄 Fetching page ${params.page}, limit ${params.limit}, fetchId=${fetchId}`);
+    if (isDebug) {
+      console.log(`[usePOSProducts] 📄 Fetching page ${params.page}, limit ${params.limit}, fetchId=${fetchId}`);
+    }
 
     setIsLoadingProducts(true);
     setError(null);
@@ -136,13 +143,15 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
       // التحقق من أن هذا هو آخر طلب وأن الـ component لا يزال mounted
       if (!isMountedRef.current || fetchId !== fetchIdRef.current) {
-        console.log(`[usePOSProducts] ⚠️ Skipping stale response (fetchId=${fetchId}, current=${fetchIdRef.current})`);
+        if (isDebug) {
+          console.log(`[usePOSProducts] ⚠️ Skipping stale response (fetchId=${fetchId}, current=${fetchIdRef.current})`);
+        }
         return;
       }
 
       // 🔍 DEBUG: تسجيل المنتج الخام من PowerSync قبل mapping
       const dallyRaw = result.products.find((p: any) => p.name === 'Dally');
-      if (dallyRaw) {
+      if (isDebug && dallyRaw) {
         console.log(`[usePOSProducts] 🔍 RAW Dally from PowerSync:`, {
           id: dallyRaw.id,
           name: dallyRaw.name,
@@ -155,7 +164,7 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
       // 🔍 DEBUG: تسجيل المنتج بعد mapping
       const dallyMapped = mappedProducts.find((p: any) => p.name === 'Dally');
-      if (dallyMapped) {
+      if (isDebug && dallyMapped) {
         console.log(`[usePOSProducts] 🔍 MAPPED Dally:`, {
           id: dallyMapped.id,
           name: dallyMapped.name,
@@ -165,11 +174,13 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
       }
 
       const duration = Date.now() - startTime;
-      console.log(`[usePOSProducts] ⚡ Got ${mappedProducts.length}/${result.totalCount} products in ${duration}ms (page ${params.page}/${result.totalPages})`);
+      if (isDebug) {
+        console.log(`[usePOSProducts] ⚡ Got ${mappedProducts.length}/${result.totalCount} products in ${duration}ms (page ${params.page}/${result.totalPages})`);
+      }
 
       // ⚡ DEBUG: تسجيل أول منتج بالمتر للتحقق من القيم
       const meterProduct = mappedProducts.find((p: any) => p.sell_by_meter || p.selling_unit_type === 'meter');
-      if (meterProduct) {
+      if (isDebug && meterProduct) {
         console.log(`[usePOSProducts] 📏 Sample meter product after fetch:`, {
           name: meterProduct.name,
           available_length: meterProduct.available_length,
@@ -210,16 +221,21 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
     const isDataChangeKeyUpdate = lastDataChangeKeyRef.current !== dataChangeKey;
     lastDataChangeKeyRef.current = dataChangeKey;
 
-    // إذا كان هذا التغيير الأولي في dataChangeKey فقط، تجاهله
-    if (isInitialLoadRef.current && isDataChangeKeyUpdate && fetchIdRef.current > 0) {
-      console.log(`[usePOSProducts#${instanceId}] ⏭️ Skipping initial dataChangeKey update`);
+    // إذا كان هذا هو التحديث الثاني (dataChangeKey يتغير بعد أول fetch)، تجاهله
+    // الشرط: لدينا fetch سابق (fetchIdRef > 0) و dataChangeKey تغير فقط (لا تغيير في params أخرى)
+    if (fetchIdRef.current > 0 && isDataChangeKeyUpdate && isInitialLoadRef.current) {
+      console.log(`[usePOSProducts#${instanceId}] ⏭️ Skipping duplicate fetch from dataChangeKey update`);
       isInitialLoadRef.current = false;
       return;
     }
-    isInitialLoadRef.current = false;
+
+    // بعد أول fetch فعلي، أوقف التتبع الأولي
+    if (fetchIdRef.current > 0) {
+      isInitialLoadRef.current = false;
+    }
 
     // Debug: فقط عند التغييرات الفعلية
-    if (process.env.NODE_ENV === 'development') {
+    if (isDebug) {
       console.log(`[usePOSProducts#${instanceId}] 🔄 Params changed - page=${page}, search="${search}", enabled=${enabled}`);
     }
 
@@ -274,19 +290,23 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
     // ⚡ معاملات جديدة لأنواع البيع المتقدمة
     sellingUnit?: 'piece' | 'weight' | 'meter' | 'box'
   ) => {
-    console.log('[updateProductStockInCache] 📦 Updating stock:', {
-      productId,
-      colorId,
-      sizeId,
-      quantityChange,
-      sellingUnit
-    });
+    if (isDebug) {
+      console.log('[updateProductStockInCache] 📦 Updating stock:', {
+        productId,
+        colorId,
+        sizeId,
+        quantityChange,
+        sellingUnit
+      });
+    }
 
     // ⚡ تعيين علامة تجاهل الـ fetch التالي لمدة 3 ثوانٍ
     // هذا يمنع الـ watch query من الكتابة فوق التحديث المحلي
     skipNextFetchRef.current = true;
     skipNextFetchUntilRef.current = Date.now() + 3000; // 3 ثوانٍ
-    console.log('[updateProductStockInCache] ⏭️ Set skip flag - will ignore fetches until', new Date(skipNextFetchUntilRef.current).toISOString());
+    if (isDebug) {
+      console.log('[updateProductStockInCache] ⏭️ Set skip flag - will ignore fetches until', new Date(skipNextFetchUntilRef.current).toISOString());
+    }
 
     setProducts(prev =>
       prev.map(product => {
@@ -343,11 +363,13 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
         switch (effectiveUnit) {
           case 'meter':
             const newLength = clamp((product.available_length || 0) + quantityChange);
-            console.log('[updateProductStockInCache] 📏 Updating meter stock:', {
-              old: product.available_length,
-              change: quantityChange,
-              new: newLength
-            });
+            if (isDebug) {
+              console.log('[updateProductStockInCache] 📏 Updating meter stock:', {
+                old: product.available_length,
+                change: quantityChange,
+                new: newLength
+              });
+            }
             return {
               ...product,
               available_length: newLength,
@@ -358,11 +380,13 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
           case 'weight':
             const newWeight = clamp((product.available_weight || 0) + quantityChange);
-            console.log('[updateProductStockInCache] ⚖️ Updating weight stock:', {
-              old: product.available_weight,
-              change: quantityChange,
-              new: newWeight
-            });
+            if (isDebug) {
+              console.log('[updateProductStockInCache] ⚖️ Updating weight stock:', {
+                old: product.available_weight,
+                change: quantityChange,
+                new: newWeight
+              });
+            }
             return {
               ...product,
               available_weight: newWeight,
@@ -373,11 +397,13 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
           case 'box':
             const newBoxes = clamp((product.available_boxes || 0) + quantityChange);
-            console.log('[updateProductStockInCache] 📦 Updating box stock:', {
-              old: product.available_boxes,
-              change: quantityChange,
-              new: newBoxes
-            });
+            if (isDebug) {
+              console.log('[updateProductStockInCache] 📦 Updating box stock:', {
+                old: product.available_boxes,
+                change: quantityChange,
+                new: newBoxes
+              });
+            }
             return {
               ...product,
               available_boxes: newBoxes,
@@ -388,11 +414,13 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
           default: // piece
             const newStock = clamp((product.stock_quantity || 0) + quantityChange);
-            console.log('[updateProductStockInCache] 🔢 Updating piece stock:', {
-              old: product.stock_quantity,
-              change: quantityChange,
-              new: newStock
-            });
+            if (isDebug) {
+              console.log('[updateProductStockInCache] 🔢 Updating piece stock:', {
+                old: product.stock_quantity,
+                change: quantityChange,
+                new: newStock
+              });
+            }
             return {
               ...product,
               stock_quantity: newStock,
@@ -441,8 +469,11 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
   return {
     products,
     pagination,
-    isLoading: isLoadingProducts || isWatchLoading,
-    isRefetching: isLoadingProducts && products.length > 0,
+    // ✅ UX: لا تعتبر watch query "تحميل كامل" أثناء العمل
+    // - isLoading: فقط عندما لا يوجد أي منتجات بعد (تحميل أولي)
+    // - isRefetching: عندما يوجد منتجات ونقوم بالتحديث (يُستخدم لعرض مؤشر خفيف بدل شاشة تحميل)
+    isLoading: (isLoadingProducts || isWatchLoading) && products.length === 0,
+    isRefetching: (isLoadingProducts || isWatchLoading) && products.length > 0,
     error,
     errorMessage: error,
     currentPage: page,

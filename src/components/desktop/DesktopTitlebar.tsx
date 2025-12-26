@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef, Suspense, lazy } from 'react';
-import { Minus, Square, X as CloseIcon, ChevronLeft, ChevronRight, Home, Sun, Moon, LogOut, Shield, User, Calculator, MoreHorizontal, Crown } from 'lucide-react';
+import { Minus, Square, X as CloseIcon, ChevronLeft, ChevronRight, Home, Sun, Moon, LogOut, Shield, User, Calculator, MoreHorizontal, Crown, Menu, Lightbulb, ShoppingCart, Layers, Settings } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useVirtualNumpad } from '@/context/VirtualNumpadContext';
 import { cn } from '@/lib/utils';
+import { AppImages } from '@/lib/appImages';
 import POSTitleBarActions from '@/components/pos/POSTitleBarActions';
 import ProfileMenu from './ProfileMenu';
 import UpdateButton from './UpdateButton';
@@ -13,6 +15,13 @@ import { SubscriptionButton } from './SubscriptionButton';
 import { SmartAssistantChat } from '@/components/pos/SmartAssistantChat';
 import { TitlebarNotifications } from './TitlebarNotifications';
 import { isElectron as checkElectron, windowControls, getPlatform } from '@/lib/desktop';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import './DesktopTitlebar.css';
 
 const LazyNavbarSyncIndicator = lazy(() =>
@@ -23,6 +32,7 @@ const LazyNavbarSyncIndicator = lazy(() =>
 type Platform = 'darwin' | 'win32' | 'linux' | 'web';
 
 const TITLEBAR_HEIGHT = 48;
+const TITLEBAR_HEIGHT_MOBILE = 44;
 
 // كشف البيئة مرة واحدة عند التحميل
 const detectEnvironment = () => {
@@ -42,6 +52,7 @@ const detectEnvironment = () => {
 const DesktopTitlebar: React.FC = () => {
     const { tabs, activeTabId, showTabs, actions } = useTitlebar();
     const { theme, fastThemeController } = useTheme();
+    const { signOut } = useAuth();
     const { currentStaff, isAdminMode, clearSession } = useStaffSession();
     const { isEnabled, toggleNumpad } = useVirtualNumpad();
     const [showAIChat, setShowAIChat] = useState(false);
@@ -61,7 +72,20 @@ const DesktopTitlebar: React.FC = () => {
     const [canGoBack, setCanGoBack] = useState(false);
     const [activeToolsGroup, setActiveToolsGroup] = useState<'primary' | 'secondary'>('primary');
     const [isDesktopApp, setIsDesktopApp] = useState(env.isElectron);
+    const [isMobile, setIsMobile] = useState(false);
+    const [showMobileMenu, setShowMobileMenu] = useState(false);
     const tabsContainerRef = useRef<HTMLDivElement>(null);
+    const titlebarRef = useRef<HTMLDivElement>(null);
+
+    // كشف حجم الشاشة للهاتف
+    useEffect(() => {
+        const checkScreenSize = () => {
+            setIsMobile(window.innerWidth < 640);
+        };
+        checkScreenSize();
+        window.addEventListener('resize', checkScreenSize);
+        return () => window.removeEventListener('resize', checkScreenSize);
+    }, []);
 
     // Log للتشخيص
     useEffect(() => {
@@ -129,6 +153,19 @@ const DesktopTitlebar: React.FC = () => {
         navigate('/staff-login');
     }, [clearSession, navigate]);
 
+    const handleFullLogout = useCallback(async () => {
+        if (currentStaff || isAdminMode) {
+            clearSession();
+            navigate('/staff-login');
+            return;
+        }
+        try {
+            await signOut();
+        } finally {
+            navigate('/login');
+        }
+    }, [clearSession, currentStaff, isAdminMode, navigate, signOut]);
+
 
     // اسم العرض للموظف أو الأدمن
     const staffDisplayName = useMemo(() => {
@@ -154,15 +191,124 @@ const DesktopTitlebar: React.FC = () => {
         });
     }, [isDesktopApp, platform]);
 
+    // حساب الارتفاع الديناميكي
+    const titlebarHeight = isMobile ? TITLEBAR_HEIGHT_MOBILE : TITLEBAR_HEIGHT;
+
+    // مزامنة ارتفاع الـ titlebar مع CSS variable حتى لا يظهر فراغ على الهاتف
+    useEffect(() => {
+        const updateCssVar = () => {
+            const height = titlebarRef.current?.getBoundingClientRect().height ?? titlebarHeight;
+            document.documentElement.style.setProperty('--titlebar-height', `${Math.round(height)}px`);
+        };
+
+        updateCssVar();
+        window.addEventListener('resize', updateCssVar);
+        return () => window.removeEventListener('resize', updateCssVar);
+    }, [titlebarHeight]);
+
+    // 📱 Titlebar مبسط للهاتف (ويب) — شعار + ثيم + إشعارات + قائمة + خروج
+    if (isMobile) {
+        return (
+            <div
+                ref={titlebarRef}
+                className={cn(
+                    "desktop-titlebar fixed inset-x-0 top-0 z-[1000] flex items-center bg-[#0a0f1a] border-b border-white/5 shadow-sm select-none",
+                    "h-11 px-2"
+                )}
+                style={{ height: `${titlebarHeight}px` } as any}
+                data-tauri-drag-region="true"
+            >
+                <div className="flex w-full items-center justify-between gap-2" data-tauri-drag-region="true">
+                    {/* القائمة الفرعية */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                className="h-9 w-9 rounded-xl bg-white/5 border border-white/10 text-white/90 flex items-center justify-center active:scale-95 transition"
+                                aria-label="القائمة"
+                            >
+                                <Menu className="h-5 w-5" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="start"
+                            side="bottom"
+                            sideOffset={10}
+                            className="w-56 bg-slate-800/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl p-1 text-white z-[9999]"
+                            style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as any}
+                        >
+                            <DropdownMenuItem onSelect={() => navigate('/dashboard')} className="gap-2 rounded-lg px-3 py-2 text-sm text-white/90 hover:text-white focus:text-white focus:bg-white/10">
+                                <Home className="h-4 w-4" />
+                                <span>لوحة التحكم</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => navigate('/dashboard/pos-advanced')} className="gap-2 rounded-lg px-3 py-2 text-sm text-white/90 hover:text-white focus:text-white focus:bg-white/10">
+                                <ShoppingCart className="h-4 w-4" />
+                                <span>نقطة البيع</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => navigate('/dashboard/pos-operations/orders')} className="gap-2 rounded-lg px-3 py-2 text-sm text-white/90 hover:text-white focus:text-white focus:bg-white/10">
+                                <Layers className="h-4 w-4" />
+                                <span>عمليات نقطة البيع</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => navigate('/dashboard/store-business-settings')} className="gap-2 rounded-lg px-3 py-2 text-sm text-white/90 hover:text-white focus:text-white focus:bg-white/10">
+                                <Settings className="h-4 w-4" />
+                                <span>الإعدادات</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="my-1 bg-white/10" />
+                            <DropdownMenuItem onSelect={handleFullLogout} className="gap-2 rounded-lg px-3 py-2 text-sm text-red-300 focus:text-red-200 focus:bg-red-500/10">
+                                <LogOut className="h-4 w-4" />
+                                <span>تسجيل الخروج</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* شعار */}
+                    <div className="flex items-center gap-2 min-w-0" data-tauri-drag-region="true">
+                        <img
+                            src={AppImages.logoNew}
+                            alt="Stockiha"
+                            className="h-7 w-7 rounded-lg object-contain"
+                            draggable={false}
+                        />
+                        <span className="text-sm font-semibold text-white/90 truncate">Stockiha</span>
+                    </div>
+
+                    {/* أدوات سريعة */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={fastThemeController.toggleFast}
+                            className="h-9 w-9 rounded-xl bg-white/5 border border-white/10 text-white/90 flex items-center justify-center active:scale-95 transition"
+                            aria-label="تبديل الثيم"
+                        >
+                            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                        </button>
+
+                        <TitlebarNotifications />
+
+                        {/* قائمة الحساب (تضم تسجيل الخروج أيضاً) */}
+                        <ProfileMenu />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div
-            className="desktop-titlebar fixed inset-x-0 top-0 z-[1000] flex h-[var(--titlebar-height,48px)] items-center bg-[#0a0f1a] border-b border-white/5 shadow-sm transition-all duration-300 select-none"
-            style={{ height: `var(--titlebar-height, ${TITLEBAR_HEIGHT}px)` } as any}
+            ref={titlebarRef}
+            className={cn(
+                "desktop-titlebar fixed inset-x-0 top-0 z-[1000] flex items-center bg-[#0a0f1a] border-b border-white/5 shadow-sm transition-all duration-300 select-none",
+                isMobile ? "h-11 px-2" : "h-12 px-0"
+            )}
+            style={{ height: `${titlebarHeight}px` } as any}
             data-tauri-drag-region="true"
         >
             {/* القسم الأيسر: نظام تبديل الأزرار */}
             <div
-                className="flex items-center gap-2 px-3 shrink-0 relative z-10"
+                className={cn(
+                    "flex items-center shrink-0 relative z-10",
+                    isMobile ? "gap-1 px-1" : "gap-2 px-3"
+                )}
                 data-tauri-drag-region="true"
             >
                 {/* زر التبديل بين المجموعتين */}
@@ -170,7 +316,8 @@ const DesktopTitlebar: React.FC = () => {
                     type="button"
                     onClick={() => setActiveToolsGroup(prev => prev === 'primary' ? 'secondary' : 'primary')}
                     className={cn(
-                        "flex items-center justify-center h-8 w-8 rounded-xl transition-all duration-300 group relative overflow-hidden",
+                        "flex items-center justify-center rounded-xl transition-all duration-300 group relative overflow-hidden",
+                        isMobile ? "h-7 w-7" : "h-8 w-8",
                         activeToolsGroup === 'primary'
                             ? "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20"
                             : "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
@@ -181,18 +328,21 @@ const DesktopTitlebar: React.FC = () => {
                         "transition-transform duration-500 ease-out absolute",
                         activeToolsGroup === 'primary' ? "scale-100 rotate-0" : "scale-0 rotate-90 opacity-0"
                     )}>
-                        <MoreHorizontal className="h-5 w-5" />
+                        <MoreHorizontal className={isMobile ? "h-4 w-4" : "h-5 w-5"} />
                     </div>
                     <div className={cn(
                         "transition-transform duration-500 ease-out absolute",
                         activeToolsGroup === 'secondary' ? "scale-100 rotate-0" : "scale-0 -rotate-90 opacity-0"
                     )}>
-                        <ChevronLeft className="h-5 w-5" />
+                        <ChevronLeft className={isMobile ? "h-4 w-4" : "h-5 w-5"} />
                     </div>
                 </button>
 
                 {/* Container مع أنيميشن التبديل */}
-                <div className="relative h-8 overflow-hidden flex items-center">
+                <div className={cn(
+                    "relative overflow-hidden flex items-center",
+                    isMobile ? "h-7" : "h-8"
+                )}>
                     {/* المجموعة الأساسية */}
                     <div
                         className={cn(
@@ -202,7 +352,10 @@ const DesktopTitlebar: React.FC = () => {
                                 : "opacity-0 -translate-x-8 absolute invisible pointer-events-none"
                         )}
                     >
-                        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1 border border-white/5 backdrop-blur-sm">
+                        <div className={cn(
+                            "flex items-center bg-white/5 rounded-xl border border-white/5 backdrop-blur-sm",
+                            isMobile ? "gap-0.5 p-0.5" : "gap-1 p-1"
+                        )}>
                             {/* التنقل */}
                             <div className="flex items-center gap-0.5">
                                 <button
@@ -210,26 +363,31 @@ const DesktopTitlebar: React.FC = () => {
                                     onClick={handleGoBack}
                                     disabled={!canGoBack}
                                     className={cn(
-                                        "flex items-center justify-center h-7 w-7 rounded-lg transition-all duration-200",
+                                        "flex items-center justify-center rounded-lg transition-all duration-200",
+                                        isMobile ? "h-6 w-6" : "h-7 w-7",
                                         canGoBack
                                             ? "hover:bg-white/10 text-gray-400 hover:text-white active:scale-95"
                                             : "text-gray-600 cursor-not-allowed"
                                     )}
                                     title="الرجوع"
                                 >
-                                    <ChevronRight className="h-4 w-4" />
+                                    <ChevronRight className={isMobile ? "h-3.5 w-3.5" : "h-4 w-4"} />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleGoHome}
-                                    className="flex items-center justify-center h-7 w-7 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-200 active:scale-95"
+                                    className={cn(
+                                        "flex items-center justify-center rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-200 active:scale-95",
+                                        isMobile ? "h-6 w-6" : "h-7 w-7"
+                                    )}
                                     title="الصفحة الرئيسية"
                                 >
-                                    <Home className="h-4 w-4" />
+                                    <Home className={isMobile ? "h-3.5 w-3.5" : "h-4 w-4"} />
                                 </button>
                             </div>
 
-                            <div className="h-4 w-px bg-white/10 mx-1" />
+                            {/* فاصل - يُخفى على الهاتف */}
+                            {!isMobile && <div className="h-4 w-px bg-white/10 mx-1" />}
 
                             {/* المزامنة - تظهر فقط في مسارات اللوحة التي تستخدم PowerSync */}
                             {shouldShowSyncIndicator && (
@@ -240,13 +398,14 @@ const DesktopTitlebar: React.FC = () => {
                                 </div>
                             )}
 
-                            <div className="h-4 w-px bg-white/10 mx-1" />
+                            {/* فاصل - يُخفى على الهاتف */}
+                            {!isMobile && <div className="h-4 w-px bg-white/10 mx-1" />}
 
                             {/* الإشعارات */}
                             <TitlebarNotifications />
 
-                            {/* التحديثات - فقط في التطبيق */}
-                            {isDesktopApp && (
+                            {/* التحديثات - فقط في التطبيق وليس على الهاتف */}
+                            {isDesktopApp && !isMobile && (
                                 <>
                                     <div className="h-4 w-px bg-white/10 mx-1" />
                                     <div className="flex items-center">
@@ -255,8 +414,8 @@ const DesktopTitlebar: React.FC = () => {
                                 </>
                             )}
 
-                            {/* تسجيل خروج الموظف */}
-                            {staffDisplayName && (
+                            {/* تسجيل خروج الموظف - يُخفى على الهاتف */}
+                            {staffDisplayName && !isMobile && (
                                 <>
                                     <div className="h-4 w-px bg-white/10 mx-1" />
                                     <button
@@ -281,68 +440,102 @@ const DesktopTitlebar: React.FC = () => {
                                 : "opacity-0 translate-x-8 absolute invisible pointer-events-none"
                         )}
                     >
-                        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1 border border-white/5 backdrop-blur-sm">
+                        <div className={cn(
+                            "flex items-center bg-white/5 rounded-xl border border-white/5 backdrop-blur-sm",
+                            isMobile ? "gap-0.5 p-0.5" : "gap-1 p-1"
+                        )}>
                             {/* SIRA */}
                             <button
                                 type="button"
                                 onClick={() => setShowAIChat(true)}
-                                className="flex items-center justify-center h-7 w-7 rounded-lg hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 transition-all duration-200 active:scale-95 group relative"
+                                className={cn(
+                                    "flex items-center justify-center rounded-lg hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 transition-all duration-200 active:scale-95 group relative",
+                                    isMobile ? "h-6 w-6" : "h-7 w-7"
+                                )}
                                 title="SIRA AI"
                             >
                                 <span className="absolute inset-0 bg-purple-500/20 rounded-lg blur-sm opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <img
-                                    src="./images/selkia-logo.webp"
+                                    src={AppImages.selkiaLogo}
                                     alt="SIRA AI"
-                                    className="h-4 w-4 object-contain relative z-10"
+                                    className={cn("object-contain relative z-10", isMobile ? "h-3.5 w-3.5" : "h-4 w-4")}
                                 />
                             </button>
 
-                            <div className="h-4 w-px bg-white/10 mx-1" />
+                            {/* فاصل - يُخفى على الهاتف */}
+                            {!isMobile && <div className="h-4 w-px bg-white/10 mx-1" />}
 
                             {/* الثيم */}
                             <button
                                 type="button"
                                 onClick={fastThemeController.toggleFast}
-                                className="flex items-center justify-center h-7 w-7 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-200 active:scale-95"
+                                className={cn(
+                                    "flex items-center justify-center rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-200 active:scale-95",
+                                    isMobile ? "h-6 w-6" : "h-7 w-7"
+                                )}
                                 title="تبديل الثيم"
                             >
                                 {theme === 'dark' ? (
-                                    <Sun className="h-4 w-4" />
+                                    <Sun className={isMobile ? "h-3.5 w-3.5" : "h-4 w-4"} />
                                 ) : (
-                                    <Moon className="h-4 w-4" />
+                                    <Moon className={isMobile ? "h-3.5 w-3.5" : "h-4 w-4"} />
                                 )}
                             </button>
 
-                            <div className="h-4 w-px bg-white/10 mx-1" />
+                            {/* الاشتراك - يُخفى على الهاتف */}
+                            {!isMobile && (
+                                <>
+                                    <div className="h-4 w-px bg-white/10 mx-1" />
+                                    <div className="flex items-center">
+                                        <SubscriptionButton />
+                                    </div>
+                                </>
+                            )}
 
-                            {/* الاشتراك */}
-                            <div className="flex items-center">
-                                <SubscriptionButton />
-                            </div>
+                            {/* فاصل - يُخفى على الهاتف */}
+                            {!isMobile && <div className="h-4 w-px bg-white/10 mx-1" />}
 
-                            <div className="h-4 w-px bg-white/10 mx-1" />
+                            {/* اقتراحات الميزات - زر سريع */}
+                            <button
+                                type="button"
+                                onClick={() => navigate('/dashboard/feature-suggestions')}
+                                className={cn(
+                                    "flex items-center justify-center rounded-lg hover:bg-orange-500/10 text-orange-400 hover:text-orange-300 transition-all duration-200 active:scale-95 group relative",
+                                    isMobile ? "h-6 w-6" : "h-7 w-7"
+                                )}
+                                title="اقتراحات الميزات"
+                            >
+                                <span className="absolute inset-0 bg-orange-500/20 rounded-lg blur-sm opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <Lightbulb className={cn("relative z-10", isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
+                            </button>
+
+                            {/* فاصل - يُخفى على الهاتف */}
+                            {!isMobile && <div className="h-4 w-px bg-white/10 mx-1" />}
 
                             {/* البروفايل */}
                             <div className="flex items-center">
                                 <ProfileMenu />
                             </div>
 
-                            <div className="h-4 w-px bg-white/10 mx-1" />
-
-                            {/* لوحة الأرقام */}
-                            <button
-                                type="button"
-                                onClick={toggleNumpad}
-                                className={cn(
-                                    "flex items-center justify-center h-7 w-7 rounded-lg transition-all duration-200 active:scale-95",
-                                    isEnabled
-                                        ? "bg-blue-500/20 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
-                                        : "hover:bg-white/10 text-gray-400 hover:text-white"
-                                )}
-                                title={isEnabled ? "تعطيل لوحة الأرقام" : "تفعيل لوحة الأرقام"}
-                            >
-                                <Calculator className="h-4 w-4" />
-                            </button>
+                            {/* لوحة الأرقام - يُخفى على الهاتف */}
+                            {!isMobile && (
+                                <>
+                                    <div className="h-4 w-px bg-white/10 mx-1" />
+                                    <button
+                                        type="button"
+                                        onClick={toggleNumpad}
+                                        className={cn(
+                                            "flex items-center justify-center h-7 w-7 rounded-lg transition-all duration-200 active:scale-95",
+                                            isEnabled
+                                                ? "bg-blue-500/20 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+                                                : "hover:bg-white/10 text-gray-400 hover:text-white"
+                                        )}
+                                        title={isEnabled ? "تعطيل لوحة الأرقام" : "تفعيل لوحة الأرقام"}
+                                    >
+                                        <Calculator className="h-4 w-4" />
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -351,13 +544,17 @@ const DesktopTitlebar: React.FC = () => {
             {/* القسم الأوسط: التبويبات أو العنوان */}
             {showTabs && tabs.length > 0 ? (
                 <div
-                    className="flex-1 flex items-center justify-center px-4 overflow-hidden min-w-0 relative z-10 cursor-default"
+                    className={cn(
+                        "flex-1 flex items-center justify-center overflow-hidden min-w-0 relative z-10 cursor-default",
+                        isMobile ? "px-1" : "px-4"
+                    )}
                     data-tauri-drag-region="true"
                 >
                     <div
                         ref={tabsContainerRef}
                         className={cn(
-                            "flex items-center bg-[#0f172a]/50 rounded-xl p-1 border border-white/5 backdrop-blur-md shadow-inner max-w-full overflow-x-auto no-scrollbar",
+                            "flex items-center bg-[#0f172a]/50 rounded-xl border border-white/5 backdrop-blur-md shadow-inner max-w-full overflow-x-auto no-scrollbar",
+                            isMobile ? "p-0.5 gap-0.5" : "p-1",
                             tabs.length > 3 ? "justify-start sm:justify-center" : "justify-center"
                         )}
                         data-tauri-drag-region="true"
@@ -368,8 +565,9 @@ const DesktopTitlebar: React.FC = () => {
                                 type="button"
                                 onClick={tab.onSelect}
                                 className={cn(
-                                    'relative flex items-center justify-center rounded-lg transition-all duration-200 shrink-0 px-3 py-1.5 gap-2 group',
+                                    'relative flex items-center justify-center rounded-lg transition-all duration-200 shrink-0 gap-1.5 group',
                                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50',
+                                    isMobile ? "px-2 py-1" : "px-3 py-1.5 gap-2",
                                     tab.id === activeTabId
                                         ? 'bg-white/10 text-white shadow-sm font-medium'
                                         : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
@@ -384,7 +582,10 @@ const DesktopTitlebar: React.FC = () => {
                                         {tab.icon}
                                     </span>
                                 )}
-                                <span className="text-xs sm:text-sm whitespace-nowrap">
+                                <span className={cn(
+                                    "whitespace-nowrap",
+                                    isMobile ? "text-[10px]" : "text-xs sm:text-sm"
+                                )}>
                                     {tab.title}
                                 </span>
                                 {tab.id === activeTabId && (
@@ -396,7 +597,10 @@ const DesktopTitlebar: React.FC = () => {
                 </div>
             ) : (
                 <div
-                    className="flex-1 flex items-center justify-center px-4 overflow-hidden min-w-0 relative z-10 cursor-default"
+                    className={cn(
+                        "flex-1 flex items-center justify-center overflow-hidden min-w-0 relative z-10 cursor-default",
+                        isMobile ? "px-1" : "px-4"
+                    )}
                     data-tauri-drag-region="true"
                 >
                     {isInPOS ? (
@@ -405,10 +609,19 @@ const DesktopTitlebar: React.FC = () => {
                         </div>
                     ) : (
                         <div
-                            className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                            className={cn(
+                                "flex items-center opacity-80 hover:opacity-100 transition-opacity duration-300 pointer-events-none",
+                                isMobile ? "gap-2" : "gap-3"
+                            )}
                         >
-                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-                            <h1 className="text-sm font-medium text-gray-200 tracking-wide select-none truncate font-tajawal">
+                            <div className={cn(
+                                "rounded-full bg-orange-500 animate-pulse",
+                                isMobile ? "w-1 h-1" : "w-1.5 h-1.5"
+                            )} />
+                            <h1 className={cn(
+                                "font-medium text-gray-200 tracking-wide select-none truncate font-tajawal",
+                                isMobile ? "text-xs" : "text-sm"
+                            )}>
                                 <span className="hidden sm:inline">سطوكيها - منصة المتاجر الإلكترونية</span>
                                 <span className="sm:hidden">سطوكيها</span>
                             </h1>
@@ -419,10 +632,14 @@ const DesktopTitlebar: React.FC = () => {
 
             {/* القسم الأيمن: أزرار النافذة */}
             <div
-                className="flex items-center shrink-0 pl-2 relative z-10"
+                className={cn(
+                    "flex items-center shrink-0 relative z-10",
+                    isMobile ? "pl-1" : "pl-2"
+                )}
                 data-tauri-drag-region="true"
             >
-                {isDesktopApp && (
+                {/* أزرار النافذة - فقط في التطبيق وليس على الهاتف */}
+                {isDesktopApp && !isMobile && (
                     <div className="flex items-center gap-1 mr-2">
                         <button
                             type="button"
@@ -449,6 +666,18 @@ const DesktopTitlebar: React.FC = () => {
                             <CloseIcon className="h-4 w-4" />
                         </button>
                     </div>
+                )}
+
+                {/* زر خروج الموظف - يظهر فقط على الهاتف في القسم الأيمن */}
+                {isMobile && staffDisplayName && (
+                    <button
+                        type="button"
+                        onClick={handleStaffLogout}
+                        className="flex items-center justify-center h-6 w-6 rounded-lg hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all duration-200 active:scale-95 mr-1"
+                        title="تسجيل خروج الموظف"
+                    >
+                        <LogOut className="h-3.5 w-3.5" />
+                    </button>
                 )}
             </div>
 

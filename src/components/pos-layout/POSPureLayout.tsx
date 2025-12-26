@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, memo, useRef, useContext } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AuthContext } from '@/context/AuthContext';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { cn } from '@/lib/utils';
@@ -94,6 +95,7 @@ const POSPureLayout = memo(function POSPureLayout({
   const { user, userProfile, isLoading } = useSafeAuth();
   const perms = usePermissions();
   const { setActions, clearActions } = useTitlebar();
+  const location = useLocation();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
@@ -123,6 +125,14 @@ const POSPureLayout = memo(function POSPureLayout({
     
     return () => {
       window.removeEventListener('resize', checkScreenSize);
+    };
+  }, []);
+
+  // POS layout manages its own titlebar offset; disable app-shell padding to avoid double spacing.
+  useEffect(() => {
+    document.body.classList.add('pos-shell-active');
+    return () => {
+      document.body.classList.remove('pos-shell-active');
     };
   }, []);
 
@@ -188,6 +198,10 @@ const POSPureLayout = memo(function POSPureLayout({
   // خلفية POS داكنة دائماً في كلا الوضعين (مثل التايتل بار)
   // 🎨 استخدام لون Midnight Navy للتناسق
   const layoutBackground = '#080f1a';
+
+  // في صفحة نقطة البيع (البيع) يوجد شريط سلة سفلي خاص بها،
+  // لذلك نُخفي شريط التنقل السفلي لتجنب التداخل فوق بعض.
+  const hideMobileBottomNav = location.pathname.startsWith('/dashboard/pos-advanced');
   
   // عرض القائمة الجانبية حسب الحالة
   const sidebarWidth = isSidebarExpanded ? 'w-64' : 'w-20';
@@ -202,6 +216,7 @@ const POSPureLayout = memo(function POSPureLayout({
       if (href.startsWith('/dashboard/pos-dashboard')) return 'accessPOS';
       if (href.startsWith('/dashboard/pos-advanced')) return 'accessPOS';
       if (href.startsWith('/dashboard/pos-operations')) return 'accessPOS';
+      if (href.startsWith('/dashboard/pos-stocktake')) return 'accessPOS';
       if (href.startsWith('/dashboard/etat104')) return 'accessPOS';
       if (href.startsWith('/dashboard/store-business-settings')) return 'manageSettings';
       if (href.startsWith('/dashboard/staff-management')) return 'manageUsers';
@@ -218,6 +233,24 @@ const POSPureLayout = memo(function POSPureLayout({
 
     // استخدام القائمة الكاملة مع الأيقونات من POSPureSidebar
     const filtered = posSidebarItems.filter(item => {
+      // حالة خاصة: الجرد يتطلب accessPOS + أي صلاحية من صلاحيات الجرد
+      if (item.href.startsWith('/dashboard/pos-stocktake')) {
+        if (!perms.ready) return true;
+        return perms.has('accessPOS') && perms.anyOf([
+          'startStocktake',
+          'performStocktake',
+          'reviewStocktake',
+          'approveStocktake',
+          'deleteStocktake',
+          // staff-style keys (للتوافق)
+          'canStartStocktake',
+          'canPerformStocktake',
+          'canReviewStocktake',
+          'canApproveStocktake',
+          'canDeleteStocktake',
+        ]);
+      }
+
       const key = requiredKeyFor(item.href);
       if (!key) return true;
       if (!perms.ready) return true;
@@ -228,13 +261,20 @@ const POSPureLayout = memo(function POSPureLayout({
   }, [sidebarItems, perms.ready, perms.has]);
 
   return (
-    <div dir="rtl" className="relative" style={{
-      background: layoutBackground,
-      height: 'calc(100vh - var(--titlebar-height, 48px))',
-      overflow: 'hidden'
-    }}>
-      <div className="relative h-full w-full" style={{ background: layoutBackground, overflow: 'hidden' }}>
-        <div className={cn("relative flex w-full h-full")} style={{ background: layoutBackground }}>
+    <div
+      dir="rtl"
+      className="relative flex flex-col"
+      style={{
+        background: layoutBackground,
+        height: '100dvh',
+        minHeight: '100vh',
+        paddingTop: 'var(--titlebar-height, 48px)',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      }}
+    >
+      <div className="relative flex-1 min-h-0 w-full" style={{ background: layoutBackground, overflow: 'hidden' }}>
+        <div className={cn("relative flex w-full h-full min-h-0")} style={{ background: layoutBackground }}>
       {/* أزرار السايدبار للجوال */}
       {isStaff && !isLoading && isMobile && (
         <Button
@@ -280,20 +320,30 @@ const POSPureLayout = memo(function POSPureLayout({
 
       {/* المحتوى الرئيسي - مع بوردر سميك */}
       <main className={cn(
-        "transition-all duration-300 w-full h-full",
-        !isMobile && isStaff && !isLoading ? `${contentMargin} p-3` : isMobile ? "p-2 pb-2" : "p-3"
+        "transition-all duration-300 w-full flex-1 min-h-0 flex flex-col",
+        !isMobile && isStaff && !isLoading ? `${contentMargin} p-3` : isMobile ? "p-2" : "p-3"
       )}>
         <div className={cn(
-          "w-full h-full bg-background shadow-2xl",
+          "w-full flex-1 min-h-0 bg-background shadow-2xl",
           "relative flex flex-col",
           isMobile
             ? "rounded-t-2xl border-t-[3px] border-x-[3px] border-border/50 dark:border-white/10"
             : "rounded-2xl border-[3px] border-border/50 dark:border-white/10"
         )}>
           <div className={cn(
-            "w-full flex-1",
+            "w-full flex-1 min-h-0",
             disableScroll ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden"
-          )}>
+          )}
+            style={
+              disableScroll
+                ? undefined
+                : ({
+                    WebkitOverflowScrolling: 'touch',
+                    touchAction: 'pan-y',
+                    paddingBottom: isMobile ? 'calc(96px + env(safe-area-inset-bottom, 0px))' : undefined,
+                  } as React.CSSProperties)
+            }
+          >
             {children}
           </div>
         </div>
@@ -302,10 +352,12 @@ const POSPureLayout = memo(function POSPureLayout({
       </div>
       
       {/* القائمة الثابتة في الأسفل للهاتف */}
-      <MobileBottomNavigation 
-        onMenuToggle={toggleMobileSidebar}
-        isMenuOpen={isMobileSidebarOpen}
-      />
+      {!hideMobileBottomNav && (
+        <MobileBottomNavigation
+          onMenuToggle={toggleMobileSidebar}
+          isMenuOpen={isMobileSidebarOpen}
+        />
+      )}
     </div>
   );
 });

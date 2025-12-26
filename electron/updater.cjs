@@ -113,7 +113,7 @@ class UpdaterManager {
 
     this.setupEventListeners();
     console.log('👂 [UPDATER] Event listeners تم إعدادها');
-    
+
     // التحقق من التحديثات عند بدء التطبيق (بعد 3 ثواني)
     console.log('⏰ [UPDATER] جدولة التحقق الأول بعد 3 ثواني...');
     setTimeout(() => {
@@ -127,7 +127,7 @@ class UpdaterManager {
       console.log('🔄 [UPDATER] التحقق الدوري - بدء الفحص');
       this.checkForUpdates(false);
     }, 4 * 60 * 60 * 1000);
-    
+
     console.log('✅ [UPDATER] initialize() - التهيئة اكتملت بنجاح');
   }
 
@@ -136,13 +136,13 @@ class UpdaterManager {
    */
   setupEventListeners() {
     console.log('👂 [UPDATER] setupEventListeners() - إعداد المستمعين');
-    
+
     // عند العثور على تحديث متاح
     autoUpdater.on('update-available', (info) => {
       console.log('✨ [UPDATER] EVENT: update-available');
       console.log('📋 [UPDATER] معلومات التحديث:', JSON.stringify(info, null, 2));
       log.info('تحديث متاح:', info);
-      
+
       this.sendToRenderer('update-available', {
         version: info.version,
         releaseDate: info.releaseDate,
@@ -172,8 +172,16 @@ class UpdaterManager {
     autoUpdater.on('update-not-available', (info) => {
       console.log('ℹ️ [UPDATER] EVENT: update-not-available');
       console.log('📋 [UPDATER] الإصدار الحالي:', info.version);
+      console.log('📋 [UPDATER] معلومات كاملة:', JSON.stringify(info, null, 2));
       log.info('لا توجد تحديثات جديدة');
-      this.sendToRenderer('update-not-available', { currentVersion: info.version });
+
+      // إرسال معلومات تفصيلية للـ debug
+      this.sendToRenderer('update-not-available', {
+        currentVersion: info.version,
+        serverVersion: info.version,
+        appVersion: app.getVersion(),
+        debugInfo: `App: ${app.getVersion()} | Server: ${info.version}`
+      });
       console.log('📤 [UPDATER] أرسلت update-not-available إلى renderer');
     });
 
@@ -232,11 +240,11 @@ class UpdaterManager {
       console.error('❌ [UPDATER] error.message:', error.message);
       console.error('❌ [UPDATER] error.stack:', error.stack);
       log.error('خطأ في التحديث:', error);
-      
+
       // رسالة خطأ مفصلة حسب نوع المشكلة
       let userMessage = 'حدث خطأ غير متوقع';
       console.log('🔍 [UPDATER] تحليل نوع الخطأ...');
-      
+
       if (error.message.includes('net::')) {
         userMessage = 'فشل الاتصال بالإنترنت. تأكد من اتصالك وحاول مرة أخرى';
       } else if (error.message.includes('ENOTFOUND') || error.message.includes('DNS')) {
@@ -248,7 +256,7 @@ class UpdaterManager {
       } else {
         userMessage = error.message;
       }
-      
+
       console.log('💬 [UPDATER] رسالة المستخدم:', userMessage);
       this.sendToRenderer('update-error', {
         message: userMessage,
@@ -256,7 +264,7 @@ class UpdaterManager {
       });
       console.log('📤 [UPDATER] أرسلت update-error إلى renderer');
     });
-    
+
     console.log('✅ [UPDATER] setupEventListeners() - كل المستمعين تم إعدادهم');
   }
 
@@ -268,7 +276,7 @@ class UpdaterManager {
     console.log('🔍 [UPDATER] checkForUpdates() - بدء الدالة');
     console.log('🔍 [UPDATER] silent:', silent);
     console.log('🔍 [UPDATER] isChecking:', this.isChecking);
-    
+
     if (this.isChecking) {
       console.warn('⚠️ [UPDATER] التحقق جارٍ بالفعل، تخطي...');
       log.info('جاري التحقق من التحديثات...');
@@ -285,10 +293,10 @@ class UpdaterManager {
       this.isChecking = true;
       console.log('🔒 [UPDATER] تم قفل isChecking = true');
       log.info('بدء التحقق من التحديثات...');
-      
+
       this.sendToRenderer('checking-for-update');
       console.log('📤 [UPDATER] أرسلت checking-for-update إلى renderer');
-      
+
       // إعداد مراقب (watchdog) للتأكد من عدم بقاء الواجهة على "جاري التحقق"
       let receivedTerminalEvent = false;
       onAvailable = (info) => { receivedTerminalEvent = true; };
@@ -313,7 +321,7 @@ class UpdaterManager {
       console.log('🌐 [UPDATER] استدعاء autoUpdater.checkForUpdates()...');
       const result = await autoUpdater.checkForUpdates();
       console.log('📋 [UPDATER] نتيجة checkForUpdates:', JSON.stringify(result, null, 2));
-      
+
       // إذا لم يصل أي حدث من autoUpdater، حدّد النتيجة يدوياً وأرسلها للواجهة
       if (!receivedTerminalEvent) {
         try {
@@ -335,7 +343,7 @@ class UpdaterManager {
           console.warn('🧮 [UPDATER] فشل تحديد الحالة بناءً على النتيجة:', e);
         }
       }
-      
+
       if (!silent && !result?.updateInfo) {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           dialog.showMessageBox(this.mainWindow, {
@@ -352,7 +360,7 @@ class UpdaterManager {
       console.error('❌ [UPDATER] error.message:', error.message);
       console.error('❌ [UPDATER] error.stack:', error.stack);
       log.error('خطأ أثناء التحقق من التحديثات:', error);
-      
+
       if (!silent && this.mainWindow && !this.mainWindow.isDestroyed()) {
         console.log('🔔 [UPDATER] عرض رسالة خطأ للمستخدم...');
         dialog.showMessageBox(this.mainWindow, {
@@ -371,7 +379,7 @@ class UpdaterManager {
       } catch (e) {
         console.warn('🧹 [UPDATER] فشل إزالة المستمعين المؤقتين:', e);
       }
-      try { if (watchdog) clearTimeout(watchdog); } catch {}
+      try { if (watchdog) clearTimeout(watchdog); } catch { }
       this.isChecking = false;
       console.log('🔓 [UPDATER] تم فتح isChecking = false');
       console.log('✅ [UPDATER] checkForUpdates() - انتهت الدالة');
@@ -387,7 +395,7 @@ class UpdaterManager {
       log.info('بدء تنزيل التحديث...');
       this.sendToRenderer('download-started');
       console.log('📤 [UPDATER] أرسلت download-started إلى renderer');
-      
+
       console.log('🌐 [UPDATER] استدعاء autoUpdater.downloadUpdate()...');
       await autoUpdater.downloadUpdate();
       console.log('✅ [UPDATER] downloadUpdate() - اكتمل بنجاح');
@@ -396,7 +404,7 @@ class UpdaterManager {
       console.error('❌ [UPDATER] error:', error);
       console.error('❌ [UPDATER] error.message:', error.message);
       log.error('خطأ أثناء تنزيل التحديث:', error);
-      
+
       let userMessage = 'فشل تنزيل التحديث';
       console.log('🔍 [UPDATER] تحليل نوع خطأ التنزيل...');
       if (error.message.includes('net::')) {
@@ -404,12 +412,12 @@ class UpdaterManager {
       } else if (error.message.includes('ENOSPC')) {
         userMessage = 'لا توجد مساحة كافية على القرص';
       }
-      
+
       this.sendToRenderer('update-error', {
         message: userMessage,
         details: error.message
       });
-      
+
       // إظهار رسالة للمستخدم
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         dialog.showMessageBox(this.mainWindow, {
@@ -438,7 +446,7 @@ class UpdaterManager {
   sendToRenderer(channel, data = {}) {
     console.log('📤 [UPDATER] sendToRenderer() - channel:', channel);
     console.log('📦 [UPDATER] data:', JSON.stringify(data, null, 2));
-    
+
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send(channel, data);
       console.log('✅ [UPDATER] رسالة أُرسلت بنجاح');

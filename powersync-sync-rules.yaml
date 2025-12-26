@@ -325,7 +325,7 @@ bucket_definitions:
           id, organization_id, loss_number, loss_type, loss_category,
           loss_description, incident_date, reported_by, status,
           approved_by, approved_at, total_cost_value, total_selling_value,
-          total_items_count, notes, created_at, updated_at
+          total_items_count, external_reference, notes, created_at, updated_at
         FROM losses
         WHERE organization_id = bucket.org_id
 
@@ -342,6 +342,55 @@ bucket_definitions:
           variant_stock_before, variant_stock_after,
           created_at, updated_at
         FROM loss_items
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 26. STOCKTAKE SESSIONS (الجرد)
+      # ========================================
+      - SELECT
+          id, organization_id, scope, mode, status, require_approval,
+          started_by, reviewer_id, started_at, closed_at, notes,
+          created_at, updated_at,
+          reconciliation_order_id, reconciliation_loss_id
+        FROM stocktake_sessions
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 27. STOCKTAKE ITEMS (عناصر الجرد)
+      # ========================================
+      - SELECT
+          id, organization_id, session_id, product_id, variant_id,
+          expected_qty, counted_qty, delta, scan_count, last_scanned_at,
+          source, proposed_reason, reconcile_action, reconcile_notes,
+          synced, created_at, updated_at, variant_key
+        FROM stocktake_items
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 28. STOCKTAKE EVENTS (أحداث الجرد)
+      # ========================================
+      - SELECT
+          id, organization_id, session_id, event_type, payload,
+          created_by, created_at, updated_at
+        FROM stocktake_events
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 29. STOCKTAKE RECONCILIATIONS (تسويات الجرد)
+      # ========================================
+      - SELECT
+          id, organization_id, session_id, created_by, order_id, loss_id,
+          status, error, applied_at, created_at, updated_at
+        FROM stocktake_reconciliations
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 30. STOCKTAKE ADJUSTMENTS (اقتراحات/تعديلات الجرد)
+      # ========================================
+      - SELECT
+          id, organization_id, session_id, product_id, variant_id, delta,
+          reason, status, approved_by, applied_at, notes, created_at, updated_at
+        FROM stocktake_adjustments
         WHERE organization_id = bucket.org_id
 
       # ========================================
@@ -437,6 +486,231 @@ bucket_definitions:
           id, organization_id, plan_id, action, from_status, to_status,
           from_plan_id, amount, notes, created_by, created_at
         FROM subscription_history
+        WHERE organization_id = bucket.org_id
+
+      # ════════════════════════════════════════════════════════════
+      # 🏢 HR MANAGEMENT SYSTEM - نظام إدارة الموارد البشرية
+      # ════════════════════════════════════════════════════════════
+
+      # ========================================
+      # 33. WORK SHIFTS (ورديات العمل)
+      # ========================================
+      - SELECT
+          id, organization_id, name, start_time, end_time,
+          break_duration_minutes, is_overnight, is_active,
+          color, description, created_at, updated_at
+        FROM work_shifts
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 34. EMPLOYEE SHIFT ASSIGNMENTS (تعيينات الورديات)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, shift_id, date,
+          is_recurring, recurrence_pattern, start_date, end_date,
+          notes, created_by, created_at, updated_at
+        FROM employee_shift_assignments
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 35. EMPLOYEE ATTENDANCE (سجل الحضور)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, date, shift_id,
+          check_in_time, check_out_time, break_start_time, break_end_time,
+          status, late_minutes, early_leave_minutes, overtime_minutes,
+          actual_work_hours, notes, check_in_location, check_out_location,
+          check_in_method, check_out_method, approved_by, approved_at,
+          created_at, updated_at
+        FROM employee_attendance
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 36. ATTENDANCE ADJUSTMENTS (تعديلات الحضور)
+      # ========================================
+      - SELECT
+          id, organization_id, attendance_id, employee_id,
+          adjustment_type, original_value, new_value,
+          reason, approved_by, approved_at, status,
+          created_by, created_at, updated_at
+        FROM attendance_adjustments
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 37. LEAVE TYPES (أنواع الإجازات)
+      # ========================================
+      - SELECT
+          id, organization_id, name, code, description,
+          default_days_per_year, is_paid, requires_approval,
+          min_days_notice, max_consecutive_days, is_active,
+          color, icon, created_at, updated_at
+        FROM leave_types
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 38. EMPLOYEE LEAVE BALANCES (أرصدة الإجازات)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, leave_type_id,
+          year, total_days, used_days, pending_days,
+          remaining_days, carried_over_days,
+          created_at, updated_at
+        FROM employee_leave_balances
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 39. LEAVE REQUESTS (طلبات الإجازة)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, leave_type_id,
+          start_date, end_date, total_days, reason,
+          status, reviewed_by, reviewed_at, review_notes,
+          attachment_url, created_at, updated_at
+        FROM leave_requests
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 40. OFFICIAL HOLIDAYS (العطل الرسمية)
+      # ========================================
+      - SELECT
+          id, organization_id, name, date, is_recurring,
+          description, is_active, created_at, updated_at
+        FROM official_holidays
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 41. SALARY STRUCTURES (هياكل الرواتب)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, base_salary,
+          housing_allowance, transport_allowance, food_allowance,
+          other_allowances, total_salary, currency, payment_frequency,
+          bank_name, bank_account_number, effective_date, end_date,
+          is_active, notes, created_by, created_at, updated_at
+        FROM salary_structures
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 42. PAYROLL RECORDS (سجلات الرواتب)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, salary_structure_id,
+          period_start, period_end, payment_date,
+          base_salary, total_allowances, total_deductions,
+          overtime_hours, overtime_amount, bonus_amount,
+          loan_deduction, absence_deduction, late_deduction,
+          net_salary, payment_method, payment_reference,
+          status, notes, processed_by, approved_by, approved_at,
+          created_at, updated_at
+        FROM payroll_records
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 43. EMPLOYEE LOANS (قروض الموظفين)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, loan_amount,
+          remaining_amount, monthly_deduction, total_months,
+          remaining_months, reason, start_date, status,
+          approved_by, approved_at, notes,
+          created_by, created_at, updated_at
+        FROM employee_loans
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 44. LOAN PAYMENTS (سداد القروض)
+      # ========================================
+      - SELECT
+          id, organization_id, loan_id, amount, payment_date,
+          payment_method, reference_number, payroll_record_id,
+          notes, created_by, created_at, updated_at
+        FROM loan_payments
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 45. PERFORMANCE CRITERIA (معايير الأداء)
+      # ========================================
+      - SELECT
+          id, organization_id, name, description, category,
+          max_score, weight, is_active, created_at, updated_at
+        FROM performance_criteria
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 46. PERFORMANCE REVIEW PERIODS (فترات تقييم الأداء)
+      # ========================================
+      - SELECT
+          id, organization_id, name, start_date, end_date,
+          review_deadline, status, description,
+          created_by, created_at, updated_at
+        FROM performance_review_periods
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 47. PERFORMANCE REVIEWS (تقييمات الأداء)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, period_id, reviewer_id,
+          criteria_scores, total_score, rating, strengths,
+          areas_for_improvement, goals_for_next_period,
+          employee_comments, status, reviewed_at,
+          acknowledged_by_employee, acknowledged_at,
+          created_at, updated_at
+        FROM performance_reviews
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 48. EMPLOYEE GOALS (أهداف الموظفين)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, period_id,
+          title, description, target_value, current_value,
+          unit, priority, status, start_date, due_date,
+          completed_at, notes, created_by, created_at, updated_at
+        FROM employee_goals
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 49. GOAL UPDATES (تحديثات الأهداف)
+      # ========================================
+      - SELECT
+          id, organization_id, goal_id, previous_value,
+          new_value, notes, created_by, created_at
+        FROM goal_updates
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 50. EMPLOYEE WARNINGS (إنذارات الموظفين)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, warning_type,
+          severity, reason, description, date_issued,
+          issued_by, acknowledged, acknowledged_at,
+          response, attachment_url, expires_at,
+          created_at, updated_at
+        FROM employee_warnings
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 51. EMPLOYEE DOCUMENTS (مستندات الموظفين)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, document_type,
+          title, description, file_url, file_name, file_size,
+          expiry_date, is_verified, verified_by, verified_at,
+          notes, created_by, created_at, updated_at
+        FROM employee_documents
+        WHERE organization_id = bucket.org_id
+
+      # ========================================
+      # 52. EMPLOYEE DAILY STATS (إحصائيات الموظفين اليومية)
+      # ========================================
+      - SELECT
+          id, organization_id, employee_id, date,
+          total_sales, total_orders, total_returns,
+          total_customers_served, average_order_value,
+          hours_worked, notes, created_at, updated_at
+        FROM employee_daily_stats
         WHERE organization_id = bucket.org_id
 
   # ════════════════════════════════════════════════════════════

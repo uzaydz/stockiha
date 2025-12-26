@@ -56,6 +56,10 @@ interface NotificationSettings {
   soundVolume: number;
 }
 
+const notificationsLoadInFlight = new Map<string, Promise<void>>();
+const notificationsLastLoadAt = new Map<string, number>();
+const NOTIFICATIONS_DEDUPE_MS = 2000;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 🪝 HOOK
 // ═══════════════════════════════════════════════════════════════════════════
@@ -160,42 +164,64 @@ export function useRealTimeNotifications() {
       return;
     }
 
+    const orgId = currentOrganization.id;
+    const lastLoad = notificationsLastLoadAt.get(orgId) || 0;
+    if (Date.now() - lastLoad < NOTIFICATIONS_DEDUPE_MS) {
+      return;
+    }
+
+    const existing = notificationsLoadInFlight.get(orgId);
+    if (existing) {
+      await existing;
+      return;
+    }
+
     setLoading(true);
 
+    const run = (async () => {
+      try {
+        // تهيئة خدمة الإشعارات المحلية
+        await offlineNotificationService.initialize(orgId);
+        await offlineSyncBridge.initialize();
+
+        // جلب الإشعارات من المحلي فقط
+        const localNotifications = await offlineNotificationService.getNotifications(
+          orgId,
+          { limit: 100 }
+        );
+
+        // تحويل إلى NotificationItem
+        const mappedNotifications: NotificationItem[] = localNotifications.map(n => ({
+          id: n.id,
+          organization_id: n.organization_id,
+          type: n.type as NotificationItem['type'],
+          title: n.title,
+          message: n.message,
+          priority: n.priority,
+          is_read: n.is_read,
+          entity_type: n.data?.entity_type,
+          entity_id: n.data?.entity_id,
+          metadata: n.data,
+          created_at: n.created_at,
+          updated_at: n.read_at
+        }));
+
+        setNotifications(mappedNotifications);
+
+        console.log('[Notifications] ✅ تم تحميل الإشعارات محلياً:', mappedNotifications.length);
+        notificationsLastLoadAt.set(orgId, Date.now());
+      } catch (error) {
+        console.error('[Notifications] ❌ خطأ في تحميل الإشعارات:', error);
+      } finally {
+        setLoading(false);
+      }
+    })();
+
+    notificationsLoadInFlight.set(orgId, run);
     try {
-      // تهيئة خدمة الإشعارات المحلية
-      await offlineNotificationService.initialize(currentOrganization.id);
-      await offlineSyncBridge.initialize();
-
-      // جلب الإشعارات من المحلي فقط
-      const localNotifications = await offlineNotificationService.getNotifications(
-        currentOrganization.id,
-        { limit: 100 }
-      );
-
-      // تحويل إلى NotificationItem
-      const mappedNotifications: NotificationItem[] = localNotifications.map(n => ({
-        id: n.id,
-        organization_id: n.organization_id,
-        type: n.type as NotificationItem['type'],
-        title: n.title,
-        message: n.message,
-        priority: n.priority,
-        is_read: n.is_read,
-        entity_type: n.data?.entity_type,
-        entity_id: n.data?.entity_id,
-        metadata: n.data,
-        created_at: n.created_at,
-        updated_at: n.read_at
-      }));
-
-      setNotifications(mappedNotifications);
-
-      console.log('[Notifications] ✅ تم تحميل الإشعارات محلياً:', mappedNotifications.length);
-    } catch (error) {
-      console.error('[Notifications] ❌ خطأ في تحميل الإشعارات:', error);
+      await run;
     } finally {
-      setLoading(false);
+      notificationsLoadInFlight.delete(orgId);
     }
   }, [currentOrganization?.id, settings.enabled]);
 

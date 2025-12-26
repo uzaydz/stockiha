@@ -34,7 +34,9 @@ const CloseSessionDialog: React.FC<CloseSessionDialogProps> = ({ open, onOpenCha
   const calculations = useMemo(() => {
     if (!activeSession) return null;
 
-    const expectedCash = activeSession.opening_cash + activeSession.cash_sales;
+    const openingCash = activeSession.opening_cash ?? 0;
+    const cashSales = activeSession.cash_sales ?? 0;
+    const expectedCash = openingCash + cashSales;
     const adjustment = parseFloat(manualAdjustment) || 0;
     const actualCash = expectedCash + adjustment;
     const difference = adjustment; // الفرق هو التعديل اليدوي فقط
@@ -104,23 +106,23 @@ const CloseSessionDialog: React.FC<CloseSessionDialogProps> = ({ open, onOpenCha
           <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">الموظف:</span>
-              <span className="font-medium">{activeSession.staff_name}</span>
+              <span className="font-medium">{activeSession.staff_name || '-'}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">رأس المال الأولي:</span>
-              <span className="font-medium">{activeSession.opening_cash.toFixed(2)} دج</span>
+              <span className="font-medium">{(activeSession.opening_cash ?? 0).toFixed(2)} دج</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">المبيعات النقدية:</span>
-              <span className="font-medium text-green-600">+{activeSession.cash_sales.toFixed(2)} دج</span>
+              <span className="font-medium text-green-600">+{(activeSession.cash_sales ?? 0).toFixed(2)} دج</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">مبيعات البطاقة:</span>
-              <span className="font-medium text-blue-600">{activeSession.card_sales.toFixed(2)} دج</span>
+              <span className="font-medium text-blue-600">{(activeSession.card_sales ?? 0).toFixed(2)} دج</span>
             </div>
             <div className="flex justify-between text-sm pt-2 border-t">
               <span className="text-muted-foreground">عدد الطلبات:</span>
-              <span className="font-medium">{activeSession.total_orders} طلب</span>
+              <span className="font-medium">{activeSession.total_orders ?? 0} طلب</span>
             </div>
           </div>
 

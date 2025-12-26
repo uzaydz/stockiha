@@ -13,6 +13,14 @@ import AdvancedOrdersTable from '@/components/orders/table/AdvancedOrdersTable';
 import { useOrders } from '../context/OrdersContext';
 import { useOrdersPermissions } from '../hooks';
 import { useNavigate } from 'react-router-dom';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 
 const OrdersTable: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +28,12 @@ const OrdersTable: React.FC = () => {
     displayOrders,
     loading,
     fetching,
+    pagination,
+    goToPage,
+    totalCount,
+    userRole,
+    addCallConfirmationStatus,
+    deleteCallConfirmationStatus,
     updateOrderStatus,
     updateCallConfirmation,
     sendToProvider,
@@ -27,6 +41,7 @@ const OrdersTable: React.FC = () => {
   } = useOrders();
 
   const permissions = useOrdersPermissions();
+  const canManageCallConfirmationStatuses = userRole === 'admin' || userRole === 'owner' || userRole === 'super_admin';
 
   // Handlers
   const handleUpdateStatus = useCallback(async (orderId: string, status: string) => {
@@ -62,6 +77,22 @@ const OrdersTable: React.FC = () => {
   // Memoize orders to prevent unnecessary re-renders
   const memoizedOrders = useMemo(() => displayOrders, [displayOrders]);
 
+  const { currentPage, totalPages, hasNextPage, hasPreviousPage, totalItems } = pagination;
+
+  const handlePageChange = useCallback((page: number) => {
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    goToPage(page);
+  }, [currentPage, goToPage, totalPages]);
+
+  const showNumberedPages = totalItems > 0 && totalPages > 1;
+  const visiblePages = useMemo(() => {
+    if (!showNumberedPages) return [];
+    const windowSize = 2;
+    const start = Math.max(1, currentPage - windowSize);
+    const end = Math.min(totalPages, currentPage + windowSize);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [currentPage, showNumberedPages, totalPages]);
+
   return (
     <div className={`relative ${fetching ? 'opacity-90' : ''}`}>
       {/* Loading Overlay */}
@@ -89,7 +120,49 @@ const OrdersTable: React.FC = () => {
         hasCancelPermission={permissions.canCancel}
         shippingProviders={sharedData.shippingProviders}
         callConfirmationStatuses={sharedData.callConfirmationStatuses}
+        onAddCallConfirmationStatus={canManageCallConfirmationStatuses ? addCallConfirmationStatus : undefined}
+        onDeleteCallConfirmationStatus={canManageCallConfirmationStatuses ? deleteCallConfirmationStatus : undefined}
+        showManageCallConfirmationStatuses={canManageCallConfirmationStatuses}
       />
+
+      {/* Server-side pagination (20 per page) */}
+      {(hasPreviousPage || hasNextPage || totalPages > 1) && (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground">
+            الصفحة {currentPage}
+            {totalItems > 0 ? ` من ${totalPages} • إجمالي ${totalItems.toLocaleString()} طلبية` : ''}
+          </div>
+
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  className={!hasPreviousPage ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+
+              {showNumberedPages && visiblePages.map((page) => (
+                  <PaginationItem key={page}>
+                    <PaginationLink
+                      isActive={page === currentPage}
+                      onClick={() => handlePageChange(page)}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  className={!hasNextPage ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Loading animation styles */}
       <style>{`

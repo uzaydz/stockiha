@@ -145,6 +145,14 @@ export const createNavigationData = (
           allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
         },
         {
+          title: 'الجرد',
+          icon: Layers,
+          href: '/dashboard/pos-stocktake',
+          requiredPermission: 'accessPOS',
+          badge: 'جديد',
+          allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
+        },
+        {
           title: 'إدارة نقطة البيع',
           icon: Layers,
           href: '/dashboard/pos-operations/orders',

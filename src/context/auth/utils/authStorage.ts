@@ -169,6 +169,13 @@ export const saveAuthToStorage = (session: Session | null, user: SupabaseUser | 
       }
     }
 
+    const isOfflineOnlyToken = Boolean(
+      session &&
+      (session.access_token === 'offline_token' ||
+        session.refresh_token === 'offline_refresh_token' ||
+        String(session.refresh_token || '').startsWith('offline-refresh-'))
+    );
+
     if (session && user) {
       // 🔒 مسح علامة explicit logout عند حفظ session ناجح
       try {
@@ -180,11 +187,15 @@ export const saveAuthToStorage = (session: Session | null, user: SupabaseUser | 
         // تجاهل الأخطاء
       }
 
-      void saveSecureSession(session).catch((error) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[AuthStorage] فشل حفظ جلسة الأوفلاين الآمنة:', error);
-        }
-      });
+      // ✅ لا تكتب فوق جلسة Supabase الحقيقية بـ "جلسة أوفلاين" وهمية
+      // هذا يمنع فقدان refresh_token الحقيقي وبالتالي يمنع الحاجة لتسجيل الدخول كل مرة.
+      if (!isOfflineOnlyToken) {
+        void saveSecureSession(session).catch((error) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('[AuthStorage] فشل حفظ جلسة الأوفلاين الآمنة:', error);
+          }
+        });
+      }
       saveOfflineAuthSnapshot(session, user);
 
       // 🔄 مزامنة بيانات المصادقة إلى SQLite في Tauri

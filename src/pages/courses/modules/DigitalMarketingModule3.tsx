@@ -63,7 +63,7 @@ const DigitalMarketingModule3: React.FC = () => {
           <div className="flex items-center gap-3 mb-4">
             <Button
               variant="ghost"
-              onClick={() => navigate('/dashboard/courses/digital-marketing')}
+              onClick={() => navigate('/dashboard/courses-operations/digital-marketing')}
               className="flex items-center gap-2"
             >
               <ArrowRight className="w-4 h-4" />

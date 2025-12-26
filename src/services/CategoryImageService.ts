@@ -21,24 +21,24 @@ import { supabase } from '@/lib/supabase';
 
 const IMAGE_CONFIG = {
   // ⚡ أبعاد صور الفئات (محسّنة للعرض على الشاشات المختلفة)
-  categoryMaxSize: 400,        // 400x400 px للفئات (أكبر قليلاً للـ Retina)
-  categoryIconSize: 128,       // 128x128 px للأيقونات
+  categoryMaxSize: 320,        // 320x320 px للفئات لتقليل الحجم
+  categoryIconSize: 96,        // 96x96 px للأيقونات
 
   // ⚡ جودة الضغط المحسّنة - تختلف حسب الصيغة
-  webpQuality: 0.82,           // جودة WebP (أعلى لأن WebP أكثر كفاءة)
-  jpegQuality: 0.78,           // جودة JPEG البديل
+  webpQuality: 0.72,           // جودة WebP أقل لتقليل الحجم
+  jpegQuality: 0.68,           // جودة JPEG البديل
 
   // ⚡ الحدود
-  maxFileSizeKB: 500,          // 500KB كحد أقصى للصورة الأصلية
-  maxBase64SizeKB: 150,        // 150KB كحد أقصى بعد الضغط (للتخزين المحلي)
+  maxFileSizeKB: 400,          // 400KB كحد أقصى للصورة الأصلية
+  maxBase64SizeKB: 90,         // 90KB كحد أقصى بعد الضغط (للتخزين المحلي)
 
   // ⚡ Storage bucket - استخدام bucket الموجود
   storageBucket: 'product-images',
 
   // ⚡ إعدادات الضغط المتقدمة
   enableAdaptiveQuality: true, // تعديل الجودة تلقائياً حسب الحجم
-  minQuality: 0.5,             // الحد الأدنى للجودة
-  targetSizeKB: 80,            // الحجم المستهدف
+  minQuality: 0.4,             // الحد الأدنى للجودة
+  targetSizeKB: 60,            // الحجم المستهدف
 };
 
 // =====================================================
@@ -350,6 +350,22 @@ class CategoryImageServiceClass {
               compressedSize = Math.round((base64.length * 3) / 4);
               attempts++;
             }
+          }
+
+          // ⚡ إن كان الحجم مازال كبيراً جداً، نصغر الأبعاد تدريجياً
+          const maxBase64Size = IMAGE_CONFIG.maxBase64SizeKB * 1024;
+          let resizeAttempts = 0;
+          while (compressedSize > maxBase64Size && resizeAttempts < 4 && width > 120 && height > 120) {
+            width = Math.max(120, Math.round(width * 0.85));
+            height = Math.max(120, Math.round(height * 0.85));
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            currentQuality = Math.max(IMAGE_CONFIG.minQuality, currentQuality - 0.05);
+            dataUrl = canvas.toDataURL(outputMimeType, currentQuality);
+            base64 = dataUrl.split(',')[1];
+            compressedSize = Math.round((base64.length * 3) / 4);
+            resizeAttempts++;
           }
 
           // استخراج header و base64

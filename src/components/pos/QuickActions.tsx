@@ -10,6 +10,7 @@ import { Barcode, Clock, FileText, History, Calculator, Percent, CreditCard, Bad
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { cn, formatPrice } from '@/lib/utils';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -20,6 +21,111 @@ interface QuickActionsProps {
   onOpenOrder: (order: Order) => void;
   onQuickAddProduct: (product: Product) => void;
   favoriteProducts: Product[];
+}
+
+const CALC_ALLOWED_CHARS = /^[0-9+\-*/().\s]+$/;
+
+function evaluateCalculatorExpression(expression: string): number | null {
+  const cleaned = expression.replace(/\s+/g, '');
+  if (!cleaned || !CALC_ALLOWED_CHARS.test(cleaned)) return null;
+
+  const tokens = cleaned.match(/(\d+(\.\d+)?)|[+\-*/()]/g);
+  if (!tokens) return null;
+
+  const output: string[] = [];
+  const operators: string[] = [];
+  const precedence: Record<string, number> = {
+    '+': 1,
+    '-': 1,
+    '*': 2,
+    '/': 2,
+  };
+
+  let prevToken: string | null = null;
+
+  for (const token of tokens) {
+    const isNumber = !Number.isNaN(Number(token));
+    if (isNumber) {
+      output.push(token);
+      prevToken = token;
+      continue;
+    }
+
+    if (token === '(') {
+      operators.push(token);
+      prevToken = token;
+      continue;
+    }
+
+    if (token === ')') {
+      while (operators.length && operators[operators.length - 1] !== '(') {
+        output.push(operators.pop() as string);
+      }
+      if (!operators.length) return null;
+      operators.pop();
+      prevToken = token;
+      continue;
+    }
+
+    if (token in precedence) {
+      if (token === '-' && (!prevToken || prevToken === '(' || prevToken in precedence)) {
+        output.push('0');
+      }
+
+      while (
+        operators.length &&
+        operators[operators.length - 1] in precedence &&
+        precedence[operators[operators.length - 1]] >= precedence[token]
+      ) {
+        output.push(operators.pop() as string);
+      }
+      operators.push(token);
+      prevToken = token;
+      continue;
+    }
+
+    return null;
+  }
+
+  while (operators.length) {
+    const op = operators.pop() as string;
+    if (op === '(') return null;
+    output.push(op);
+  }
+
+  const stack: number[] = [];
+  for (const token of output) {
+    const isNumber = !Number.isNaN(Number(token));
+    if (isNumber) {
+      stack.push(Number(token));
+      continue;
+    }
+
+    const b = stack.pop();
+    const a = stack.pop();
+    if (a === undefined || b === undefined) return null;
+
+    switch (token) {
+      case '+':
+        stack.push(a + b);
+        break;
+      case '-':
+        stack.push(a - b);
+        break;
+      case '*':
+        stack.push(a * b);
+        break;
+      case '/':
+        if (b === 0) return null;
+        stack.push(a / b);
+        break;
+      default:
+        return null;
+    }
+  }
+
+  if (stack.length !== 1 || !Number.isFinite(stack[0])) return null;
+  return stack[0];
 }
 
 export default function QuickActions({
@@ -58,10 +164,14 @@ export default function QuickActions({
       setCalculatorResult('0');
     } else if (value === '=') {
       try {
-        // eslint-disable-next-line no-eval
-        const result = eval(calculatorInput);
-        setCalculatorResult(result.toString());
-        setCalculatorInput(result.toString());
+        const result = evaluateCalculatorExpression(calculatorInput);
+        if (result === null) {
+          setCalculatorResult('Error');
+          return;
+        }
+        const resultString = result.toString();
+        setCalculatorResult(resultString);
+        setCalculatorInput(resultString);
       } catch (error) {
         setCalculatorResult('Error');
       }
@@ -301,7 +411,7 @@ export default function QuickActions({
                   >
                     <div className="aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30 relative">
                       <img 
-                        src={product.thumbnailImage || '/placeholder-product.svg'} 
+                        src={resolveProductImageSrc(product as any, '/placeholder-product.svg')} 
                         alt={product.name}
                         className="w-full h-full object-contain"
                       />

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>سطوكيها - منصة إدارة المتاجر الذكية</title>
+    <meta name="description" content="سطوكيها - منصة شاملة لإدارة المتاجر تجمع بين نقطة البيع والمتجر الإلكتروني وإدارة المخزون" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+
+    <!-- Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <!-- Critical CSS inline -->
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html { font-family: 'Tajawal', 'Arial', sans-serif; }
+      body {
+        min-height: 100vh;
+        background: #020202;
+        color: #EDEDED;
+        overflow-x: hidden;
+      }
+      #root { min-height: 100vh; }
+
+      /* Loading spinner */
+      .landing-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #020202;
+        z-index: 9999;
+      }
+      .landing-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(255, 122, 0, 0.2);
+        border-top-color: #FF7A00;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+
+    <!-- Theme script -->
+    <script>
+      (function() {
+        try {
+          const theme = localStorage.getItem('theme') || 'dark';
+          document.documentElement.classList.add(theme);
+        } catch(e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div id="root">
+      <div class="landing-loader">
+        <div class="landing-spinner"></div>
+      </div>
+    </div>
+
+    <!-- Landing entry point - خفيف جداً! -->
+    <script type="module" src="./src/landing-main.tsx"></script>
+  </body>
+</html>

@@ -59,7 +59,7 @@ BEGIN
     o.is_online,
     o.created_at,
     o.updated_at,
-    (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as items_count,
+    (SELECT COUNT(*) FROM online_order_items oi WHERE oi.order_id = o.id) as items_count,
     o.notes,
     o.call_confirmation_status_id
   FROM orders o

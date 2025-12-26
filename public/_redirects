@@ -1,0 +1,7 @@
+/api/*     /api/:splat     200
+/assets/*  /assets/:splat  200
+/fonts/*   /fonts/:splat   200
+/manifest.json /manifest.json 200
+/favicon.ico /favicon.ico 200
+/apple-touch-icon.png /apple-touch-icon.png 200
+/*        /index.html      200

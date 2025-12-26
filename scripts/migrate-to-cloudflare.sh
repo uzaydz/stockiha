@@ -58,7 +58,10 @@ fi
 # 4. بناء المشروع للإنتاج
 echo ""
 echo "🔨 بناء المشروع..."
-VITE_DEPLOYMENT_PLATFORM=cloudflare pnpm run build
+VITE_DEPLOYMENT_PLATFORM=cloudflare \
+VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
+VITE_SUPABASE_ANON_KEY="$VITE_SUPABASE_ANON_KEY" \
+pnpm run build:ultra
 
 # 5. نشر المشروع
 echo ""

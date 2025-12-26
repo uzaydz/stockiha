@@ -12,6 +12,9 @@ import type { FilterState, ProfitData } from '../types';
 import { format, parseISO, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
+// ⚡ v2.0: Module-level deduplication لمنع الـ logging المتكرر
+let _lastLoggedTotals = '';
+
 type TimeSeriesDataPoint = {
   date: string;
   value: number;
@@ -290,11 +293,11 @@ export function useProfitAnalytics(filters: FilterState): UseProfitAnalyticsRetu
 
     const items = itemsData as any[];
 
-    // ⚡ Debug log لفهم البيانات
-    if (process.env.NODE_ENV === 'development' && items.length > 0) {
-      console.log('[useProfitAnalytics] Sample item:', items[0]);
-      console.log('[useProfitAnalytics] Total items:', items.length);
-    }
+    // ⚡ v2.0: Debug log معطل للتقليل من الضوضاء
+    // if (process.env.NODE_ENV === 'development' && items.length > 0) {
+    //   console.log('[useProfitAnalytics] Sample item:', items[0]);
+    //   console.log('[useProfitAnalytics] Total items:', items.length);
+    // }
 
     // Calculate totals
     let totalRevenue = 0;
@@ -310,8 +313,10 @@ export function useProfitAnalytics(filters: FilterState): UseProfitAnalyticsRetu
       totalItemsSold += item.quantity || 0;
     });
 
-    // ⚡ Debug log للنتائج
-    if (process.env.NODE_ENV === 'development') {
+    // ⚡ v2.0: Debug log مع global deduplication
+    const totalsKey = `${totalRevenue}:${totalCost}:${totalProfit}:${totalItemsSold}`;
+    if (process.env.NODE_ENV === 'development' && _lastLoggedTotals !== totalsKey && totalRevenue > 0) {
+      _lastLoggedTotals = totalsKey;
       console.log('[useProfitAnalytics] Totals:', { totalRevenue, totalCost, totalProfit, totalItemsSold });
     }
 

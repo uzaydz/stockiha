@@ -21,7 +21,7 @@ import {
   ChevronsRight,
   X
 } from 'lucide-react';
-import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { SuperAdminPureLayout } from '@/components/super-admin-layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -211,10 +211,10 @@ export default function SuperAdminOrganizations() {
         console.error('[Organizations] خطأ في جلب المؤسسات:', error);
         throw error;
       }
-      
+
       const organizations = (data || []) as AdminOrganization[];
       setOrganizations(organizations);
-      
+
       // حساب العدد الكلي (يمكن تحسينه بإضافة RPC منفصل)
       // في حالة وصول عدد النتائج للحد الأقصى، نفترض وجود المزيد
       if (organizations.length === pageSize) {
@@ -222,7 +222,7 @@ export default function SuperAdminOrganizations() {
       } else {
         setTotalCount(offset + organizations.length);
       }
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log('[Organizations] تم جلب', organizations.length, 'مؤسسة، الصفحة', currentPage);
       }
@@ -303,10 +303,10 @@ export default function SuperAdminOrganizations() {
     }
 
     setSaving(true);
-    
+
     // إضافة loading indicator للزر
     const startTime = performance.now();
-    
+
     try {
       const { data, error } = await supabase.rpc('admin_upsert_subscription' as any, {
         p_organization_id: selectedOrganization.organization_id,
@@ -336,7 +336,7 @@ export default function SuperAdminOrganizations() {
       // قياس الأداء
       const endTime = performance.now();
       const duration = Math.round(endTime - startTime);
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log(`[Organizations] تم تحديث الاشتراك في ${duration}ms`);
       }
@@ -350,7 +350,7 @@ export default function SuperAdminOrganizations() {
       await fetchOrganizations();
     } catch (err: any) {
       console.error('[Organizations] خطأ في تحديث الاشتراك:', err);
-      
+
       // تحسين رسائل الخطأ
       let errorMessage = 'حدث خطأ غير متوقع';
       if (err.message.includes('subscription_id')) {
@@ -362,7 +362,7 @@ export default function SuperAdminOrganizations() {
       } else {
         errorMessage = err.message || errorMessage;
       }
-      
+
       toast({
         variant: 'destructive',
         title: 'فشل في تحديث الاشتراك',
@@ -378,7 +378,7 @@ export default function SuperAdminOrganizations() {
 
     setSaving(true);
     const startTime = performance.now();
-    
+
     try {
       const { data, error } = await supabase.rpc('admin_terminate_subscription' as any, {
         p_organization_id: selectedOrganization.organization_id,
@@ -402,7 +402,7 @@ export default function SuperAdminOrganizations() {
       // قياس الأداء
       const endTime = performance.now();
       const duration = Math.round(endTime - startTime);
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log(`[Organizations] تم إنهاء الاشتراك في ${duration}ms`);
       }
@@ -416,7 +416,7 @@ export default function SuperAdminOrganizations() {
       await fetchOrganizations();
     } catch (err: any) {
       console.error('[Organizations] خطأ في إنهاء الاشتراك:', err);
-      
+
       let errorMessage = 'حدث خطأ غير متوقع';
       if (err.message.includes('not_authorized')) {
         errorMessage = 'ليس لديك صلاحيات لإنهاء الاشتراكات';
@@ -425,7 +425,7 @@ export default function SuperAdminOrganizations() {
       } else {
         errorMessage = err.message || errorMessage;
       }
-      
+
       toast({
         variant: 'destructive',
         title: 'فشل في إنهاء الاشتراك',
@@ -479,7 +479,7 @@ export default function SuperAdminOrganizations() {
   useEffect(() => {
     fetchOrganizations();
   }, [currentPage, pageSize, debouncedSearchQuery, subscriptionFilter, tierFilter]);
-  
+
   // Format date to readable format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -489,7 +489,7 @@ export default function SuperAdminOrganizations() {
       day: 'numeric',
     }).format(date);
   };
-  
+
   // عدد المؤسسات النشطة والتجريبية والمنتهية
   const { activeOrganizations, trialOrganizations, expiredOrganizations, pendingOrganizations } = useMemo(() => {
     let active = 0;
@@ -519,9 +519,9 @@ export default function SuperAdminOrganizations() {
 
     return { activeOrganizations: active, trialOrganizations: trial, expiredOrganizations: expired, pendingOrganizations: pending };
   }, [organizations]);
-  
+
   return (
-    <SuperAdminLayout>
+    <SuperAdminPureLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center gap-4 flex-wrap">
           <div>
@@ -543,7 +543,7 @@ export default function SuperAdminOrganizations() {
             </Button>
           </div>
         </div>
-        
+
         <div className="grid gap-6 md:grid-cols-4">
           <Card className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
@@ -561,7 +561,7 @@ export default function SuperAdminOrganizations() {
               <p className="text-xs text-muted-foreground mt-1">اشتراكات مدفوعة</p>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -578,7 +578,7 @@ export default function SuperAdminOrganizations() {
               <p className="text-xs text-muted-foreground mt-1">فترة تجريبية</p>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-red-500 hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -595,7 +595,7 @@ export default function SuperAdminOrganizations() {
               <p className="text-xs text-muted-foreground mt-1">تحتاج متابعة</p>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -613,14 +613,14 @@ export default function SuperAdminOrganizations() {
             </CardContent>
           </Card>
         </div>
-        
+
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <CardTitle>قائمة المؤسسات</CardTitle>
                 <CardDescription>
-                  عرض وإدارة المؤسسات المسجلة في النظام 
+                  عرض وإدارة المؤسسات المسجلة في النظام
                   {!isLoading && totalCount > 0 && (
                     <span className="font-medium text-foreground"> ({totalCount} مؤسسة)</span>
                   )}
@@ -662,13 +662,13 @@ export default function SuperAdminOrganizations() {
                     className="pl-4 pr-10 h-10"
                   />
                 </div>
-                
+
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="flex items-center gap-2">
                     <Filter className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-muted-foreground">تصفية:</span>
                   </div>
-                  
+
                   <div className="flex flex-col sm:flex-row gap-3 flex-1">
                     <Select value={subscriptionFilter} onValueChange={setSubscriptionFilter}>
                       <SelectTrigger className="w-full sm:w-44 h-10">
@@ -682,7 +682,7 @@ export default function SuperAdminOrganizations() {
                         <SelectItem value="pending">قيد المراجعة</SelectItem>
                       </SelectContent>
                     </Select>
-                    
+
                     <Select value={tierFilter} onValueChange={setTierFilter}>
                       <SelectTrigger className="w-full sm:w-44 h-10">
                         <SelectValue placeholder="نوع الاشتراك" />
@@ -699,7 +699,7 @@ export default function SuperAdminOrganizations() {
                 </div>
               </div>
             </div>
-            
+
             {isLoading ? (
               <div className="flex justify-center items-center h-64">
                 <div className="flex flex-col items-center gap-4">
@@ -720,8 +720,8 @@ export default function SuperAdminOrganizations() {
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">خطأ في تحميل البيانات</h3>
                 <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">{error}</p>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={fetchOrganizations}
                   className="gap-2"
                 >
@@ -736,8 +736,8 @@ export default function SuperAdminOrganizations() {
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">لا توجد مؤسسات</h3>
                 <p className="text-sm text-muted-foreground mb-4">لا توجد مؤسسات تطابق معايير البحث الحالية</p>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setSearchQuery('');
                     setSubscriptionFilter('all');
@@ -766,7 +766,7 @@ export default function SuperAdminOrganizations() {
                   </TableHeader>
                   <TableBody className="divide-y divide-border/30">
                     {organizations.map((org, index) => (
-                      <TableRow 
+                      <TableRow
                         key={org.organization_id}
                         className="hover:bg-muted/20 transition-colors duration-200 group"
                       >
@@ -818,16 +818,14 @@ export default function SuperAdminOrganizations() {
                         <TableCell className="py-4 w-[120px] min-w-[100px]">
                           {org.days_remaining !== null ? (
                             <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                org.days_remaining < 7 ? 'bg-red-500' :
-                                org.days_remaining < 30 ? 'bg-amber-500' :
-                                'bg-green-500'
-                              }`}></div>
-                              <span className={`text-sm font-medium truncate ${
-                                org.days_remaining < 7 ? 'text-red-600' :
-                                org.days_remaining < 30 ? 'text-amber-600' :
-                                'text-green-600'
-                              }`}>
+                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${org.days_remaining < 7 ? 'bg-red-500' :
+                                  org.days_remaining < 30 ? 'bg-amber-500' :
+                                    'bg-green-500'
+                                }`}></div>
+                              <span className={`text-sm font-medium truncate ${org.days_remaining < 7 ? 'text-red-600' :
+                                  org.days_remaining < 30 ? 'text-amber-600' :
+                                    'text-green-600'
+                                }`}>
                                 {org.days_remaining > 0 ? `${org.days_remaining} يوم` : 'منتهي'}
                               </span>
                             </div>
@@ -882,7 +880,7 @@ export default function SuperAdminOrganizations() {
                                   إدارة المستخدمين
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   className="text-red-600 flex items-center gap-2"
                                   onClick={() => openTerminateDialog(org)}
                                 >
@@ -903,7 +901,7 @@ export default function SuperAdminOrganizations() {
                 </Table>
               </div>
             )}
-            
+
             {/* Pagination */}
             {!isLoading && !error && organizations.length > 0 && (
               <div className="bg-muted/20 rounded-lg p-4 mt-4">
@@ -926,7 +924,7 @@ export default function SuperAdminOrganizations() {
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     <div className="text-sm text-muted-foreground">
                       <span className="font-medium text-foreground">
                         {((currentPage - 1) * pageSize) + 1}
@@ -1050,11 +1048,10 @@ export default function SuperAdminOrganizations() {
                 {selectedOrganization?.days_remaining !== null && selectedOrganization?.days_remaining !== undefined && (
                   <div>
                     <span className="text-muted-foreground">الأيام المتبقية: </span>
-                    <span className={`font-medium ${
-                      (selectedOrganization?.days_remaining ?? 0) < 7 ? 'text-red-600' : 
-                      (selectedOrganization?.days_remaining ?? 0) < 30 ? 'text-amber-600' : 
-                      'text-green-600'
-                    }`}>
+                    <span className={`font-medium ${(selectedOrganization?.days_remaining ?? 0) < 7 ? 'text-red-600' :
+                        (selectedOrganization?.days_remaining ?? 0) < 30 ? 'text-amber-600' :
+                          'text-green-600'
+                      }`}>
                       {selectedOrganization?.days_remaining ?? 0} يوم
                     </span>
                   </div>
@@ -1266,8 +1263,8 @@ export default function SuperAdminOrganizations() {
             {/* سبب إنهاء الاشتراك */}
             <div className="space-y-2">
               <Label htmlFor="terminationReason">سبب إنهاء الاشتراك *</Label>
-              <Select 
-                value={terminateFormState.terminationReason} 
+              <Select
+                value={terminateFormState.terminationReason}
                 onValueChange={(v) => handleTerminateFormChange('terminationReason', v)}
               >
                 <SelectTrigger id="terminationReason">
@@ -1322,8 +1319,8 @@ export default function SuperAdminOrganizations() {
             <Button variant="outline" onClick={() => handleTerminateClose(false)} disabled={saving}>
               إلغاء
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleTerminateSubscription}
               disabled={saving || !terminateFormState.terminationReason}
             >
@@ -1342,6 +1339,6 @@ export default function SuperAdminOrganizations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SuperAdminLayout>
+    </SuperAdminPureLayout>
   );
 }

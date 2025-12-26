@@ -85,10 +85,9 @@ const OrdersV2Optimized: React.FC<OrdersV2OptimizedProps> = ({
     if (onRegisterRefresh) {
       onRegisterRefresh(() => {
         refresh();
-        refreshStats();
       });
     }
-  }, [onRegisterRefresh, refresh, refreshStats]);
+  }, [onRegisterRefresh, refresh]);
 
   // Check permissions
   const canViewOrders = perms.ready ? perms.anyOf(['viewOrders', 'canViewOnlineOrders']) : false;

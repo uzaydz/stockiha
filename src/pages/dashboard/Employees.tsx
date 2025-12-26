@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/Layout';
-import { 
-  getEmployees, 
+import {
+  getEmployees,
   getEmployeeStats,
   checkCurrentUserStatus,
   getEmployeesWithStats
@@ -48,24 +48,24 @@ const Employees = () => {
   const loadEmployees = useCallback(async () => {
     if (process.env.NODE_ENV === 'development') {
     }
-    
+
     setLoading(true);
     try {
       if (process.env.NODE_ENV === 'development') {
       }
-      
+
       // استخدام الدالة المحسنة التي تجلب البيانات والإحصائيات معاً
       const { employees: employeesData, stats: statsData } = await getEmployeesWithStats();
-      
+
       if (process.env.NODE_ENV === 'development') {
       }
-      
+
       // إضافة رسالة تشخيص إذا لم يتم العثور على موظفين
       if (employeesData.length === 0) {
         if (process.env.NODE_ENV === 'development') {
         }
       }
-      
+
       if (process.env.NODE_ENV === 'development') {
       }
       setEmployees(employeesData);
@@ -91,7 +91,7 @@ const Employees = () => {
   // دالة محسنة للتحقق من المستخدم وتحميل البيانات
   const checkUserAndLoadEmployees = useCallback(async () => {
     if (isInitialized) return; // منع التكرار
-    
+
     try {
       if (process.env.NODE_ENV === 'development') {
       }
@@ -100,7 +100,7 @@ const Employees = () => {
       if (process.env.NODE_ENV === 'development') {
       }
       setUserStatus(status);
-      
+
       // تحميل البيانات بعد التحقق من المستخدم
       if (process.env.NODE_ENV === 'development') {
       }
@@ -131,7 +131,7 @@ const Employees = () => {
   // تصفية وترتيب الموظفين
   useEffect(() => {
     if (!isInitialized) return; // انتظار حتى يتم التهيئة
-    
+
     if (process.env.NODE_ENV === 'development') {
     }
     filterEmployees();
@@ -139,39 +139,39 @@ const Employees = () => {
 
   const filterEmployees = () => {
     let filtered = [...employees];
-    
+
     // تطبيق البحث حسب الاسم أو البريد الإلكتروني أو رقم الهاتف
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(employee => 
-        employee.name.toLowerCase().includes(query) || 
+      filtered = filtered.filter(employee =>
+        employee.name.toLowerCase().includes(query) ||
         employee.email.toLowerCase().includes(query) ||
         (employee.phone && employee.phone.includes(query))
       );
     }
-    
+
     // تطبيق فلتر حسب الحالة النشطة/غير النشطة
     if (activeTab === 'active') {
       filtered = filtered.filter(employee => employee.is_active);
     } else if (activeTab === 'inactive') {
       filtered = filtered.filter(employee => !employee.is_active);
     }
-    
+
     // تطبيق الترتيب
     if (filter.sortBy && filter.sortOrder) {
       filtered.sort((a, b) => {
         let comparison = 0;
-        
+
         if (filter.sortBy === 'name') {
           comparison = a.name.localeCompare(b.name);
         } else if (filter.sortBy === 'created_at') {
           comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         }
-        
+
         return filter.sortOrder === 'asc' ? comparison : -comparison;
       });
     }
-    
+
     setFilteredEmployees(filtered);
   };
 
@@ -192,20 +192,20 @@ const Employees = () => {
   const handleEmployeeAdded = (employee: Employee) => {
     // إضافة الموظف الجديد إلى بداية القائمة
     setEmployees(prev => [employee, ...prev]);
-    
+
     // تحديث الإحصائيات
     setStats(prev => ({
       ...prev,
       total: prev.total + 1,
       active: prev.active + 1
     }));
-    
+
     // إظهار رسالة نجاح
     toast({
       title: 'تم إضافة الموظف',
       description: `تم إضافة ${employee.name} بنجاح`,
     });
-    
+
     // تحديث البيانات من الخادم بعد فترة قصيرة
     setTimeout(() => {
       loadEmployees();
@@ -218,7 +218,7 @@ const Employees = () => {
   }, [loadEmployees]);
 
   // صلاحيات الوصول: عرض الموظفين أو إدارتهم
-  const canView = perms.ready ? perms.anyOf(['viewEmployees','manageEmployees']) : true;
+  const canView = perms.ready ? perms.anyOf(['viewEmployees', 'manageEmployees']) : true;
   const canManage = perms.ready ? perms.anyOf(['manageEmployees']) : false;
 
   if (perms.ready && !canView) {
@@ -261,13 +261,13 @@ const Employees = () => {
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
-              {canManage && <AddEmployeeDialog onEmployeeAdded={handleEmployeeAdded} />}
+              {canManage && <AddEmployeeDialog onEmployeeAdded={handleEmployeeAdded} existingEmployees={employees} />}
             </div>
           </div>
 
           {/* مربعات الإحصائيات */}
           <EmployeeMetrics stats={stats} />
-          
+
           {/* قائمة الموظفين وأدوات التصفية */}
           <Card>
             <CardHeader className="pb-2">
@@ -292,19 +292,19 @@ const Employees = () => {
                   <div className="flex flex-col sm:flex-row gap-4 mb-6">
                     <div className="flex-1 relative">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="بحث بالاسم، البريد الإلكتروني، أو رقم الهاتف..." 
+                      <Input
+                        placeholder="بحث بالاسم، البريد الإلكتروني، أو رقم الهاتف..."
                         value={searchQuery}
                         onChange={handleSearchChange}
                         className="w-full pl-8"
                       />
                     </div>
-                    <EmployeeFilters 
-                      filter={filter} 
-                      onFilterChange={handleFilterChange} 
+                    <EmployeeFilters
+                      filter={filter}
+                      onFilterChange={handleFilterChange}
                     />
                   </div>
-                  
+
                   <Tabs value={activeTab} onValueChange={handleTabChange}>
                     <TabsList className="mb-4">
                       <TabsTrigger value="all" className="flex gap-1 items-center">
@@ -329,25 +329,25 @@ const Employees = () => {
                         </span>
                       </TabsTrigger>
                     </TabsList>
-                    
+
                     <TabsContent value="all" className="mt-0">
-                      <EmployeeList 
-                        employees={filteredEmployees} 
-                        isLoading={loading} 
-                        onDataChange={handleDataChange}
-                      />
-                    </TabsContent>
-                    
-                    <TabsContent value="active" className="mt-0">
-                      <EmployeeList 
+                      <EmployeeList
                         employees={filteredEmployees}
                         isLoading={loading}
                         onDataChange={handleDataChange}
                       />
                     </TabsContent>
-                    
+
+                    <TabsContent value="active" className="mt-0">
+                      <EmployeeList
+                        employees={filteredEmployees}
+                        isLoading={loading}
+                        onDataChange={handleDataChange}
+                      />
+                    </TabsContent>
+
                     <TabsContent value="inactive" className="mt-0">
-                      <EmployeeList 
+                      <EmployeeList
                         employees={filteredEmployees}
                         isLoading={loading}
                         onDataChange={handleDataChange}

@@ -58,10 +58,9 @@ const OrdersContent: React.FC<{
     if (onRegisterRefresh) {
       onRegisterRefresh(() => {
         refresh();
-        refreshStats();
       });
     }
-  }, [onRegisterRefresh, refresh, refreshStats]);
+  }, [onRegisterRefresh, refresh]);
 
   // Update layout state for parent (POS integration)
   useEffect(() => {
@@ -96,11 +95,10 @@ const OrdersContent: React.FC<{
   useEffect(() => {
     const handler = () => {
       refresh();
-      refreshStats();
     };
     window.addEventListener('orders:refresh', handler);
     return () => window.removeEventListener('orders:refresh', handler);
-  }, [refresh, refreshStats]);
+  }, [refresh]);
 
   // Error state
   if (error && !loading) {

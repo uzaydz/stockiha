@@ -8,6 +8,7 @@
 
 import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { isAppOnline } from '@/utils/networkStatus';
+import { getCurrentSession } from '@/lib/session-monitor';
 
 export class PowerSyncBackgroundService {
   private static instance: PowerSyncBackgroundService;
@@ -47,6 +48,16 @@ export class PowerSyncBackgroundService {
    */
   async start(organizationId: string): Promise<void> {
     this.organizationId = organizationId;
+
+    // ⚡ تأكد من أن مستمع online موجود (قد يُزال عند stop ثم start لاحقاً)
+    if (typeof window !== 'undefined' && !this.onlineHandler) {
+      this.onlineHandler = () => {
+        if (this.organizationId) {
+          this.syncNow();
+        }
+      };
+      window.addEventListener('online', this.onlineHandler);
+    }
 
     // ⚡ انتظار جاهزية PowerSync أولاً (بحد أقصى 10 ثوان)
     const maxWaitTime = 10000;
@@ -101,6 +112,12 @@ export class PowerSyncBackgroundService {
       return { success: false, error: 'Sync in progress' };
     }
 
+    // ✅ لا نحاول المزامنة بدون جلسة Supabase نشطة
+    const { session } = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active session' };
+    }
+
     // منع المزامنة المفرطة
     const now = Date.now();
     if (now - this.lastSyncTime < this.MIN_SYNC_INTERVAL_MS) {
@@ -126,8 +143,13 @@ export class PowerSyncBackgroundService {
       this.lastSyncTime = Date.now();
       return { success: true };
     } catch (error: any) {
+      // لا نضخم الأخطاء المعروفة (مثل عدم وجود جلسة) في الخلفية
+      const message = error?.message || String(error);
+      if (message.includes('No active Supabase session') || message.includes('No active session')) {
+        return { success: false, error: 'No active session' };
+      }
       console.error('[PowerSyncBG] Sync error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: message };
     } finally {
       this.isSyncing = false;
     }

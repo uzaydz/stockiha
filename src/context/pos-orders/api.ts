@@ -76,7 +76,39 @@ export const fetchPOSOrders = async (
 
       // تحويل إلى POSOrderWithDetails format
       // ⚡ v2.0: إضافة معلومات الموظف والعميل من البيانات المحلية
-      const orders: POSOrderWithDetails[] = result.data.map(order => ({
+      // ✅ De-dupe stocktake-generated "unrecorded sale" orders (older runs created duplicates per session).
+      const dedupedData = (() => {
+        const byStocktakeSession = new Map<string, any>();
+        const others: any[] = [];
+
+        for (const order of result.data) {
+          const metaRaw = (order as any).metadata;
+          let stocktakeSessionId: string | null = null;
+          try {
+            const metaObj = typeof metaRaw === 'string' ? JSON.parse(metaRaw) : metaRaw;
+            stocktakeSessionId = (metaObj && typeof metaObj.stocktake_session_id === 'string') ? metaObj.stocktake_session_id : null;
+          } catch {
+            stocktakeSessionId = null;
+          }
+
+          if (stocktakeSessionId) {
+            const prev = byStocktakeSession.get(stocktakeSessionId);
+            if (!prev) {
+              byStocktakeSession.set(stocktakeSessionId, order);
+              continue;
+            }
+            const prevTs = Date.parse(prev.created_at ?? '') || 0;
+            const nextTs = Date.parse(order.created_at ?? '') || 0;
+            if (nextTs >= prevTs) byStocktakeSession.set(stocktakeSessionId, order);
+          } else {
+            others.push(order);
+          }
+        }
+
+        return [...Array.from(byStocktakeSession.values()), ...others];
+      })();
+
+      const orders: POSOrderWithDetails[] = dedupedData.map(order => ({
         ...order,
         order_items: order.items || [],
         items_count: order.items?.length || 0,

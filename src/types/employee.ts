@@ -38,6 +38,13 @@ export interface EmployeePermissions {
   manageInventory?: boolean;   // تعديل كميات المخزون يدويًا وعرض سجل المخزون
   viewInventory?: boolean;    // مشاهدة صفحة المخزون فقط دون إمكانية تعديله
 
+  // الجرد (Stocktake)
+  startStocktake?: boolean;   // فتح/بدء جلسة جرد
+  performStocktake?: boolean; // مسح/عد داخل الجلسة
+  reviewStocktake?: boolean;  // إنهاء للجلسة للمراجعة
+  approveStocktake?: boolean; // اعتماد وتعديل المخزون (حسّاسة)
+  deleteStocktake?: boolean;  // حذف جلسات الجرد
+
   // الخدمات ومتابعتها
   viewServices?: boolean;      // عرض الخدمات المقدمة
   addServices?: boolean;       // إضافة خدمات جديدة

@@ -13,6 +13,10 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+import { imageOfflineService } from './ImageOfflineService';
+
+const objectValuesByKeys = <T extends object>(obj: T, keys: string[]): unknown[] =>
+  keys.map((key) => (obj as Record<string, unknown>)[key]);
 
 // ========================================
 // 📦 Types
@@ -191,7 +195,7 @@ class UnifiedProductServiceClass {
     let whereClause = 'organization_id = ?';
     // بناء شروط البحث مع البادئة p. (للاستعلام مع JOIN)
     let whereClauseWithPrefix = 'p.organization_id = ?';
-    const params: any[] = [orgId];
+    const params: Array<string | number | null> = [orgId];
 
     if (filters.search) {
       whereClause += ' AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ?)';
@@ -257,6 +261,8 @@ class UnifiedProductServiceClass {
       params: [...params, limit, offset]
     });
 
+    imageOfflineService.processProductsImages(products).catch(() => {});
+
     return {
       data: products,
       total,
@@ -272,18 +278,23 @@ class UnifiedProductServiceClass {
   async getProduct(productId: string): Promise<ProductWithDetails | null> {
     // ⚡ v3.0: columns محددة
     const product = await powerSyncService.queryOne<Product>({
-      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
-                   stock_quantity, min_stock_level, category_id, subcategory_id,
-                   description, thumbnail_image, images, has_variants, use_sizes,
-                   sell_by_weight, sell_by_meter, sell_by_box,
-                   available_weight, available_length, available_boxes,
-                   weight_unit, price_per_weight_unit, price_per_meter, box_price, units_per_box,
-                   is_active, organization_id, created_at, updated_at
-            FROM products WHERE id = ?`,
+      sql: `SELECT p.id, p.name, p.sku, p.barcode, p.price, p.purchase_price, p.compare_at_price,
+                   p.stock_quantity, p.min_stock_level, p.category_id, p.subcategory_id,
+                   p.description, p.thumbnail_image, p.images, p.has_variants, p.use_sizes,
+                   p.sell_by_weight, p.sell_by_meter, p.sell_by_box,
+                   p.available_weight, p.available_length, p.available_boxes,
+                   p.weight_unit, p.price_per_weight_unit, p.price_per_meter, p.box_price, p.units_per_box,
+                   p.is_active, p.organization_id, p.created_at, p.updated_at,
+                   lic.base64_data as thumbnail_base64
+            FROM products p
+            LEFT JOIN local_image_cache lic ON lic.product_id = p.id
+            WHERE p.id = ?`,
       params: [productId]
     });
 
     if (!product) return null;
+
+    imageOfflineService.cacheProductImage(product).catch(() => {});
 
     // ⚡ v3.0: جلب الألوان والمقاسات بالتوازي - columns محددة
     const [colors, sizes, category, subcategory] = await Promise.all([
@@ -328,6 +339,7 @@ class UnifiedProductServiceClass {
    */
   async getProductByBarcode(barcode: string): Promise<ProductWithDetails | null> {
     const orgId = this.getOrgId();
+    const identifier = barcode.trim();
 
     // ⚡ v3.0: بحث في المنتجات - columns محددة
     let product = await powerSyncService.queryOne<Product>({
@@ -335,8 +347,10 @@ class UnifiedProductServiceClass {
                    stock_quantity, min_stock_level, category_id, subcategory_id,
                    description, thumbnail_image, has_variants, use_sizes,
                    is_active, organization_id, created_at, updated_at
-            FROM products WHERE organization_id = ? AND barcode = ?`,
-      params: [orgId, barcode]
+            FROM products
+            WHERE organization_id = ?
+              AND (barcode = ? OR sku = ? OR box_barcode = ?)`,
+      params: [orgId, identifier, identifier, identifier]
     });
 
     // ⚡ v3.0: بحث في الألوان إذا لم يوجد - columns محددة
@@ -344,7 +358,7 @@ class UnifiedProductServiceClass {
       const color = await powerSyncService.queryOne<ProductColor>({
         sql: `SELECT id, product_id, name, color_code, quantity, barcode, price, purchase_price
               FROM product_colors WHERE organization_id = ? AND barcode = ?`,
-        params: [orgId, barcode]
+        params: [orgId, identifier]
       });
       if (color) {
         product = await powerSyncService.queryOne<Product>({
@@ -363,7 +377,7 @@ class UnifiedProductServiceClass {
       const size = await powerSyncService.queryOne<ProductSize>({
         sql: `SELECT id, product_id, color_id, size_name, quantity, barcode, price, purchase_price
               FROM product_sizes WHERE organization_id = ? AND barcode = ?`,
-        params: [orgId, barcode]
+        params: [orgId, identifier]
       });
       if (size) {
         product = await powerSyncService.queryOne<Product>({
@@ -392,18 +406,23 @@ class UnifiedProductServiceClass {
     const searchPattern = `%${query.trim()}%`;
 
     // ⚡ v3.0: columns محددة
-    return powerSyncService.query<Product>({
-      sql: `SELECT id, name, sku, barcode, price, purchase_price, compare_at_price,
-                   stock_quantity, min_stock_level, category_id, subcategory_id,
-                   thumbnail_image, has_variants, use_sizes, is_active, organization_id
-            FROM products
-            WHERE organization_id = ?
-            AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ? OR description LIKE ?)
-            AND is_active = 1
-            ORDER BY name ASC
+    const products = await powerSyncService.query<Product>({
+      sql: `SELECT p.id, p.name, p.sku, p.barcode, p.price, p.purchase_price, p.compare_at_price,
+                   p.stock_quantity, p.min_stock_level, p.category_id, p.subcategory_id,
+                   p.thumbnail_image, p.has_variants, p.use_sizes, p.is_active, p.organization_id,
+                   lic.base64_data as thumbnail_base64
+            FROM products p
+            LEFT JOIN local_image_cache lic ON lic.product_id = p.id
+            WHERE p.organization_id = ?
+            AND (p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ? OR p.description LIKE ?)
+            AND p.is_active = 1
+            ORDER BY p.name ASC
             LIMIT ?`,
       params: [orgId, searchPattern, searchPattern, searchPattern, searchPattern, limit]
     });
+
+    imageOfflineService.processProductsImages(products).catch(() => {});
+    return products;
   }
 
   /**
@@ -514,7 +533,7 @@ class UnifiedProductServiceClass {
       // إنشاء المنتج
       const productColumns = Object.keys(product);
       const productPlaceholders = productColumns.map(() => '?').join(', ');
-      const productValues = productColumns.map(col => (product as any)[col]);
+      const productValues = objectValuesByKeys(product, productColumns);
 
       await tx.execute(
         `INSERT INTO products (${productColumns.join(', ')}) VALUES (${productPlaceholders})`,
@@ -537,7 +556,7 @@ class UnifiedProductServiceClass {
 
           const colorColumns = Object.keys(color);
           const colorPlaceholders = colorColumns.map(() => '?').join(', ');
-          const colorValues = colorColumns.map(col => (color as any)[col]);
+          const colorValues = objectValuesByKeys(color, colorColumns);
 
           await tx.execute(
             `INSERT INTO product_colors (${colorColumns.join(', ')}) VALUES (${colorPlaceholders})`,
@@ -564,7 +583,7 @@ class UnifiedProductServiceClass {
 
           const sizeColumns = Object.keys(size);
           const sizePlaceholders = sizeColumns.map(() => '?').join(', ');
-          const sizeValues = sizeColumns.map(col => (size as any)[col]);
+          const sizeValues = objectValuesByKeys(size, sizeColumns);
 
           await tx.execute(
             `INSERT INTO product_sizes (${sizeColumns.join(', ')}) VALUES (${sizePlaceholders})`,

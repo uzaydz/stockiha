@@ -835,8 +835,8 @@
   }
 }
 
-/* تحسينات للتنقل السفلي في الهاتف */
-.mobile-bottom-nav {
+/* تحسينات للتنقل السفلي في الهاتف (محصور داخل محرر المتجر فقط) */
+.store-editor-container .mobile-bottom-nav {
   position: fixed !important;
   bottom: 0 !important;
   left: 0 !important;
@@ -848,7 +848,7 @@
   z-index: 1000 !important;
 }
 
-[data-theme="dark"] .mobile-bottom-nav {
+[data-theme="dark"] .store-editor-container .mobile-bottom-nav {
   background: rgba(0, 0, 0, 0.95) !important;
   border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
 }

@@ -82,20 +82,10 @@ export const StaffSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // ⚡ إصلاح: جلب organization_id إذا كان مفقوداً
         const organizationId = parsed.organization_id || getOrganizationIdFromStorage();
 
-        // ✅ التأكد من وجود صلاحية accessPOS عند التحميل
-        const existingPerms = (parsed.permissions || {}) as Record<string, boolean | undefined>;
         const staffWithPOSAccess = {
           ...parsed,
           organization_id: organizationId, // ⚡ إضافة organization_id
-          permissions: {
-            ...existingPerms,
-            // ✅ صلاحيات افتراضية إذا لم تكن معرّفة
-            accessPOS: existingPerms.accessPOS ?? existingPerms.canAccessPOS ?? true,
-            canViewProducts: existingPerms.canViewProducts ?? true,
-            canViewPosOrders: existingPerms.canViewPosOrders ?? true,
-            canAccessPosDashboard: existingPerms.canAccessPosDashboard ?? true,
-            canAccessPosAdvanced: existingPerms.canAccessPosAdvanced ?? true,
-          }
+          permissions: (parsed.permissions || {}) as StaffPermissions,
         };
         console.log('[StaffSession] 📦 تم تحميل جلسة الموظف من localStorage:', {
           staff_name: staffWithPOSAccess.staff_name,
@@ -168,19 +158,10 @@ export const StaffSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // حفظ الجلسة في localStorage
   const setStaffSession = useCallback((staff: POSStaffSession | null) => {
     if (staff) {
-      // ✅ الصلاحيات الافتراضية للموظفين (لا يمكن إلغاؤها)
-      // الترتيب: صلاحيات الموظف أولاً، ثم الصلاحيات الافتراضية التي لم يتم تعريفها
-      const existingPerms = (staff.permissions || {}) as Record<string, boolean | undefined>;
       const staffWithPOSAccess = {
         ...staff,
         permissions: {
-          ...existingPerms,
-          // ✅ صلاحيات افتراضية إذا لم تكن معرّفة صراحةً
-          accessPOS: existingPerms.accessPOS ?? existingPerms.canAccessPOS ?? true,
-          canViewProducts: existingPerms.canViewProducts ?? true,
-          canViewPosOrders: existingPerms.canViewPosOrders ?? true,
-          canAccessPosDashboard: existingPerms.canAccessPosDashboard ?? true,
-          canAccessPosAdvanced: existingPerms.canAccessPosAdvanced ?? true,
+          ...(staff.permissions || {}),
         } as StaffPermissions
       };
       
@@ -196,7 +177,7 @@ export const StaffSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         id: staffWithPOSAccess.id,
         organization_id: staffWithPOSAccess.organization_id,
         permissionKeys: Object.keys(staffWithPOSAccess.permissions),
-        hasAccessPOS: staffWithPOSAccess.permissions.canAccessPOS,
+        hasAccessPOS: staffWithPOSAccess.permissions.accessPOS,
       });
     } else {
       setCurrentStaffState(null);

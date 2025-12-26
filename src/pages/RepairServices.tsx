@@ -9,7 +9,7 @@ import {
   deleteLocalRepairOrder
 } from '@/api/localRepairService';
 import { useUser } from '../context/UserContext';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
@@ -202,6 +202,13 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
 }) => {
   const { user, organizationId } = useUser();
   const { currentOrganization } = useTenant();
+  const perms = useUnifiedPermissions();
+  const canView = perms.ready ? perms.anyOf(['canViewRepairServices', 'canManageRepairServices', 'viewServices', 'manageServices']) : false;
+  const canManage = perms.ready ? perms.anyOf(['canManageRepairServices', 'manageServices']) : false;
+  const canCreateRepairOrder = perms.ready ? perms.anyOf(['canCreateRepairOrder', 'canManageRepairServices']) : false;
+  const canUpdateRepairStatus = perms.ready ? perms.anyOf(['canUpdateRepairStatus', 'canManageRepairServices']) : false;
+  const canDeleteRepairOrder = perms.ready ? perms.anyOf(['canDeleteRepairOrder', 'canManageRepairServices']) : false;
+  const canPrintRepairTicket = perms.ready ? perms.anyOf(['canPrintRepairTicket', 'canManageRepairServices']) : false;
   
   // حالة الصفحة
   const [activeTab, setActiveTab] = useState('all');
@@ -411,7 +418,9 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
         setStats(prev => ({ ...prev, total: prev.total + 1, pending: typedData.status === 'قيد الانتظار' ? prev.pending + 1 : prev.pending }));
         setSelectedOrder(typedData);
         calculateQueuePosition(typedData);
-        setIsPrintDialogOpen(true);
+        if (canPrintRepairTicket) {
+          setIsPrintDialogOpen(true);
+        }
       }
       toast.success('تم إضافة طلبية التصليح بنجاح');
     } catch (error) {
@@ -455,6 +464,10 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   
   // التعامل مع تعديل طلبية
   const handleEditOrder = (order: RepairOrder) => {
+    if (!canManage) {
+      toast.error('لا تملك صلاحية تعديل طلبيات التصليح');
+      return;
+    }
     setSelectedOrder(order);
     setIsEditDialogOpen(true);
   };
@@ -470,6 +483,10 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   
   // تحديث حالة طلبية التصليح
   const updateOrderStatus = async (orderId: string, newStatus: string, notes: string = '') => {
+    if (!canUpdateRepairStatus) {
+      toast.error('لا تملك صلاحية تحديث حالة طلبيات التصليح');
+      return false;
+    }
     try {
       await changeLocalRepairStatus(orderId, newStatus, notes, user?.id);
       // 3. تحديث الحالة في الواجهة
@@ -514,6 +531,10 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   
   // تسجيل دفعة جديدة
   const handleAddPayment = async (orderId: string, amount: number) => {
+    if (!canManage) {
+      toast.error('لا تملك صلاحية تسجيل الدفعات لخدمات التصليح');
+      return false;
+    }
     if (!amount || amount <= 0 || !orderId) {
       toast.error('يرجى إدخال مبلغ صحيح للدفعة');
       return false;
@@ -588,6 +609,10 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   // حذف طلبية التصليح
   const handleDeleteOrder = async () => {
     if (!orderToDelete) return;
+    if (!canDeleteRepairOrder) {
+      toast.error('لا تملك صلاحية حذف طلبيات التصليح');
+      return;
+    }
     
     try {
       setIsDeleting(true);
@@ -674,7 +699,17 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
             </p>
           </div>
           
-          <Button onClick={() => setIsAddDialogOpen(true)} className="gap-1">
+          <Button
+            onClick={() => {
+              if (!canCreateRepairOrder) {
+                toast.error('لا تملك صلاحية إنشاء طلبية تصليح');
+                return;
+              }
+              setIsAddDialogOpen(true);
+            }}
+            className="gap-1"
+            disabled={!canCreateRepairOrder}
+          >
             <PlusCircle className="h-4 w-4" />
             طلبية تصليح جديدة
           </Button>
@@ -900,7 +935,16 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
                 <Wrench className="h-16 w-16 text-muted-foreground opacity-20 mb-4" />
                 <h3 className="text-lg font-medium">لا توجد طلبيات تصليح</h3>
                 <p className="text-muted-foreground mb-4">لم يتم العثور على طلبيات تصليح تطابق معايير البحث</p>
-                <Button onClick={() => setIsAddDialogOpen(true)}>
+                <Button
+                  onClick={() => {
+                    if (!canCreateRepairOrder) {
+                      toast.error('لا تملك صلاحية إنشاء طلبية تصليح');
+                      return;
+                    }
+                    setIsAddDialogOpen(true);
+                  }}
+                  disabled={!canCreateRepairOrder}
+                >
                   إضافة طلبية جديدة
                 </Button>
               </div>
@@ -1592,147 +1636,12 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
 
       {/* نافذة طباعة الوصل المحسنة */}
       {selectedOrder && (
-        <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Printer className="h-5 w-5" />
-                طباعة وصل التصليح
-              </DialogTitle>
-              <DialogDescription>
-                رقم الطلبية: {selectedOrder.order_number || selectedOrder.id.slice(0, 8)} | {selectedOrder.customer_name}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="py-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* معاينة الوصل */}
-                <div className="order-2 lg:order-1">
-                  <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
-                    <span>👁️</span>
-                    معاينة الوصل
-                  </h3>
-                  <div className="border rounded-md p-2 bg-gray-50 max-h-96 overflow-y-auto">
-                    <div className="transform scale-90 origin-top-right flex justify-center">
-                      <RepairOrderPrint order={selectedOrder} queuePosition={queuePosition} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* معلومات الطباعة */}
-                <div className="order-1 lg:order-2">
-                  <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
-                    <span>📋</span>
-                    محتويات الوصل
-                  </h3>
-                  <div className="space-y-3">
-                    {/* إيصال العميل */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <h4 className="font-bold text-sm text-blue-800 mb-2 flex items-center gap-2">
-                        <span>🧾</span>
-                        إيصال العميل
-                      </h4>
-                      <ul className="text-xs space-y-1 text-blue-700 mr-4">
-                        <li>• معلومات المتجر والعميل</li>
-                        <li>• تفاصيل العطل والدفع</li>
-                        <li>• رمز QR للتتبع</li>
-                        <li>• شروط الخدمة</li>
-                      </ul>
-                    </div>
-
-                    {/* لصقة الجهاز */}
-                    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
-                      <h4 className="font-bold text-sm text-yellow-800 mb-2 flex items-center gap-2">
-                        <span>🏷️</span>
-                        لصقة الجهاز
-                      </h4>
-                      <ul className="text-xs space-y-1 text-yellow-700 mr-4">
-                        <li>• رقم الطلبية بارز</li>
-                        <li>• معلومات العميل المختصرة</li>
-                        <li>• QR للتتبع والإنهاء</li>
-                        <li>• مساحة لملاحظات الفني</li>
-                        <li className="font-bold">• رقم الترتيب: {queuePosition || 'غير محدد'}</li>
-                      </ul>
-                    </div>
-
-                    {/* نصائح الطباعة */}
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <h4 className="font-bold text-sm text-green-800 mb-2 flex items-center gap-2">
-                        <span>💡</span>
-                        نصائح الطباعة
-                      </h4>
-                      <ul className="text-xs space-y-1 text-green-700 mr-4">
-                        <li>• استخدم ورق حراري عرض 80mm</li>
-                        <li>• تأكد من وضوح رموز QR</li>
-                        <li>• اقطع عند الخط المتقطع</li>
-                        <li>• الصق الجزء السفلي على الجهاز</li>
-                      </ul>
-                    </div>
-
-                    {/* إحصائيات سريعة */}
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <h4 className="font-bold text-sm text-gray-800 mb-2 flex items-center gap-2">
-                        <span>📊</span>
-                        ملخص الطلبية
-                      </h4>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-gray-600">الحالة:</span>
-                          <span className="font-bold mr-1">{selectedOrder.status}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">التاريخ:</span>
-                          <span className="font-bold mr-1">{new Date(selectedOrder.created_at).toLocaleDateString('ar-EG')}</span>
-                        </div>
-                        {!selectedOrder.price_to_be_determined_later && (
-                          <>
-                            <div>
-                              <span className="text-gray-600">المبلغ:</span>
-                              <span className="font-bold mr-1">{selectedOrder.total_price.toLocaleString()} دج</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">المدفوع:</span>
-                              <span className="font-bold mr-1 text-green-600">{selectedOrder.paid_amount.toLocaleString()} دج</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-                         <DialogFooter className="gap-2">
-              <div className="flex justify-between items-center w-full">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsPrintDialogOpen(false)}
-                >
-                  إغلاق
-                </Button>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="gap-1"
-                    onClick={() => {
-                      const trackingCode = selectedOrder.repair_tracking_code || selectedOrder.order_number || selectedOrder.id;
-                      setTrackingInfo({
-                        orderId: selectedOrder.id, 
-                        trackingCode: trackingCode
-                      });
-                      setIsShareDialogOpen(true);
-                    }}
-                  >
-                    <Share2 className="h-4 w-4" />
-                    مشاركة رابط التتبع
-                  </Button>
-                  <RepairOrderPrint order={selectedOrder} queuePosition={queuePosition} />
-                </div>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <RepairOrderPrint 
+          order={selectedOrder} 
+          queuePosition={queuePosition}
+          isOpen={isPrintDialogOpen}
+          onOpenChange={setIsPrintDialogOpen}
+        />
       )}
       
       {/* نافذة تأكيد الحذف */}
@@ -1808,7 +1717,7 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
 
 // المكون الرئيسي مع POSDataProvider
 const RepairServices: React.FC<RepairServicesContentProps> = (props) => {
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
   const unauthorizedNode = (
     <Layout>
       <div className="container mx-auto py-10">
@@ -1821,7 +1730,7 @@ const RepairServices: React.FC<RepairServicesContentProps> = (props) => {
     </Layout>
   );
 
-  if (perms.ready && !perms.anyOf(['viewServices','manageServices'])) {
+  if (perms.ready && !perms.anyOf(['canViewRepairServices', 'canManageRepairServices', 'viewServices', 'manageServices'])) {
     return unauthorizedNode;
   }
 

@@ -12,6 +12,7 @@ import CourseAccessBadge from '@/components/courses/CourseAccessBadge';
 import { CoursesAccessType } from '@/types/activation';
 import { supabase } from '@/lib/supabase';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import { getCourseEntryPath } from '@/lib/courseRoutes';
 
 interface CoursesIndexProps extends POSSharedLayoutControls {}
 
@@ -351,12 +352,12 @@ const CoursesIndex: React.FC<CoursesIndexProps> = ({ useStandaloneLayout = true 
                   {/* Course Actions */}
                   <div className="flex gap-2">
                     {course.is_accessible ? (
-                      <Button 
-                        className="flex-1 text-xs px-3 py-1.5 h-8 bg-blue-500 hover:bg-blue-600"
-                        onClick={() => navigate(`/dashboard/courses/${course.slug}`)}
-                      >
-                        ابدأ الدورة
-                      </Button>
+	                      <Button 
+	                        className="flex-1 text-xs px-3 py-1.5 h-8 bg-blue-500 hover:bg-blue-600"
+	                        onClick={() => navigate(getCourseEntryPath(course.slug))}
+	                      >
+	                        ابدأ الدورة
+	                      </Button>
                     ) : (
                       <Button 
                         variant="outline" 
@@ -367,14 +368,14 @@ const CoursesIndex: React.FC<CoursesIndexProps> = ({ useStandaloneLayout = true 
                       </Button>
                     )}
                     
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="text-xs px-3 py-1.5 h-8 border-border text-foreground hover:bg-muted"
-                      onClick={() => navigate(`/dashboard/courses/${course.slug}`)}
-                    >
-                      التفاصيل
-                    </Button>
+	                    <Button 
+	                      variant="outline" 
+	                      size="sm"
+	                      className="text-xs px-3 py-1.5 h-8 border-border text-foreground hover:bg-muted"
+	                      onClick={() => navigate(getCourseEntryPath(course.slug))}
+	                    >
+	                      التفاصيل
+	                    </Button>
                   </div>
                 </div>
               </div>

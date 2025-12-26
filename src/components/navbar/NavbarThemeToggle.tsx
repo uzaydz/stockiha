@@ -76,14 +76,14 @@ export function NavbarThemeToggle({
       title={theme === "dark" ? "تفعيل الوضع النهاري" : "تفعيل الوضع الليلي"}
       className={cn(
         "group relative w-full h-full flex items-center justify-center",
-        "rounded-xl transition-all duration-300 ease-out",
-        "hover:scale-110 active:scale-95",
+        "rounded-lg sm:rounded-xl transition-all duration-300 ease-out",
+        "hover:scale-105 sm:hover:scale-110 active:scale-95",
         "focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2",
         "overflow-hidden theme-switch-flash theme-wave",
         "bg-gradient-to-br from-background/80 to-background/60",
         "border border-border/40 hover:border-primary/50",
         "shadow-md hover:shadow-lg theme-glow",
-        "min-w-[36px] min-h-[36px]", // تأكيد على الحجم الأدنى
+        "min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px]", // حجم أصغر على الهاتف
         isToggling && 'opacity-50 cursor-not-allowed theme-switching wave-active',
         theme === 'dark' ? 'dark' : 'light',
         className
@@ -118,7 +118,7 @@ export function NavbarThemeToggle({
         <Sun
           className={cn(
             "absolute transition-all duration-300 ease-out theme-icon",
-            "h-5 w-5",
+            "h-4 w-4 sm:h-5 sm:w-5", // أصغر على الهاتف
             theme === 'dark'
               ? 'rotate-180 scale-0 opacity-0'
               : 'rotate-0 scale-100 opacity-100',
@@ -134,7 +134,7 @@ export function NavbarThemeToggle({
         <Moon
           className={cn(
             "absolute transition-all duration-300 ease-out theme-icon",
-            "h-5 w-5",
+            "h-4 w-4 sm:h-5 sm:w-5", // أصغر على الهاتف
             theme === 'dark'
               ? 'rotate-0 scale-100 opacity-100'
               : '-rotate-180 scale-0 opacity-0',

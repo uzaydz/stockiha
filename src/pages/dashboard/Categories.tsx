@@ -7,6 +7,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import CategoriesListResponsive from '@/components/category/CategoriesListResponsive';
 import CategoriesFilter from '@/components/category/CategoriesFilter';
 import AddCategoryDialog from '@/components/category/AddCategoryDialog';
+import CategoriesUserGuide from '@/components/category/CategoriesUserGuide';
 import { useTenant } from '@/context/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
@@ -28,6 +29,7 @@ const CategoriesComponent = ({
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const { currentOrganization } = useTenant();
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -234,10 +236,11 @@ const CategoriesComponent = ({
       "space-y-4 sm:space-y-6 products-page-container",
       useStandaloneLayout ? "container mx-auto p-2 sm:p-4 lg:p-6" : "px-3 sm:px-4"
     )}>
-      <CategoriesHeader 
+      <CategoriesHeader
         categoryCount={filteredCategories.length}
         onAddCategory={handleAddCategory}
         canAdd={canManageCategories}
+        onOpenGuide={() => setIsGuideOpen(true)}
       />
 
       <CategoriesFilter
@@ -263,6 +266,11 @@ const CategoriesComponent = ({
           onCategoryAdded={refreshCategories}
         />
       )}
+
+      <CategoriesUserGuide
+        open={isGuideOpen}
+        onOpenChange={setIsGuideOpen}
+      />
     </div>
   );
 

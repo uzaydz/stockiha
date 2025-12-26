@@ -116,25 +116,12 @@ const QuickStaffSwitch: React.FC<QuickStaffSwitchProps> = ({
       setError(null);
 
       try {
-        // محاولة التحقق أوفلاين أولاً
-        if (!navigator.onLine && organization?.id) {
-          const offlineResult = await verifyStaffPinOffline({
-            organizationId: organization.id,
-            pin: pinCode,
-          });
-
-          if (offlineResult.success && offlineResult.staff) {
-            handleSuccess(offlineResult.staff as any, true);
-            return;
-          }
-        }
-
-        // التحقق أونلاين
-        const result = await staffService.verifyPin(pinCode);
+        // ✅ Offline-first دائماً
+        const result = await staffService.verifyPin(pinCode, organization?.id);
 
         if (result.success && result.staff) {
-          // حفظ للأوفلاين
-          if (organization?.id) {
+          // حفظ للأوفلاين (اختياري) عند توفر إنترنت
+          if (organization?.id && navigator.onLine) {
             try {
               await saveStaffPinOffline({
                 staffId: result.staff.id,
@@ -142,20 +129,21 @@ const QuickStaffSwitch: React.FC<QuickStaffSwitchProps> = ({
                 staffName: result.staff.staff_name,
                 pin: pinCode,
                 permissions: result.staff.permissions,
+                isActive: result.staff.is_active,
               });
             } catch (err) {
               console.warn('[QuickStaffSwitch] Failed to save offline PIN:', err);
             }
           }
 
-          handleSuccess(result.staff, false);
+          handleSuccess(result.staff, !navigator.onLine);
         } else {
           setError(result.error || 'كود PIN غير صحيح');
           setPin(['', '', '', '', '', '']);
           inputRefs[0].current?.focus();
         }
       } catch (err: any) {
-        // محاولة أوفلاين عند فشل الشبكة
+        // محاولة احتياطية: staff_pins مباشرة
         if (organization?.id) {
           const offlineResult = await verifyStaffPinOffline({
             organizationId: organization.id,
@@ -186,7 +174,7 @@ const QuickStaffSwitch: React.FC<QuickStaffSwitchProps> = ({
       organization_id: staff.organization_id,
       staff_name: staff.staff_name,
       permissions: staff.permissions || {},
-      is_active: true,
+      is_active: staff.is_active ?? true,
       created_at: staff.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
       last_login: new Date().toISOString(),

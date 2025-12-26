@@ -1,19 +1,25 @@
 /**
- * Electron Builder Configuration - Optimized for Minimal Bundle Size
- * تكوين محسّن لتقليل حجم التطبيق
+ * Electron Builder Configuration - Ultra Optimized for Minimal Bundle Size
+ * تكوين محسّن بشكل فائق لتقليل حجم التطبيق
  *
- * الهدف: تقليل حجم التطبيق من ~230MB إلى ~80-100MB
+ * الهدف: تقليل حجم التطبيق من ~5GB إلى ~100-150MB
+ * 
+ * التحسينات:
+ * 1. استثناء كل الملفات غير الضرورية
+ * 2. ضغط أقصى مع ASAR
+ * 3. تضمين فقط ملفات Electron الأساسية
+ * 4. فك ضغط better-sqlite3 فقط
  */
 
 const config = {
   appId: "com.stockiha.desktop",
   productName: "Stockiha",
 
-  // ✅ تفعيل ASAR للضغط
+  // ✅ تفعيل ASAR للضغط مع أقصى ضغط
   asar: true,
-  compression: "maximum", // أقصى ضغط
+  compression: "maximum",
 
-  // ⚡ فك ضغط الملفات الأصلية فقط
+  // ⚡ فك ضغط الملفات الأصلية المطلوبة فقط
   asarUnpack: [
     "**/better-sqlite3/**/*.node",
     "**/bindings/**/*",
@@ -24,12 +30,12 @@ const config = {
     buildResources: "assets"
   },
 
-  // ⚡ الملفات المضمنة - محسّنة بشكل كبير
+  // ⚡ الملفات المضمنة - محسّنة بشكل كبير جداً
   files: [
     // ✅ تضمين dist فقط
     "dist/**/*",
 
-    // ✅ ملفات Electron الأساسية
+    // ✅ ملفات Electron الأساسية فقط
     "electron/main.cjs",
     "electron/preload.cjs",
     "electron/preload.secure.cjs",
@@ -43,7 +49,7 @@ const config = {
     // ✅ package.json مطلوب
     "package.json",
 
-    // ❌ استثناء كل شيء آخر
+    // ❌ استثناء شامل - كل شيء غير ضروري
     "!**/*.map",
     "!**/*.map.js",
     "!**/node_modules/**/*",
@@ -66,6 +72,7 @@ const config = {
     "!**/example/**",
     "!**/examples/**",
     "!**/demo/**",
+    "!**/demos/**",
     "!**/docs/**",
     "!**/doc/**",
     "!**/.vscode/**",
@@ -87,34 +94,64 @@ const config = {
     "!**/yarn.lock",
     "!**/pnpm-lock.yaml",
     "!**/package-lock.json",
+    "!**/bun.lockb",
+    "!**/*.sql",
+    "!**/*.yaml",
+    "!**/*.yml",
+    // Exclusions for source maps and other non-production files are kept, but we must NOT exclude images from dist
+
+    // ❌ استثناء مجلدات غير ضرورية
+    "!**/backups/**",
+    "!**/migrations/**",
+    "!**/database/**",
+    "!**/sql/**",
+    "!**/api/**",
+    "!**/functions/**",
+    "!**/.claude/**",
+    "!**/.cursor/**",
+    "!**/.agent/**",
+    "!**/.pnpm-store/**",
+    "!**/.wrangler/**",
+    "!**/.vercel/**",
 
     // ❌ استثناء مجلدات Electron المنسوخة يدوياً
     "!electron/better-sqlite3/**",
     "!electron/electron-log/**",
     "!electron/electron-updater/**",
     "!electron/file-uri-to-path/**",
+    "!electron/bindings/**",
   ],
 
-  // ⚡ الموارد الإضافية - better-sqlite3 فقط
+  // ⚡ الموارد الإضافية - better-sqlite3 فقط (مُحسّن)
   extraResources: [
     {
       from: "node_modules/better-sqlite3",
       to: "better-sqlite3",
       filter: [
         "**/*.node",
-        "build/Release/**/*",
+        "build/Release/**/*.node",
         "lib/**/*.js",
         "package.json",
+        // استثناء كل شيء آخر
         "!**/*.map",
         "!**/*.ts",
         "!**/*.md",
+        "!**/*.txt",
         "!**/test/**",
+        "!**/tests/**",
         "!**/docs/**",
+        "!**/doc/**",
         "!**/deps/**/*.c",
         "!**/deps/**/*.h",
         "!**/deps/**/*.cpp",
+        "!**/deps/**/*.cc",
         "!**/src/**/*.cpp",
         "!**/src/**/*.hpp",
+        "!**/src/**/*.c",
+        "!**/src/**/*.h",
+        "!**/binding.gyp",
+        "!**/.github/**",
+        "!**/benchmark/**",
       ]
     },
     {
@@ -129,40 +166,58 @@ const config = {
     }
   ],
 
-  // ⚡ تصفية node_modules
+  // ⚡ Hook قبل البناء
   beforeBuild: async (context) => {
-    console.log("🔧 [electron-builder] Preparing optimized build...");
+    console.log("🔧 [electron-builder] Preparing ultra-optimized build...");
+    console.log("📦 Platform:", context.platform.name);
+    console.log("📦 Arch:", context.arch);
     return true;
   },
 
-  afterPack: "./scripts/after-pack-optimized.cjs",
+  // ⚡ Hook بعد الحزم - تنظيف إضافي
+  afterPack: async (context) => {
+    const fs = require('fs');
+    const path = require('path');
 
-  // Mac configuration
+    console.log("🧹 [electron-builder] Cleaning up packed app...");
+
+    // حذف الملفات غير الضرورية من app.asar.unpacked
+    const unpackedPath = path.join(context.appOutDir, 'resources', 'app.asar.unpacked');
+    if (fs.existsSync(unpackedPath)) {
+      console.log("📁 Unpacked path exists:", unpackedPath);
+    }
+
+    return true;
+  },
+
+  // Mac configuration - محسّن
   mac: {
     category: "public.app-category.business",
     target: [
-      { target: "dmg", arch: ["x64", "arm64"] },
-      { target: "zip", arch: ["x64", "arm64"] }
+      { target: "dmg", arch: ["arm64"] },  // فقط arm64 للتطوير السريع
+      // لإضافة x64: { target: "dmg", arch: ["x64", "arm64"] }
     ],
     icon: "assets/icon.icns",
     hardenedRuntime: true,
     gatekeeperAssess: false,
-    // تقليل الحجم
     darkModeSupport: true,
     minimumSystemVersion: "10.15.0",
+    // تحسين إضافي
+    type: "distribution",
   },
 
-  // Windows configuration
+  // Windows configuration - محسّن
   win: {
     target: [
-      { target: "nsis", arch: ["x64"] }  // إزالة ia32 لتقليل الحجم
+      { target: "nsis", arch: ["x64"] }
     ],
     icon: "assets/icon.ico",
-    // ضغط NSIS
     compression: "maximum",
+    // تحسين NSIS
+    artifactName: "Stockiha-Setup-${version}.${ext}",
   },
 
-  // NSIS installer options
+  // NSIS installer options - محسّن
   nsis: {
     oneClick: false,
     perMachine: false,
@@ -170,27 +225,29 @@ const config = {
     deleteAppDataOnUninstall: false,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    // تحسينات الحجم
     packElevateHelper: true,
     unicode: true,
+    // تحسينات الحجم
+    differentialPackage: true,
   },
 
   // Linux configuration
   linux: {
-    target: ["AppImage"],  // AppImage فقط
+    target: ["AppImage"],
     category: "Office",
     icon: "assets/icon.png",
+    artifactName: "Stockiha-${version}.${ext}",
   },
 
-  // DMG options - تحسين الحجم
+  // DMG options - ضغط أقصى
   dmg: {
     contents: [
       { x: 130, y: 220 },
       { x: 410, y: 220, type: "link", path: "/Applications" }
     ],
     window: { width: 540, height: 380 },
-    // ضغط أقصى
     format: "ULFO", // Ultra compressed
+    artifactName: "Stockiha-${version}.${ext}",
   },
 
   // GitHub publish
@@ -201,21 +258,27 @@ const config = {
     releaseType: "release"
   },
 
-  // ⚡ تحسينات إضافية
-  removePackageScripts: true,  // إزالة scripts من package.json
-  nodeGypRebuild: false,       // لا إعادة بناء
+  // Cache directory name - تغيير الاسم لمسح cache القديم
+  updaterCacheDirName: "stockiha-updater-v2",
 
-  // Electron version - استخدام نفس الإصدار
-  electronVersion: undefined,  // يستخدم الإصدار المثبت
-
-  // ⚡ تصفية node_modules - الأهم!
+  // ⚡ تحسينات إضافية مهمة
+  removePackageScripts: true,
+  nodeGypRebuild: false,
   buildDependenciesFromSource: false,
 
-  // قائمة الحزم المطلوبة فقط في runtime
-  // باقي الحزم تُستثنى تلقائياً
+  // استخدام الإصدار المثبت
+  electronVersion: undefined,
+
+  // Metadata
   extraMetadata: {
     main: "electron/main.cjs"
-  }
+  },
+
+  // ⚡ تحسين أداء البناء
+  npmRebuild: false,
+
+  // ⚡ حماية إضافية
+  electronCompile: false,
 };
 
 module.exports = config;

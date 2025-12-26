@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { SuperAdminPureLayout } from '@/components/super-admin-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -26,33 +26,33 @@ export default function ActivationCodesPage() {
   const location = useLocation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('batches');
-  
+
   // حالة دفعات الأكواد
   const [batches, setBatches] = useState<ActivationCodeBatch[]>([]);
   const [batchesTotal, setBatchesTotal] = useState(0);
   const [batchesCurrentPage, setBatchesCurrentPage] = useState(1);
   const [loadingBatches, setLoadingBatches] = useState(false);
-  
+
   // حالة الأكواد
   const [codes, setCodes] = useState<ActivationCode[]>([]);
   const [codesTotal, setCodesTotal] = useState(0);
   const [codesCurrentPage, setCodesCurrentPage] = useState(1);
   const [loadingCodes, setLoadingCodes] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
-  
+
   // حالة الفلترة
   const [statusFilter, setStatusFilter] = useState<ActivationCodeStatus | undefined>(undefined);
-  
+
   // جلب دفعات الأكواد
   const fetchBatches = async () => {
     try {
       setLoadingBatches(true);
-      
+
       const result = await ActivationService.getActivationCodeBatches({
         limit: PAGE_SIZE,
         offset: (batchesCurrentPage - 1) * PAGE_SIZE
       });
-      
+
       setBatches(result.batches);
       setBatchesTotal(result.total);
     } catch (error: any) {
@@ -65,19 +65,19 @@ export default function ActivationCodesPage() {
       setLoadingBatches(false);
     }
   };
-  
+
   // جلب الأكواد
   const fetchCodes = async () => {
     try {
       setLoadingCodes(true);
-      
+
       const result = await ActivationService.getActivationCodes({
         batchId: selectedBatchId,
         status: statusFilter,
         limit: PAGE_SIZE,
         offset: (codesCurrentPage - 1) * PAGE_SIZE
       });
-      
+
       setCodes(result.codes);
       setCodesTotal(result.total);
     } catch (error: any) {
@@ -90,7 +90,7 @@ export default function ActivationCodesPage() {
       setLoadingCodes(false);
     }
   };
-  
+
   // جلب البيانات عند تحميل الصفحة
   useEffect(() => {
     if (activeTab === 'batches') {
@@ -99,40 +99,40 @@ export default function ActivationCodesPage() {
       fetchCodes();
     }
   }, [activeTab, batchesCurrentPage, codesCurrentPage, selectedBatchId, statusFilter]);
-  
+
   // معالجة الانتقال إلى عرض دفعة معينة
   const handleViewBatch = (batchId: string) => {
     setSelectedBatchId(batchId);
     setActiveTab('codes');
     setCodesCurrentPage(1);
   };
-  
+
   // معالجة تغيير حالة تصفية الأكواد
   const handleStatusFilterChange = (status?: ActivationCodeStatus) => {
     setStatusFilter(status);
     setCodesCurrentPage(1);
   };
-  
+
   // معالجة إنشاء دفعة جديدة
   const handleBatchCreated = (batchId: string) => {
     fetchBatches();
-    
+
     // الانتقال إلى تفاصيل الدفعة الجديدة
     setSelectedBatchId(batchId);
     setActiveTab('codes');
     setCodesCurrentPage(1);
   };
-  
+
   return (
-    <SuperAdminLayout>
+    <SuperAdminPureLayout>
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">إدارة أكواد التفعيل</h1>
         <p className="text-muted-foreground">إنشاء وإدارة أكواد تفعيل الاشتراكات</p>
       </div>
-      
+
       <div className="space-y-4">
         <Tabs
-          defaultValue="batches" 
+          defaultValue="batches"
           value={activeTab}
           onValueChange={setActiveTab}
           className="w-full"
@@ -144,10 +144,10 @@ export default function ActivationCodesPage() {
                 الأكواد الفردية {selectedBatchId && '(دفعة محددة)'}
               </TabsTrigger>
             </TabsList>
-            
+
             <div className="flex items-center gap-2">
               {activeTab === 'codes' && selectedBatchId && (
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => {
                     setSelectedBatchId(undefined);
@@ -157,7 +157,7 @@ export default function ActivationCodesPage() {
                   عرض كافة الأكواد
                 </Button>
               )}
-              
+
               {activeTab === 'codes' && (
                 <Button
                   variant="outline"
@@ -166,13 +166,13 @@ export default function ActivationCodesPage() {
                     const nextStatus = !statusFilter
                       ? ActivationCodeStatus.ACTIVE
                       : statusFilter === ActivationCodeStatus.ACTIVE
-                      ? ActivationCodeStatus.USED
-                      : statusFilter === ActivationCodeStatus.USED
-                      ? ActivationCodeStatus.EXPIRED
-                      : statusFilter === ActivationCodeStatus.EXPIRED
-                      ? ActivationCodeStatus.REVOKED
-                      : undefined;
-                    
+                        ? ActivationCodeStatus.USED
+                        : statusFilter === ActivationCodeStatus.USED
+                          ? ActivationCodeStatus.EXPIRED
+                          : statusFilter === ActivationCodeStatus.EXPIRED
+                            ? ActivationCodeStatus.REVOKED
+                            : undefined;
+
                     handleStatusFilterChange(nextStatus);
                   }}
                 >
@@ -180,20 +180,20 @@ export default function ActivationCodesPage() {
                   {!statusFilter
                     ? 'فلترة حسب الحالة'
                     : statusFilter === ActivationCodeStatus.ACTIVE
-                    ? 'أكواد نشطة'
-                    : statusFilter === ActivationCodeStatus.USED
-                    ? 'أكواد مستخدمة'
-                    : statusFilter === ActivationCodeStatus.EXPIRED
-                    ? 'أكواد منتهية'
-                    : 'أكواد ملغاة'
+                      ? 'أكواد نشطة'
+                      : statusFilter === ActivationCodeStatus.USED
+                        ? 'أكواد مستخدمة'
+                        : statusFilter === ActivationCodeStatus.EXPIRED
+                          ? 'أكواد منتهية'
+                          : 'أكواد ملغاة'
                   }
                 </Button>
               )}
-              
+
               <CreateActivationCodeDialog onSuccess={handleBatchCreated} />
             </div>
           </div>
-          
+
           <TabsContent value="batches" className="space-y-4">
             <Card>
               <CardHeader>
@@ -226,8 +226,8 @@ export default function ActivationCodesPage() {
                             <td className="px-4 py-3">{batch.count || 0}</td>
                             <td className="px-4 py-3">{formatDate(batch.created_at)}</td>
                             <td className="px-4 py-3">
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => handleViewBatch(batch.id)}
                               >
@@ -243,14 +243,14 @@ export default function ActivationCodesPage() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="codes" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>أكواد التفعيل</CardTitle>
                 <CardDescription>
-                  {selectedBatchId 
-                    ? "عرض الأكواد الخاصة بالدفعة المحددة" 
+                  {selectedBatchId
+                    ? "عرض الأكواد الخاصة بالدفعة المحددة"
                     : "عرض جميع أكواد التفعيل"
                   }
                 </CardDescription>
@@ -278,22 +278,21 @@ export default function ActivationCodesPage() {
                           <tr key={code.id} className="border-t">
                             <td className="px-4 py-3 font-mono">{code.code}</td>
                             <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                code.status === ActivationCodeStatus.ACTIVE
+                              <span className={`px-2 py-1 rounded-full text-xs ${code.status === ActivationCodeStatus.ACTIVE
                                   ? "bg-green-100 text-green-700"
                                   : code.status === ActivationCodeStatus.USED
-                                  ? "bg-blue-100 text-blue-700"
-                                  : code.status === ActivationCodeStatus.EXPIRED
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
-                              }`}>
+                                    ? "bg-blue-100 text-blue-700"
+                                    : code.status === ActivationCodeStatus.EXPIRED
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-red-100 text-red-700"
+                                }`}>
                                 {code.status === ActivationCodeStatus.ACTIVE
                                   ? "نشط"
                                   : code.status === ActivationCodeStatus.USED
-                                  ? "مستخدم"
-                                  : code.status === ActivationCodeStatus.EXPIRED
-                                  ? "منتهي"
-                                  : "ملغي"
+                                    ? "مستخدم"
+                                    : code.status === ActivationCodeStatus.EXPIRED
+                                      ? "منتهي"
+                                      : "ملغي"
                                 }
                               </span>
                             </td>
@@ -312,7 +311,7 @@ export default function ActivationCodesPage() {
             </Card>
           </TabsContent>
         </Tabs>
-        
+
         {/* معلومات حول أكواد التفعيل */}
         <Card>
           <CardHeader>
@@ -333,7 +332,7 @@ export default function ActivationCodesPage() {
                   <li>يمكن تتبع حالة الكود (نشط، مستخدم، منتهي، ملغي)</li>
                 </ul>
               </div>
-              
+
               <div className="space-y-2">
                 <h3 className="text-lg font-medium">إدارة الأكواد:</h3>
                 <ul className="list-disc list-inside space-y-1 pr-4">
@@ -344,15 +343,15 @@ export default function ActivationCodesPage() {
                 </ul>
               </div>
             </div>
-            
+
             <Separator />
-            
+
             <div className="text-sm text-muted-foreground">
               لاحظ أن أكواد التفعيل تستخدم لمرة واحدة فقط ولا يمكن إعادة استخدامها. يجب المحافظة على سرية الأكواد ومشاركتها فقط مع العملاء المستهدفين.
             </div>
           </CardContent>
         </Card>
       </div>
-    </SuperAdminLayout>
+    </SuperAdminPureLayout>
   );
 }

@@ -32,7 +32,9 @@ const loadFont = async (config: FontConfig): Promise<void> => {
     return;
   }
 
-  const resolvedUrl = resolveAssetPath(`fonts/${config.file}`);
+  // استخدم مساراً يبدأ بـ "/" حتى لا ينكسر على المسارات العميقة مثل /dashboard/...
+  // وحتى لو تغيّر سلوك resolveAssetPath، سيبقى المسار Root-relative صحيحاً في الويب.
+  const resolvedUrl = resolveAssetPath(`/fonts/${config.file}`);
   const fontFace = new FontFace(
     config.family,
     `url(${resolvedUrl}) format('woff2')`,

@@ -1,32 +1,56 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase, getSupabaseClient } from '@/lib/supabase';
-import { getCurrentSession } from '@/lib/session-monitor';
+import { getCurrentSession, sessionMonitor } from '@/lib/session-monitor';
 import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
+
+/**
+ * SupabaseContext v2.0
+ * ====================
+ * تحسينات الأداء:
+ * - استخدام sessionMonitor بدلاً من استدعاء auth.getSession مباشرة
+ * - منع التحميل المتكرر باستخدام singleton
+ * - إزالة السجلات من الإنتاج
+ */
 
 type SupabaseContextType = {
   supabase: SupabaseClient;
   isLoading: boolean;
 };
 
+// وضع التطوير
+const isDev = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV;
+
 // إنشاء السياق
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
 
-const ensureClientReady = async () => {
+// 🔒 Singleton للتحقق من التهيئة (يمنع التكرار)
+const INIT_KEY = '__SUPABASE_CONTEXT_INITIALIZED__';
+let cachedClient: SupabaseClient | null = null;
+
+const ensureClientReady = async (): Promise<SupabaseClient> => {
+  // استخدام الـ cache إذا كان متاحاً
+  if (cachedClient) {
+    return cachedClient;
+  }
+
   try {
     // تحقق من أن supabase متاح
     if (supabase && supabase.auth && typeof supabase.auth.getSession === 'function') {
+      cachedClient = supabase;
       return supabase;
     }
-    
+
     // fallback: استخدم getSupabaseClient
     const client = await getSupabaseClient();
     if (client && client.auth && typeof client.auth.getSession === 'function') {
+      cachedClient = client;
       return client;
     }
-    
+
     throw new Error('Supabase client غير متاح');
   } catch (error) {
+    cachedClient = supabase;
     return supabase; // fallback إلى supabase مباشرة
   }
 };
@@ -34,88 +58,52 @@ const ensureClientReady = async () => {
 export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = React.memo(({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [clientInstance, setClientInstance] = useState<SupabaseClient>(supabase);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
-    const mountStart = performance.now();
-    const logDuration = (label: string, start: number) => {
-      try { console.log(label, `${(performance.now() - start).toFixed(2)} ms`); } catch {}
-    };
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-      try { console.log('🔌 [SupabaseProvider] mounting'); } catch {}
+    // ✅ منع التحميل المتكرر في StrictMode
+    if (isInitializedRef.current) {
+      return;
     }
+    isInitializedRef.current = true;
+
     // التحقق من جلسة المستخدم الحالية عند تحميل التطبيق
     const checkSession = async () => {
       try {
-        const ensureStart = performance.now();
         const client = await ensureClientReady();
-        logDuration('⏱️ [SupabaseProvider] ensureClientReady:', ensureStart);
         setClientInstance(client);
-        
-        const { session: existingSession } = getCurrentSession();
 
+        // ✅ استخدام sessionMonitor بدلاً من auth.getSession مباشرة
+        // sessionMonitor يقوم بالـ caching تلقائياً
+        const { session: existingSession, isValid } = getCurrentSession();
         const isOnline = isAppOnline();
 
-        if (!existingSession && isOnline) {
-          const getSessionStart = performance.now();
-          const { error } = await client.auth.getSession();
-          logDuration('⏱️ [SupabaseProvider] auth.getSession:', getSessionStart);
-          if (error) {
-            console.warn('⚠️ [SupabaseProvider] getSession error', error?.message);
-          }
-        } else if (!isOnline) {
+        if (!isOnline) {
           try {
             client.auth.stopAutoRefresh?.();
             client.removeAllChannels?.();
             client.realtime?.disconnect?.();
           } catch {}
         }
+        // ✅ لا نستدعي auth.getSession هنا - sessionMonitor يتولى ذلك
       } catch (error) {
-        console.warn('⚠️ [SupabaseProvider] checkSession error', (error as any)?.message);
+        if (isDev) {
+          console.warn('⚠️ [SupabaseProvider] checkSession error', (error as any)?.message);
+        }
       } finally {
         setIsLoading(false);
-        logDuration('⏱️ [SupabaseProvider] mount:', mountStart);
-        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-          try { console.log('🏁 [SupabaseProvider] mounted'); } catch {}
-        }
       }
     };
 
     checkSession();
-    
-    // الاستماع لتغييرات حالة المصادقة مع تأخير
-    const setupAuthListener = async () => {
-      try {
-        const client = await ensureClientReady();
-        if (!isAppOnline()) {
-          return () => {};
-        }
-        
-        const {
-          data: { subscription },
-        } = client.auth.onAuthStateChange((event, session) => {
-          // تحديث حالة التطبيق عند تغير حالة المصادقة
-          if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-            try { console.log('🔔 [SupabaseProvider] auth state change', { event, hasSession: !!session }); } catch {}
-          }
-        });
 
-        return () => {
-          subscription.unsubscribe();
-        };
-      } catch (error) {
-        return () => {};
-      }
-    };
-
-    let cleanup: (() => void) | undefined;
-    
-    // تأخير إعداد المستمع لضمان تحميل Client
-    setTimeout(async () => {
-      cleanup = await setupAuthListener();
-    }, 500);
+    // ✅ استخدام sessionMonitor للاستماع لتغييرات الجلسة
+    const unsubscribeSession = sessionMonitor.addListener((session, isValid) => {
+      // يتم إخطارنا عند تغير الجلسة - لا حاجة لمستمع منفصل
+    });
 
     return () => {
-      if (cleanup) cleanup();
+      unsubscribeSession();
     };
   }, []);
 

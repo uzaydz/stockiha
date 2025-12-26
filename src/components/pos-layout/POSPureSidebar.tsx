@@ -15,7 +15,7 @@ import {
   Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2,
   FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database, UserCircle, Shield,
   Clock, RefreshCw, CreditCard, PieChart, MoreVertical, LayoutDashboard, ScanBarcode, ClipboardList,
-  Globe, Crown, Gift, UserCog, Link2
+  Globe, Crown, Gift, UserCog, Link2, Lightbulb, BookOpen
 } from 'lucide-react';
 import { ShoppingBag, Wrench } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -184,6 +184,15 @@ export const posSidebarItems: POSSidebarItem[] = [
     permission: 'accessPOS',
   },
   {
+    id: 'pos-stocktake',
+    title: 'الجرد',
+    icon: Layers,
+    href: '/dashboard/pos-stocktake',
+    isOnlineOnly: false,
+    permissions: ['startStocktake', 'performStocktake', 'reviewStocktake', 'approveStocktake', 'deleteStocktake'],
+    badge: 'جديد',
+  },
+  {
     id: 'product-operations',
     title: 'المنتجات',
     icon: Package,
@@ -274,7 +283,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     href: '/dashboard/staff-management',
     isOnlineOnly: false,
     alwaysShow: true,
-    permissions: ['manageStaff', 'viewStaff', 'accessPOS'],
+    permissions: ['manageStaff', 'viewStaff'],
   },
   {
     id: 'settings-unified',
@@ -304,6 +313,25 @@ export const posSidebarItems: POSSidebarItem[] = [
     alwaysShow: true,
     // متاح لجميع المستخدمين - بدون صلاحيات مطلوبة
   },
+  {
+    id: 'feature-suggestions',
+    title: 'اقتراحات الميزات',
+    icon: Lightbulb,
+    href: '/dashboard/feature-suggestions',
+    badge: 'جديد',
+    isOnlineOnly: false,
+    alwaysShow: true,
+    // متاح لجميع المستخدمين - بدون صلاحيات مطلوبة
+  },
+  {
+    id: 'user-guide',
+    title: 'دليل الاستخدام',
+    icon: BookOpen,
+    href: '/dashboard/manual',
+    badge: 'جديد',
+    isOnlineOnly: false,
+    alwaysShow: true,
+  },
 
   // 5. أخرى (Extras)
   {
@@ -312,7 +340,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: FileSpreadsheet,
     href: '/dashboard/etat104',
     isOnlineOnly: false,
-    permission: 'accessPOS',
+    permission: 'canAccessEtat104',
   },
   {
     id: 'courses-operations',

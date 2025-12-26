@@ -104,8 +104,8 @@ BEGIN
     ccs.color as call_status_color,
     o.created_at,
     o.updated_at,
-    COALESCE(c.is_blocked, false) as is_blocked,
-    (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as items_count,
+    false as is_blocked,
+    (SELECT COUNT(*) FROM online_order_items oi WHERE oi.order_id = o.id) as items_count,
     v_total_count as total_count
   FROM online_orders o
   LEFT JOIN customers c ON c.id = o.customer_id

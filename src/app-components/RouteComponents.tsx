@@ -341,6 +341,11 @@ export const SuperAdminRoutes = () => (
           <LazyRoutes.SuperAdminSEO />
         </Suspense>
       } />
+      <Route path="feature-suggestions" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل اقتراحات الميزات..." />}>
+          <LazyRoutes.SuperAdminFeatureSuggestions />
+        </Suspense>
+      } />
       <Route path="courses" element={
         <Suspense fallback={<PageLoader />}>
           <LazyRoutes.SuperAdminCourses />

@@ -9,6 +9,8 @@ export type LocalSubscriptionRow = {
   id: string;
   organization_id: string;
   plan_id?: string | null;
+  plan_name?: string | null;
+  plan_code?: string | null;
   status?: string | null;
   billing_cycle?: string | null;
   start_date?: string | null;
@@ -150,15 +152,17 @@ export async function getLocalSubscription(orgId: string): Promise<LocalSubscrip
       return null;
     }
     const rows = await powerSyncService.query({
-      sql: `SELECT * FROM organization_subscriptions
-       WHERE organization_id = ?
+      sql: `SELECT os.*, sp.name as plan_name, sp.code as plan_code
+       FROM organization_subscriptions os
+       LEFT JOIN subscription_plans sp ON sp.id = os.plan_id
+       WHERE os.organization_id = ?
        ORDER BY
-         CASE status
+         CASE os.status
            WHEN 'active' THEN 1
            WHEN 'trial' THEN 2
            ELSE 3
          END,
-         end_date DESC
+         os.end_date DESC
        LIMIT 1`,
       params: [orgId]
     });
@@ -202,13 +206,15 @@ export function isExpired(row: LocalSubscriptionRow, secureNowMs: number): {
 export function toSubscriptionDataFromLocal(row: LocalSubscriptionRow, secureNowMs: number) {
   const { expired, effectiveEndMs, daysLeft, reason } = isExpired(row, secureNowMs);
   const endIso = effectiveEndMs ? new Date(effectiveEndMs).toISOString() : null;
+  const planName = row.plan_name || row.plan_id || 'غير محدد';
+  const planCode = row.plan_code || row.plan_id || 'unknown';
   return {
     success: true,
     status: expired ? 'expired' : (row.trial_ends_at ? 'trial' : 'active'),  // ✅ تم التصحيح
     subscription_type: row.plan_id ? 'paid' : (row.trial_ends_at ? 'trial' : 'none'),  // ✅ تم التصحيح
     subscription_id: row.id,
-    plan_name: row.plan_id || 'غير محدد',
-    plan_code: row.plan_id || 'unknown',
+    plan_name: planName,
+    plan_code: planCode,
     start_date: row.start_date || null,
     end_date: endIso,
     days_left: daysLeft,

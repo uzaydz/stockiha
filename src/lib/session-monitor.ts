@@ -56,6 +56,15 @@ class SessionMonitor {
       supabase.auth.onAuthStateChange(async (event, session) => {
         this.session = session;
         this.isValid = this.validateSession(session);
+
+        // ✅ حافظ على SecureSession محدثة خصوصاً عند TOKEN_REFRESHED
+        // Supabase يقوم بعمل rotation للـ refresh_token؛ إذا لم نخزن النسخة الجديدة
+        // سنرجع لتوكن قديم بعد إعادة التشغيل.
+        if (session) {
+          try {
+            await saveSecureSession(session);
+          } catch { /* ignore */ }
+        }
         
         // إخطار المستمعين
         this.notifyListeners();
@@ -72,6 +81,49 @@ class SessionMonitor {
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
       }
+    }
+  }
+
+  /**
+   * ✅ Hydrate Supabase client with an externally-restored session (from secure storage).
+   * This fixes the mismatch where AuthContext has a local session but Supabase has none.
+   */
+  async hydrateFromExternalSession(externalSession: Session | null): Promise<boolean> {
+    if (!externalSession) return false;
+
+    // لا نحاول "تركيب" جلسات الأوفلاين الوهمية داخل Supabase
+    const refreshToken = String((externalSession as any).refresh_token || '');
+    if (
+      externalSession.access_token === 'offline_token' ||
+      refreshToken === 'offline_refresh_token' ||
+      refreshToken.startsWith('offline-refresh-') ||
+      !refreshToken
+    ) {
+      return false;
+    }
+
+    try {
+      // إذا كانت نفس الجلسة موجودة بالفعل، لا تفعل شيئاً
+      if (this.session?.access_token && this.session.access_token === externalSession.access_token) {
+        return this.isValid;
+      }
+
+      const { data, error } = await supabase.auth.setSession({
+        access_token: externalSession.access_token,
+        refresh_token: refreshToken,
+      });
+
+      if (error) {
+        return false;
+      }
+
+      this.session = data.session ?? externalSession;
+      this.isValid = this.validateSession(this.session);
+      this.notifyListeners();
+      this.scheduleValidation();
+      return this.isValid;
+    } catch {
+      return false;
     }
   }
   
@@ -120,8 +172,16 @@ class SessionMonitor {
     if (this.isRefreshing) return;
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.warn('[SessionMonitor] ⚠️ getSession error', {
+          message: error.message,
+          status: (error as any)?.status,
+          name: error.name,
+        });
+      }
+
       if (session !== this.session) {
         this.session = session;
         this.isValid = this.validateSession(session);
@@ -152,12 +212,27 @@ class SessionMonitor {
     
     this.isRefreshing = true;
     this.lastRefresh = now;
-    
+
     try {
       if (process.env.NODE_ENV === 'development') {
       }
-      
+
       const { data, error } = await supabase.auth.refreshSession();
+
+      if (error) {
+        console.error('[SessionMonitor] ❌ refreshSession failed', {
+          message: error.message,
+          status: (error as any)?.status,
+          name: error.name,
+        });
+      } else {
+        console.log('[SessionMonitor] ✅ refreshSession result', {
+          hasSession: Boolean(data.session),
+          accessTokenTail: data.session ? `***${data.session.access_token.slice(-6)}` : 'null',
+          refreshTokenTail: data.session ? `***${(data.session as any).refresh_token?.slice?.(-6)}` : 'null',
+          expiresAt: data.session?.expires_at,
+        });
+      }
       
       if (error) {
         if (process.env.NODE_ENV === 'development') {

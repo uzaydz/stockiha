@@ -95,6 +95,44 @@ const powerSyncUpsert = async (table: string, data: any): Promise<{ success: boo
     }
 };
 
+const scheduleIdle = (task: () => void | Promise<void>, delayMs: number = 0, timeoutMs: number = 15000): void => {
+    const schedule = () => {
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(() => void task(), { timeout: timeoutMs });
+        } else {
+            setTimeout(() => void task(), Math.min(timeoutMs, 15000));
+        }
+    };
+
+    if (delayMs > 0) {
+        setTimeout(schedule, delayMs);
+    } else {
+        schedule();
+    }
+};
+
+const scheduleBackgroundProductSync = (organizationId: string): void => {
+    scheduleIdle(async () => {
+        const status = powerSyncService.syncStatus;
+        if (status.hasSynced) {
+            return;
+        }
+        if (!isPowerSyncReady()) {
+            return;
+        }
+        try {
+            const { ensureProductsInSQLite } = await import('./productSyncUtils');
+            const productSyncResult = await ensureProductsInSQLite(organizationId);
+            if (productSyncResult.needed && productSyncResult.success) {
+                console.log('[AppInitialization] 📥 Products synced in background:', productSyncResult);
+                window.dispatchEvent(new CustomEvent('products-updated'));
+            }
+        } catch (e) {
+            console.warn('[AppInitialization] ⚠️ Background product sync failed:', e);
+        }
+    }, 8000, 15000);
+};
+
 // Cache helpers using PowerSync
 const setAppInitCache = async (params: {
     id: string;
@@ -365,30 +403,47 @@ const buildAppDataFromSQLiteTables = async (
 
         const startTime = performance.now();
 
-        // ⚡ v4.2: تشغيل جميع الاستعلامات المستقلة بالتوازي (يوفر ~800ms)
+        // ⚡ v4.3: جلب البيانات الأساسية فقط (يوفر ~600ms)
+        // تأجيل البيانات الثانوية (الفئات، الموظفين) للخلفية
         const [
             orgResult,
-            categoriesResult,
-            subcategoriesResult,
-            employeesResult,
             authResult,
             staffResult
         ] = await Promise.all([
             // جلب بيانات المؤسسة
             powerSyncQuery('SELECT * FROM organizations WHERE id = ? LIMIT 1', [organizationId]),
-            // جلب الفئات
-            powerSyncQuery('SELECT * FROM product_categories WHERE organization_id = ? AND is_active = 1', [organizationId]),
-            // جلب الفئات الفرعية
-            powerSyncQuery('SELECT * FROM product_subcategories WHERE organization_id = ?', [organizationId]),
-            // جلب الموظفين
-            powerSyncQuery('SELECT * FROM pos_staff_sessions WHERE organization_id = ? AND is_active = 1', [organizationId]),
             // محاولة جلب بيانات المستخدم من local_auth_data
             userId ? powerSyncQuery('SELECT * FROM local_auth_data WHERE auth_user_id = ? LIMIT 1', [userId])
                 .catch(() => ({ success: false, data: [] })) : Promise.resolve({ success: false, data: [] }),
             // محاولة جلب بيانات المستخدم من pos_staff_sessions
-            userId ? powerSyncQuery('SELECT * FROM pos_staff_sessions WHERE user_id = ? OR id = ? LIMIT 1', [userId, userId])
+            userId ? powerSyncQuery('SELECT * FROM pos_staff_sessions WHERE user_id = ? LIMIT 1', [userId])
                 : Promise.resolve({ success: false, data: [] })
         ]);
+
+        // ⚡ جلب البيانات الثانوية في الخلفية (لا تحجب التهيئة)
+        let categoriesResult = { success: false, data: [] as any[] };
+        let subcategoriesResult = { success: false, data: [] as any[] };
+        let employeesResult = { success: false, data: [] as any[] };
+
+        // تأجيل جلب الفئات والفئات الفرعية والموظفين
+        setTimeout(async () => {
+            try {
+                const [cats, subcats, emps] = await Promise.all([
+                    powerSyncQuery('SELECT * FROM product_categories WHERE organization_id = ? AND is_active = 1 LIMIT 50', [organizationId]),
+                    powerSyncQuery('SELECT * FROM product_subcategories WHERE organization_id = ? LIMIT 100', [organizationId]),
+                    powerSyncQuery('SELECT * FROM pos_staff_sessions WHERE organization_id = ? AND is_active = 1 LIMIT 20', [organizationId])
+                ]);
+
+                // يمكن تحديث Context هنا إذا لزم الأمر
+                if (cats.success || subcats.success || emps.success) {
+                    window.dispatchEvent(new CustomEvent('app-init-secondary-data-loaded', {
+                        detail: { categories: cats.data, subcategories: subcats.data, employees: emps.data }
+                    }));
+                }
+            } catch (e) {
+                console.warn('[AppInitialization] ⚠️ Failed to load secondary data:', e);
+            }
+        }, 100); // تأجيل 100ms
 
         let organization: Organization | null = null;
         if (orgResult.success && orgResult.data?.[0]) {
@@ -684,26 +739,14 @@ export const getAppInitializationData = async (
 
                     // ⚡ تحديث في الخلفية إذا Online (بدون انتظار)
                     if (isOnline) {
-                        setTimeout(() => {
+                        scheduleIdle(() => {
                             refreshAppDataInBackground(userId, organizationId, initOrgId).catch(err => {
                                 console.warn('[AppInitialization] ⚠️ Background refresh failed:', err);
                             });
-                        }, 100);
+                        }, 1500, 15000);
 
-                        // ⚡ إصلاح: فحص المنتجات الناقصة حتى عند استخدام البيانات المحلية
-                        setTimeout(async () => {
-                            try {
-                                const { ensureProductsInSQLite } = await import('./productSyncUtils');
-                                const productSyncResult = await ensureProductsInSQLite(initOrgId!);
-                                if (productSyncResult.needed && productSyncResult.success) {
-                                    console.log('[AppInitialization] 📥 Products synced in background:', productSyncResult);
-                                    // إرسال event لتحديث الواجهة
-                                    window.dispatchEvent(new CustomEvent('products-updated'));
-                                }
-                            } catch (e) {
-                                console.warn('[AppInitialization] ⚠️ Background product sync failed:', e);
-                            }
-                        }, 500);
+                        // ⚡ فحص المنتجات الناقصة بعد هدوء الإقلاع لتجنب مزامنة مزدوجة
+                        scheduleBackgroundProductSync(initOrgId!);
                     }
 
                     return localData;
@@ -722,23 +765,12 @@ export const getAppInitializationData = async (
 
                     // ⚡ تحديث في الخلفية إذا Online
                     if (isOnline) {
-                        setTimeout(() => {
+                        scheduleIdle(() => {
                             refreshAppDataInBackground(userId, organizationId, initOrgId).catch(() => { });
-                        }, 100);
+                        }, 1500, 15000);
 
-                        // ⚡ إصلاح: فحص المنتجات الناقصة
-                        setTimeout(async () => {
-                            try {
-                                const { ensureProductsInSQLite } = await import('./productSyncUtils');
-                                const productSyncResult = await ensureProductsInSQLite(initOrgId!);
-                                if (productSyncResult.needed && productSyncResult.success) {
-                                    console.log('[AppInitialization] 📥 Products synced in background:', productSyncResult);
-                                    window.dispatchEvent(new CustomEvent('products-updated'));
-                                }
-                            } catch (e) {
-                                console.warn('[AppInitialization] ⚠️ Background product sync failed:', e);
-                            }
-                        }, 500);
+                        // ⚡ فحص المنتجات الناقصة بعد هدوء الإقلاع لتجنب مزامنة مزدوجة
+                        scheduleBackgroundProductSync(initOrgId!);
                     }
 
                     return localData;
@@ -752,9 +784,9 @@ export const getAppInitializationData = async (
 
                     // ⚡ تحديث في الخلفية إذا Online
                     if (isOnline) {
-                        setTimeout(() => {
+                        scheduleIdle(() => {
                             refreshAppDataInBackground(userId, organizationId, initOrgId).catch(() => { });
-                        }, 100);
+                        }, 1500, 15000);
                     }
 
                     return fallbackData;
@@ -811,17 +843,8 @@ export const getAppInitializationData = async (
                     // لا حاجة لإصلاح يدوي - PowerSync يتتبع الحالة عبر ps_crud
                     console.log('[AppInitialization] ℹ️ PowerSync manages sync state automatically');
 
-                    // 📥 التأكد من تحميل المنتجات إلى SQLite إذا كانت فارغة
-                    try {
-                        const { ensureProductsInSQLite } = await import('./productSyncUtils');
-                        const productSyncResult = await ensureProductsInSQLite(initOrgId);
-                        if (productSyncResult.needed) {
-                            console.log('[AppInitialization] 📥 Products sync result:', productSyncResult);
-                        }
-                    } catch (productSyncError) {
-                        console.warn('[AppInitialization] ⚠️ Failed to sync products:', productSyncError);
-                        // تجاهل الخطأ وعدم إيقاف التهيئة
-                    }
+                    // 📥 فحص المنتجات بعد هدوء الإقلاع لتجنب مزامنة مزدوجة
+                    scheduleBackgroundProductSync(initOrgId);
 
                     // ⚠️ تم إزالة مزامنة العملاء والطلبات من هنا
                     // السبب: TauriSyncService/DeltaSyncEngine يقوم بالمزامنة التدريجية تلقائياً
@@ -867,8 +890,8 @@ export const getAppInitializationData = async (
                         // لا حاجة لمزامنة يدوية - PowerSync يقوم بذلك عبر Sync Rules
                         console.log('[AppInitialization] ℹ️ Staff sessions synced automatically via PowerSync');
 
-                        // 🖼️ تحميل صور الفئات للأوفلاين (في الخلفية)
-                        setTimeout(async () => {
+                        // 🖼️ تحميل صور الفئات للأوفلاين (في الخلفية وبشكل كسول)
+                        scheduleIdle(async () => {
                             try {
                                 console.log('[AppInitialization] 🖼️ Caching category images for offline...');
                                 const cacheResult = await categoryImageService.cacheAllCategoryImages(initOrgId!);
@@ -878,7 +901,7 @@ export const getAppInitializationData = async (
                             } catch (e) {
                                 console.warn('[AppInitialization] ⚠️ Failed to cache category images:', e);
                             }
-                        }, 2000); // تأخير 2 ثانية لعدم التأثير على الأداء
+                        }, 5000, 20000);
                     } catch (syncError) {
                         console.warn('[AppInitialization] ⚠️ Failed to sync customers/orders/suppliers/repairs/debts/staff:', syncError);
                     }

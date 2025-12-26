@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { 
-  Supplier, 
-  getSuppliers, 
-  createSupplier, 
-  updateSupplier, 
-  deleteSupplier 
+import {
+  Supplier,
+  getSuppliers,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier
 } from '@/api/supplierService';
+
+// ⚡ v3.0: Module-level deduplication للتحكم الشامل
+let _lastLoggedRender = '';
 import { SupplierDialog } from './SupplierDialog';
 import { SupplierActionsMenu } from './SupplierActionsMenu';
 import { Button } from '@/components/ui/button';
@@ -63,13 +66,17 @@ export function SuppliersList({ openAddDialog, onDialogOpenChange }: SuppliersLi
     localStorage.getItem('bazaar_organization_id') || 
     undefined;
   
-  // 🔍 Debug logging عند كل render
-  console.log('[SuppliersList] 🔄 Render:', { 
-    organizationId, 
-    hasOrganization: !!organization,
-    hasUser: !!user,
-    openAddDialog 
-  });
+  // ⚡ v3.0: Debug logging مع module-level deduplication
+  const renderKey = `${organizationId}:${!!organization}:${!!user}:${openAddDialog}`;
+  if (process.env.NODE_ENV === 'development' && _lastLoggedRender !== renderKey) {
+    _lastLoggedRender = renderKey;
+    console.log('[SuppliersList] 🔄 Render:', {
+      organizationId,
+      hasOrganization: !!organization,
+      hasUser: !!user,
+      openAddDialog
+    });
+  }
   
   const { toast } = useToast();
   

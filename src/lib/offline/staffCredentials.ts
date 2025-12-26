@@ -29,6 +29,7 @@ export async function saveStaffPinOffline(args: {
   staffName: string;
   pin: string;
   permissions?: any;
+  isActive?: boolean;
 }): Promise<void> {
   console.log('%c[StaffAuth] 💾 ═══ حفظ PIN الموظف (saveStaffPinOffline) ═══', 'color: #4CAF50; font-weight: bold');
   console.log('[StaffAuth] 👤 الموظف:', args.staffName);
@@ -57,11 +58,12 @@ export async function saveStaffPinOffline(args: {
     // 🔧 FIX: استخدام INSERT OR REPLACE مع جميع الأعمدة الصحيحة
     // staff_pins schema: id, staff_id, organization_id, staff_name, pin_hash, salt, permissions, is_active, created_at, updated_at
     const permissionsJson = args.permissions ? JSON.stringify(args.permissions) : null;
+    const isActive = args.isActive === undefined ? 1 : args.isActive ? 1 : 0;
 
     await tx.execute(
       `INSERT OR REPLACE INTO staff_pins
        (id, staff_id, organization_id, staff_name, pin_hash, salt, permissions, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?,
          COALESCE((SELECT created_at FROM staff_pins WHERE id = ?), ?),
          ?)`,
       [
@@ -72,6 +74,7 @@ export async function saveStaffPinOffline(args: {
         pin_hash,           // pin_hash
         salt,               // salt
         permissionsJson,    // permissions
+        isActive,           // is_active
         recordId,           // للـ SELECT
         now,                // created_at default
         now                 // updated_at
@@ -119,11 +122,14 @@ export async function updateStaffPinOffline(args: {
     const permissionsJson = existingRec?.permissions
       ? (typeof existingRec.permissions === 'string' ? existingRec.permissions : JSON.stringify(existingRec.permissions))
       : null;
+    const isActive = existingRec?.is_active === undefined || existingRec?.is_active === null
+      ? 1
+      : Number(existingRec.is_active);
 
     await tx.execute(
       `INSERT OR REPLACE INTO staff_pins
        (id, staff_id, organization_id, staff_name, pin_hash, salt, permissions, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?,
          COALESCE((SELECT created_at FROM staff_pins WHERE id = ?), ?),
          ?)`,
       [
@@ -134,6 +140,7 @@ export async function updateStaffPinOffline(args: {
         pin_hash,
         salt,
         permissionsJson,
+        isActive,
         recordId,
         now,
         now
@@ -240,19 +247,23 @@ export async function updateStaffMetadataOffline(args: {
   organizationId: string;
   staffName?: string;
   permissions?: any;
+  isActive?: boolean;
 }): Promise<void> {
+  const recordId = `pin_${args.staffId}`;
+
   // ⚡ استخدام PowerSync
   const rec = await powerSyncService.get<LocalStaffPIN>(
-    'SELECT * FROM staff_pins WHERE id = ?',
-    [args.staffId]
+    'SELECT * FROM staff_pins WHERE (id = ? OR staff_id = ?) AND organization_id = ?',
+    [recordId, args.staffId, args.organizationId]
   );
 
-  if (!rec || rec.organization_id !== args.organizationId) return;
+  if (!rec) return;
 
   const updatedRec = {
     ...rec,
     staff_name: args.staffName ?? rec.staff_name,
     permissions: args.permissions ?? rec.permissions,
+    is_active: args.isActive === undefined ? (rec as any).is_active : args.isActive ? 1 : 0,
     updated_at: new Date().toISOString()
   };
 

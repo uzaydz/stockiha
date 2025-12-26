@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { SuperAdminPureLayout } from '@/components/super-admin-layout';
 import { PaymentMethodCard } from '@/components/super-admin/payment-methods/PaymentMethodCard';
 import { EditPaymentMethodDialog } from '@/components/super-admin/payment-methods/EditPaymentMethodDialog';
 import { CreatePaymentMethodDialog } from '@/components/super-admin/payment-methods/CreatePaymentMethodDialog';
@@ -21,20 +21,20 @@ export default function SuperAdminPaymentMethods() {
   useEffect(() => {
     fetchPaymentMethods();
   }, []);
-  
+
   // جلب طرق الدفع من قاعدة البيانات
   const fetchPaymentMethods = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const { data, error } = await supabase
         .from('payment_methods')
         .select('*')
         .order('display_order', { ascending: true });
-        
+
       if (error) throw error;
-      
+
       if (data) {
         setPaymentMethods(data);
       } else {
@@ -81,13 +81,13 @@ export default function SuperAdminPaymentMethods() {
       setIsLoading(false);
     }
   };
-  
+
   // معالجة تحرير طريقة دفع
   const handleEditMethod = (method: PaymentMethod) => {
     setCurrentMethod(method);
     setEditDialogOpen(true);
   };
-  
+
   // معالجة تحديث طريقة دفع
   const handleUpdateMethod = async (updatedMethod: PaymentMethod) => {
     try {
@@ -106,24 +106,24 @@ export default function SuperAdminPaymentMethods() {
           updated_at: new Date().toISOString()
         })
         .eq('id', updatedMethod.id);
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
-      setPaymentMethods(paymentMethods.map(method => 
+      setPaymentMethods(paymentMethods.map(method =>
         method.id === updatedMethod.id ? updatedMethod : method
       ));
-      
+
       // إغلاق مربع الحوار
       setEditDialogOpen(false);
-      
+
       // إظهار رسالة نجاح
       toast({
         title: "تم تحديث طريقة الدفع",
         description: `تم تحديث طريقة "${updatedMethod.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -132,7 +132,7 @@ export default function SuperAdminPaymentMethods() {
       });
     }
   };
-  
+
   // معالجة إنشاء طريقة دفع جديدة
   const handleCreateMethod = async (newMethod: PaymentMethodFormData) => {
     try {
@@ -145,20 +145,20 @@ export default function SuperAdminPaymentMethods() {
           updated_at: new Date().toISOString()
         })
         .select();
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
       const createdMethod = data[0] as PaymentMethod;
       setPaymentMethods([...paymentMethods, createdMethod]);
-      
+
       // إظهار رسالة نجاح
       toast({
         title: "تم إنشاء طريقة الدفع",
         description: `تم إنشاء طريقة "${newMethod.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -167,33 +167,33 @@ export default function SuperAdminPaymentMethods() {
       });
     }
   };
-  
+
   // معالجة تغيير حالة التفعيل
   const handleToggleActive = async (method: PaymentMethod, isActive: boolean) => {
     try {
       // في بيئة الإنتاج، سيتم تحديث الحالة في قاعدة البيانات
       const { error } = await supabase
         .from('payment_methods')
-        .update({ 
+        .update({
           is_active: isActive,
           updated_at: new Date().toISOString()
         })
         .eq('id', method.id);
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
-      setPaymentMethods(paymentMethods.map(m => 
+      setPaymentMethods(paymentMethods.map(m =>
         m.id === method.id ? { ...m, is_active: isActive } : m
       ));
-      
+
       // إظهار رسالة نجاح
       toast({
         title: isActive ? "تم تفعيل طريقة الدفع" : "تم إلغاء تفعيل طريقة الدفع",
         description: `تم ${isActive ? 'تفعيل' : 'إلغاء تفعيل'} طريقة "${method.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -202,33 +202,33 @@ export default function SuperAdminPaymentMethods() {
       });
     }
   };
-  
+
   // معالجة حذف طريقة دفع
   const handleDeleteMethod = async (method: PaymentMethod) => {
     // لا يمكن حذف طرق الدفع النشطة
     if (method.is_active) return;
-    
+
     if (!window.confirm(`هل أنت متأكد من حذف طريقة "${method.name}"؟`)) return;
-    
+
     try {
       // في بيئة الإنتاج، سيتم حذف طريقة الدفع من قاعدة البيانات
       const { error } = await supabase
         .from('payment_methods')
         .delete()
         .eq('id', method.id);
-      
+
       if (error) throw error;
-      
+
       // تحديث الحالة المحلية
       setPaymentMethods(paymentMethods.filter(m => m.id !== method.id));
-      
+
       // إظهار رسالة نجاح
       toast({
         title: "تم حذف طريقة الدفع",
         description: `تم حذف طريقة "${method.name}" بنجاح.`,
       });
     } catch (err: any) {
-      
+
       // إظهار رسالة خطأ
       toast({
         variant: "destructive",
@@ -237,9 +237,9 @@ export default function SuperAdminPaymentMethods() {
       });
     }
   };
-  
+
   return (
-    <SuperAdminLayout>
+    <SuperAdminPureLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
@@ -248,7 +248,7 @@ export default function SuperAdminPaymentMethods() {
           </div>
           <CreatePaymentMethodDialog onCreateMethod={handleCreateMethod} />
         </div>
-        
+
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -258,7 +258,7 @@ export default function SuperAdminPaymentMethods() {
             </AlertDescription>
           </Alert>
         )}
-        
+
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="flex flex-col items-center">
@@ -270,10 +270,10 @@ export default function SuperAdminPaymentMethods() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {paymentMethods.length > 0 ? (
               paymentMethods.map((method) => (
-                <PaymentMethodCard 
-                  key={method.id} 
-                  method={method} 
-                  onEdit={handleEditMethod} 
+                <PaymentMethodCard
+                  key={method.id}
+                  method={method}
+                  onEdit={handleEditMethod}
                   onDelete={handleDeleteMethod}
                   onToggleActive={handleToggleActive}
                 />
@@ -287,15 +287,15 @@ export default function SuperAdminPaymentMethods() {
             )}
           </div>
         )}
-        
+
         {/* مربع حوار تعديل طريقة الدفع */}
-        <EditPaymentMethodDialog 
-          open={editDialogOpen} 
-          onOpenChange={setEditDialogOpen} 
+        <EditPaymentMethodDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
           method={currentMethod}
           onSave={handleUpdateMethod}
         />
       </div>
-    </SuperAdminLayout>
+    </SuperAdminPureLayout>
   );
 }

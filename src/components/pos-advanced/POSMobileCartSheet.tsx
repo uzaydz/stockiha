@@ -12,6 +12,7 @@ import { Camera, ChevronUp, RotateCcw, ShoppingCart, AlertTriangle } from "lucid
 import { TitaniumCart } from '@/components/pos-infinity';
 import type { POSMode } from '@/components/pos-infinity/CommandIsland';
 import type { CartItem } from '@/types';
+import type { CartTransferItem } from '@/services/P2PCartService';
 import { formatCurrency } from "@/lib/utils";
 
 interface POSMobileCartSheetProps {
@@ -49,6 +50,8 @@ interface POSMobileCartSheetProps {
   organizationId?: string;
   orderDraftId?: string;
   onSerialConflict?: (serialNumber: string, conflictType: 'reserved' | 'sold') => void;
+  // 📲 نقل السلة
+  onReceiveCart?: (items: CartTransferItem[], mode: 'add' | 'replace') => void;
 }
 
 const POSMobileCartSheet = memo<POSMobileCartSheetProps>(({
@@ -82,7 +85,9 @@ const POSMobileCartSheet = memo<POSMobileCartSheetProps>(({
   // ⚡ Offline Props
   organizationId,
   orderDraftId,
-  onSerialConflict
+  onSerialConflict,
+  // 📲 نقل السلة
+  onReceiveCart
 }) => {
   if (typeof document === 'undefined') return null;
 
@@ -184,6 +189,8 @@ const POSMobileCartSheet = memo<POSMobileCartSheetProps>(({
                     organizationId={organizationId}
                     orderDraftId={orderDraftId}
                     onSerialConflict={onSerialConflict}
+                    // 📲 نقل السلة
+                    onReceiveCart={onReceiveCart}
                   />
                 </Suspense>
               </div>

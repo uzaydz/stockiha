@@ -16,6 +16,7 @@ import { formatPrice } from '@/lib/utils';
 import WorkSessionsTableResponsive from '@/components/work-sessions/WorkSessionsTableResponsive';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 interface POSWorkSessionsProps extends POSSharedLayoutControls {}
 
@@ -25,6 +26,7 @@ const POSWorkSessions: React.FC<POSWorkSessionsProps> = ({
   onLayoutStateChange
 }) => {
   const { currentOrganization } = useTenant();
+  const perms = useUnifiedPermissions();
   const [sessions, setSessions] = useState<LocalWorkSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -34,6 +36,9 @@ const POSWorkSessions: React.FC<POSWorkSessionsProps> = ({
   // جلب جلسات اليوم
   const fetchSessions = async (date: string) => {
     if (!currentOrganization?.id) return;
+    if (perms.ready && !perms.anyOf(['canViewWorkSessions', 'canManageWorkSessions', 'canViewSessionReports'])) {
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -48,7 +53,7 @@ const POSWorkSessions: React.FC<POSWorkSessionsProps> = ({
 
   useEffect(() => {
     fetchSessions(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, perms.ready]);
 
   // تسجيل دالة التحديث
   useEffect(() => {
@@ -112,6 +117,12 @@ const POSWorkSessions: React.FC<POSWorkSessionsProps> = ({
 
   const pageContent = (
     <div className="container mx-auto p-6 space-y-6" dir="rtl">
+      {perms.ready && !perms.anyOf(['canViewWorkSessions', 'canManageWorkSessions', 'canViewSessionReports']) ? (
+        <div className="text-center py-10 text-muted-foreground">
+          لا تملك صلاحية عرض جلسات العمل.
+        </div>
+      ) : (
+      <>
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -198,6 +209,8 @@ const POSWorkSessions: React.FC<POSWorkSessionsProps> = ({
       </div>
 
       {/* جدول الجلسات */}
+      </>
+      )}
       {isLoading ? (
         <Card>
           <CardContent className="p-6">

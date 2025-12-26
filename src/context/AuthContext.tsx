@@ -33,6 +33,7 @@ import { subdomainService } from './auth/services/subdomainService';
 
 // استيراد الـ Hooks
 import { useAuthSession } from './auth/hooks/useAuthSession';
+import { authSingleton } from '@/lib/authSingleton';
 import { useUserProfile } from './auth/hooks/useUserProfile';
 import { useUserOrganization } from './auth/hooks/useUserOrganization';
 
@@ -65,6 +66,16 @@ const userCache = new Map<string, { user: SupabaseUser; timestamp: number }>();
 const SESSION_CACHE_DURATION = 5 * 60 * 1000; // ⚡ 5 دقائق (كان 10)
 const USER_CACHE_DURATION = 5 * 60 * 1000; // ⚡ 5 دقائق (كان 15)
 const MAX_CACHE_ENTRIES = 3; // ⚡ حد أقصى للمدخلات
+
+const isOfflineOnlySession = (session: Session | null): boolean => {
+  if (!session) return false;
+  const refreshToken = String((session as any).refresh_token || '');
+  return (
+    session.access_token === 'offline_token' ||
+    refreshToken === 'offline_refresh_token' ||
+    refreshToken.startsWith('offline-refresh-')
+  );
+};
 
 // ⚡ دالة تنظيف الكاش لمنع تسرب الذاكرة
 const pruneAuthCaches = () => {
@@ -631,6 +642,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       // تحميل البيانات المحفوظة أولاً (سريع)
       const savedAuth = loadAuthFromStorage();
 
+      // ✅ 1) حاول أولاً استعادة الجلسة من Supabase storage مباشرة (الأكثر موثوقية)
+      // السبب: refresh_token يمكن أن يتم تدويره (rotation)؛ والـ SecureSession قد تكون قديمة إن لم تُحدّث.
+      try {
+        const directSession = await authSingleton.getRawSessionFromSupabaseStorage();
+        if (directSession?.user) {
+          const directUser = directSession.user as SupabaseUser;
+
+          if (process.env.NODE_ENV === 'development') {
+            throttledLog('✅ [AuthContext] Restored session from Supabase storage (preferred)', directUser.email);
+          }
+
+          // احفظ SecureSession لتكون جاهزة للأوفلاين مع آخر refresh_token
+          try { await saveSecureSession(directSession); } catch { }
+
+          setUser(directUser);
+          setSession(directSession);
+
+          cacheSession(directUser.id, directSession);
+          cacheUser(directUser.id, directUser);
+          sessionManager.setCachedUser(directUser);
+
+          setIsLoading(false);
+          setHasInitialSessionCheck(true);
+          setAuthReady(true);
+
+          if (sessionCheckTimeoutRef.current) {
+            clearTimeout(sessionCheckTimeoutRef.current);
+          }
+
+          initializationInProgressRef.current = false;
+          return;
+        }
+      } catch {
+        // ignore: fallback to secure session/local-first
+      }
+
       let restoredSession: Session | null = null;
       let restoredUser: SupabaseUser | null = savedAuth.user;
 
@@ -652,6 +699,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       if (restoredSession && restoredUser) {
         if (process.env.NODE_ENV === 'development') {
           throttledLog('✅ [AuthContext] استعادة جلسة آمنة للأوفلاين:', restoredUser.email);
+        }
+
+        // ✅ Hydrate Supabase auth store من الجلسة المسترجعة (إن كانت جلسة حقيقية)
+        // هذا يمنع حالة "AuthContext لديه session لكن supabase.auth.getSession() يرجع null"
+        try {
+          await sessionMonitor.hydrateFromExternalSession(restoredSession);
+        } catch {
+          // ignore - سنستمر في وضع local-first
         }
 
         setUser(restoredUser);
@@ -684,7 +739,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
                   // زيادة الفترة إلى 5 دقائق لتقليل التحذيرات المتكررة
                   if (nowWarn - (lastSessionWarnRef.current || 0) > 5 * 60_000) {
                     if (isAppOnline()) {
-                      console.warn('⚠️ [Auth] Session expired on server and refresh failed. Keeping local session for offline access.');
+                      if (isOfflineOnlySession(restoredSession)) {
+                        console.log('ℹ️ [Auth] Offline-only session cannot be refreshed. Cloud sync disabled until online login.');
+                      } else {
+                        console.warn('⚠️ [Auth] Session expired on server and refresh failed. Keeping local session for offline access.', {
+                          cachedExpiresAt: cachedSession.expires_at,
+                          cachedAccessTail: `***${cachedSession.access_token.slice(-6)}`,
+                          cachedRefreshTail: `***${(cachedSession as any).refresh_token?.slice?.(-6)}`,
+                          online: isAppOnline(),
+                        });
+                      }
                     } else {
                       console.log('ℹ️ [Auth] Offline mode: Session validation skipped, keeping local session.');
                     }
@@ -704,6 +768,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       } else if (savedAuth.session && savedAuth.user) {
         if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
           try { console.log('💾 [Auth] loaded legacy session from storage'); } catch { }
+        }
+
+        // ✅ Hydrate Supabase auth store من الجلسة القديمة (إن كانت جلسة حقيقية)
+        try {
+          await sessionMonitor.hydrateFromExternalSession(savedAuth.session);
+        } catch {
+          // ignore
         }
 
         setUser(savedAuth.user);
@@ -743,7 +814,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
                   const nowWarn = Date.now();
                   if (nowWarn - (lastSessionWarnRef.current || 0) > 5 * 60_000) {
                     if (isAppOnline()) {
-                      console.warn('⚠️ [Auth] Legacy session expired and refresh failed. Keeping local session for offline access.');
+                      if (isOfflineOnlySession(savedAuth.session)) {
+                        console.log('ℹ️ [Auth] Offline-only session cannot be refreshed. Cloud sync disabled until online login.');
+                      } else {
+                        console.warn('⚠️ [Auth] Legacy session expired and refresh failed. Keeping local session for offline access.');
+                      }
                     } else {
                       console.log('ℹ️ [Auth] Offline mode: Legacy session validation skipped, keeping local session.');
                     }
@@ -1129,7 +1204,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   useEffect(() => {
     const startBackgroundSync = async () => {
       // التحقق من أن المؤسسة جاهزة ولم يتم البدء مسبقاً
-      if (organization?.id && authReady && !deltaSyncInitializedRef.current) {
+      const shouldRun = !!organization?.id && authReady && !!session && !!user && !isExplicitSignOut;
+
+      // إذا لم نكن في حالة مصادقة صالحة، تأكد من إيقاف المزامنة الخلفية
+      if (!shouldRun) {
+        if (deltaSyncInitializedRef.current) {
+          try {
+            const { powerSyncBackgroundService } = await import('@/services/PowerSyncBackgroundService');
+            powerSyncBackgroundService.stop();
+          } catch {
+            // ignore
+          } finally {
+            deltaSyncInitializedRef.current = false;
+          }
+        }
+        return;
+      }
+
+      if (!deltaSyncInitializedRef.current) {
         try {
           // ⚡ بدء خدمة المزامنة الخلفية فقط (PowerSync مُهيأ من PowerSyncProvider)
           const { powerSyncBackgroundService } = await import('@/services/PowerSyncBackgroundService');
@@ -1153,7 +1245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         deltaSyncInitializedRef.current = false;
       }
     };
-  }, [organization?.id, authReady]);
+  }, [organization?.id, authReady, session?.access_token, user?.id, isExplicitSignOut]);
 
   /**
    * تنظيف cache منتهي الصلاحية دورياً - محسن مع cleanup

@@ -12,6 +12,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
+// ⚡ v4.0: Module-level deduplication للتحكم الشامل عبر جميع instances
+const _loggedResults = new Set<string>();
+
 interface PermissionGuardProps {
   requiredPermissions: string[];
   children: React.ReactNode;
@@ -32,9 +35,8 @@ const PermissionGuard = ({
   const [hasPermission, setHasPermission] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
-  // ⚡ v2.0: منع التكرار غير الضروري
+  // ⚡ v4.0: منع التكرار على مستوى الـ instance
   const lastCheckRef = useRef<string>('');
-  const hasLoggedRef = useRef(false);
 
   // ⚡ استخدام useMemo لتقليل الحسابات المتكررة
   const permissionResult = useMemo(() => {
@@ -85,9 +87,14 @@ const PermissionGuard = ({
     }
     lastCheckRef.current = checkKey;
 
-    // ⚡ تسجيل فقط عند التغيير الفعلي أو أول مرة
-    if (!hasLoggedRef.current || permissionResult.hasPermission !== hasPermission) {
-      hasLoggedRef.current = true;
+    // ⚡ v4.0: تسجيل فقط عند تغيير النتيجة الفعلية (global across all instances)
+    const logKey = `${permissionResult.reason}:${permissionResult.hasPermission}:${unifiedPerms.displayName}`;
+    if (!_loggedResults.has(logKey) && process.env.NODE_ENV === 'development') {
+      _loggedResults.add(logKey);
+
+      // مسح السجلات القديمة بعد 10 ثوانٍ للسماح بإعادة التسجيل عند تغيير الحالة الفعلية
+      setTimeout(() => _loggedResults.delete(logKey), 10000);
+
       console.log('🔐 [PermissionGuard] بدء التحقق من الصلاحيات:', {
         requiredPermissions,
         hasUser: !!user,
@@ -115,10 +122,6 @@ const PermissionGuard = ({
 
     setHasPermission(permissionResult.hasPermission);
     setIsChecking(false);
-
-    if (!permissionResult.hasPermission && !hasLoggedRef.current) {
-      console.log('❌ [PermissionGuard] لا يملك الصلاحيات - سيتم التوجيه إلى:', fallbackPath);
-    }
   }, [permissionResult, location.pathname]);
 
   const handleDialogClose = () => {

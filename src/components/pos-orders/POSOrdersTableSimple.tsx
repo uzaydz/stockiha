@@ -7,6 +7,7 @@
 
 import React, { useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
@@ -209,6 +210,19 @@ const OrderRow = React.memo<{
     return order.slug?.slice(-6) || order.id?.slice(-6) || '---';
   }, [order]);
 
+  const stocktakeSessionId = useMemo(() => {
+    const meta = (order as any).metadata;
+    if (!meta) return null;
+    if (typeof meta === 'object') return meta.stocktake_session_id ?? null;
+    if (typeof meta !== 'string') return null;
+    try {
+      const parsed = JSON.parse(meta);
+      return parsed?.stocktake_session_id ?? null;
+    } catch {
+      return null;
+    }
+  }, [order]);
+
   const customerName = order.customer?.name || 'زبون عابر';
   const employeeName = (order as any).employee?.name || '—';
   const itemsCount = order.items_count || order.order_items?.length || 0;
@@ -226,10 +240,12 @@ const OrderRow = React.memo<{
   const discount = order.discount || 0;
 
   const paymentStatus = useMemo(() => {
+    const explicit = (order as any)?.payment_status;
+    if (explicit === 'paid' || explicit === 'partial' || explicit === 'unpaid') return explicit;
     if (paid >= total && total > 0) return 'paid';
     if (paid > 0 && paid < total) return 'partial';
     return 'unpaid';
-  }, [paid, total]);
+  }, [order, paid, total]);
 
   const paymentConfig = PAYMENT_CONFIG[paymentStatus] || PAYMENT_CONFIG.unpaid;
   const PaymentIcon = paymentConfig.icon;
@@ -247,16 +263,22 @@ const OrderRow = React.memo<{
       )}
     >
       {/* Order Number */}
-      <button
-        onClick={onView}
-        className={cn(
-          COL.orderNum, "shrink-0 text-center",
-          "text-sm font-semibold text-zinc-900 dark:text-zinc-100",
-          "hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+      <div className={cn(COL.orderNum, "shrink-0 text-center flex flex-col items-center gap-1")}>
+        <button
+          onClick={onView}
+          className={cn(
+            "text-sm font-semibold text-zinc-900 dark:text-zinc-100",
+            "hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          )}
+        >
+          <span className="font-numeric">#{orderNumber}</span>
+        </button>
+        {stocktakeSessionId && (
+          <Badge variant="secondary" className="h-5 px-2 text-[10px] font-semibold">
+            جرد
+          </Badge>
         )}
-      >
-        <span className="font-numeric">#{orderNumber}</span>
-      </button>
+      </div>
 
       {/* Customer */}
       <div className={cn(COL.customer, "shrink-0 truncate text-center")}>

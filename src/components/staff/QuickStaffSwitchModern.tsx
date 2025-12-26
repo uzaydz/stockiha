@@ -110,23 +110,11 @@ const QuickStaffSwitchModern: React.FC<QuickStaffSwitchModernProps> = ({
     setError(null);
 
     try {
-      // محاولة أوفلاين
-      if (!navigator.onLine && organization?.id) {
-        const offlineResult = await verifyStaffPinOffline({
-          organizationId: organization.id,
-          pin: pinCode,
-        });
-        if (offlineResult.success && offlineResult.staff) {
-          handleSuccess(offlineResult.staff as any, true);
-          return;
-        }
-      }
-
-      // أونلاين
-      const result = await staffService.verifyPin(pinCode);
+      // ✅ Offline-first دائماً
+      const result = await staffService.verifyPin(pinCode, organization?.id);
 
       if (result.success && result.staff) {
-        if (organization?.id) {
+        if (organization?.id && navigator.onLine) {
           try {
             await saveStaffPinOffline({
               staffId: result.staff.id,
@@ -134,12 +122,13 @@ const QuickStaffSwitchModern: React.FC<QuickStaffSwitchModernProps> = ({
               staffName: result.staff.staff_name,
               pin: pinCode,
               permissions: result.staff.permissions,
+              isActive: result.staff.is_active,
             });
           } catch (err) {
             console.warn('[QuickStaffSwitch] Failed to save offline PIN:', err);
           }
         }
-        handleSuccess(result.staff, false);
+        handleSuccess(result.staff, !navigator.onLine);
       } else {
         handleError(result.error || 'كود PIN غير صحيح');
       }
@@ -177,7 +166,7 @@ const QuickStaffSwitchModern: React.FC<QuickStaffSwitchModernProps> = ({
       organization_id: staff.organization_id,
       staff_name: staff.staff_name,
       permissions: staff.permissions || {},
-      is_active: true,
+      is_active: staff.is_active ?? true,
       created_at: staff.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
       last_login: new Date().toISOString(),

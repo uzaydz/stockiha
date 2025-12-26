@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { 
-  Building, 
-  Users, 
-  CreditCard, 
-  ArrowUpRight, 
+import {
+  Building,
+  Users,
+  CreditCard,
+  ArrowUpRight,
   ArrowDownRight,
   Clock,
   Server,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import SuperAdminLayout from '@/components/SuperAdminLayout';
+import { SuperAdminPureLayout } from '@/components/super-admin-layout';
 import { supabase } from '@/lib/supabase';
 
 // Types for dashboard statistics
@@ -104,7 +104,7 @@ export default function SuperAdminDashboard() {
       revenue: 0
     }
   });
-  
+
   useEffect(() => {
     const fetchDashboardStats = async () => {
       setIsLoading(true);
@@ -129,35 +129,35 @@ export default function SuperAdminDashboard() {
             .from('orders')
             .select('id, status, total, created_at')
         ]);
-        
+
         // معالجة الأخطاء بشكل منفصل
         if (orgError) {
           console.error('[SuperAdminDashboard] خطأ في جلب بيانات المؤسسات:', orgError);
           throw new Error(`فشل في جلب بيانات المؤسسات: ${orgError.message}`);
         }
-        
+
         if (userError) {
           console.error('[SuperAdminDashboard] خطأ في جلب بيانات المستخدمين:', userError);
           throw new Error(`فشل في جلب بيانات المستخدمين: ${userError.message}`);
         }
-        
+
         if (productError) {
           console.error('[SuperAdminDashboard] خطأ في جلب بيانات المنتجات:', productError);
           // المنتجات ليست حرجة - نكمل بدون رمي خطأ
         }
-        
+
         if (orderError) {
           console.error('[SuperAdminDashboard] خطأ في جلب بيانات الطلبات:', orderError);
           // الطلبات ليست حرجة - نكمل بدون رمي خطأ
         }
-        
+
         // Get subscription tiers count
         const subscriptionCount: Record<string, number> = {};
         orgData?.forEach(org => {
           const tier = org.subscription_tier || 'free';
           subscriptionCount[tier] = (subscriptionCount[tier] || 0) + 1;
         });
-        
+
         // Calculate total stock and average price
         let totalStock = 0;
         let totalPrice = 0;
@@ -166,7 +166,7 @@ export default function SuperAdminDashboard() {
           totalPrice += product.price || 0;
         });
         const avgPrice = productData?.length ? totalPrice / productData.length : 0;
-        
+
         // Calculate order statistics
         const completedOrders = orderData?.filter(order => order.status === 'completed') || [];
         const pendingOrders = orderData?.filter(order => order.status === 'pending') || [];
@@ -174,57 +174,57 @@ export default function SuperAdminDashboard() {
         orderData?.forEach(order => {
           totalRevenue += order.total || 0;
         });
-        
+
         // حساب النمو الحقيقي (آخر 30 يوم مقارنة بالشهر السابق)
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-        
+
         // حساب نمو المؤسسات
         const recentOrgsCount = orgData?.filter(org => {
           const createdAt = new Date(org.created_at);
           return createdAt >= thirtyDaysAgo;
         })?.length || 0;
-        
+
         const previousMonthOrgsCount = orgData?.filter(org => {
           const createdAt = new Date(org.created_at);
           return createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
         })?.length || 0;
-        
-        const orgGrowth = previousMonthOrgsCount > 0 
-          ? ((recentOrgsCount - previousMonthOrgsCount) / previousMonthOrgsCount) * 100 
+
+        const orgGrowth = previousMonthOrgsCount > 0
+          ? ((recentOrgsCount - previousMonthOrgsCount) / previousMonthOrgsCount) * 100
           : recentOrgsCount > 0 ? 100 : 0;
-        
+
         // حساب نمو المستخدمين
         const recentUsersCount = userData?.filter(user => {
           const createdAt = new Date(user.created_at);
           return createdAt >= thirtyDaysAgo;
         })?.length || 0;
-        
+
         const previousMonthUsersCount = userData?.filter(user => {
           const createdAt = new Date(user.created_at);
           return createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
         })?.length || 0;
-        
+
         const userGrowth = previousMonthUsersCount > 0
           ? ((recentUsersCount - previousMonthUsersCount) / previousMonthUsersCount) * 100
           : recentUsersCount > 0 ? 100 : 0;
-        
+
         // حساب نمو الإيرادات
         const recentOrdersRevenue = orderData?.filter(order => {
           const createdAt = new Date(order.created_at);
           return createdAt >= thirtyDaysAgo;
         })?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
-        
+
         const previousMonthOrdersRevenue = orderData?.filter(order => {
           const createdAt = new Date(order.created_at);
           return createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
         })?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
-        
+
         const subGrowth = previousMonthOrdersRevenue > 0
           ? ((recentOrdersRevenue - previousMonthOrdersRevenue) / previousMonthOrdersRevenue) * 100
           : recentOrdersRevenue > 0 ? 100 : 0;
-        
+
         // Update stats state
         setStats({
           organizations: {
@@ -270,7 +270,7 @@ export default function SuperAdminDashboard() {
         });
       } catch (error) {
         console.error('[SuperAdminDashboard] خطأ في جلب البيانات:', error);
-        
+
         // تعيين قيم افتراضية في حالة الخطأ
         setStats({
           organizations: { total: 0, active: 0, pending: 0, expired: 0, growth: 0 },
@@ -280,7 +280,7 @@ export default function SuperAdminDashboard() {
           products: { total: 0, stock: 0, avgPrice: 0 },
           orders: { total: 0, completed: 0, pending: 0, revenue: 0 }
         });
-        
+
         // يمكن إضافة toast notification هنا لإبلاغ المستخدم
         if (process.env.NODE_ENV === 'development') {
           console.error('[SuperAdminDashboard] تفاصيل الخطأ:', error);
@@ -289,15 +289,15 @@ export default function SuperAdminDashboard() {
         setIsLoading(false);
       }
     };
-    
+
     fetchDashboardStats();
-    
+
     // تحديث تلقائي كل 5 دقائق
     const intervalId = setInterval(fetchDashboardStats, 5 * 60 * 1000);
-    
+
     return () => clearInterval(intervalId);
   }, []);
-  
+
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ar-DZ', {
@@ -307,15 +307,15 @@ export default function SuperAdminDashboard() {
       maximumFractionDigits: 0
     }).format(amount);
   };
-  
+
   // Format number with thousands separator
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('ar-DZ').format(num);
   };
-  
+
   return (
-    <SuperAdminLayout>
-      <div className="space-y-6">
+    <SuperAdminPureLayout>
+      <div className="space-y-6 p-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold tracking-tight">لوحة المسؤول الرئيسي</h1>
           <div className="flex items-center gap-2 bg-muted p-2 rounded-md text-sm">
@@ -323,7 +323,7 @@ export default function SuperAdminDashboard() {
             <span>آخر تحديث: {new Date().toLocaleTimeString('ar-DZ')}</span>
           </div>
         </div>
-        
+
         {isLoading ? (
           <div className="flex items-center justify-center h-[300px]">
             <div className="flex flex-col items-center gap-2">
@@ -351,7 +351,7 @@ export default function SuperAdminDashboard() {
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* إحصائيات المستخدمين */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -369,7 +369,7 @@ export default function SuperAdminDashboard() {
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* إحصائيات المنتجات */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -384,7 +384,7 @@ export default function SuperAdminDashboard() {
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* إحصائيات الطلبات */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -400,14 +400,14 @@ export default function SuperAdminDashboard() {
                 </CardContent>
               </Card>
             </div>
-            
+
             <Tabs defaultValue="organizations" className="space-y-4">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="organizations">المؤسسات</TabsTrigger>
                 <TabsTrigger value="users">المستخدمين</TabsTrigger>
                 <TabsTrigger value="subscriptions">الاشتراكات</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="organizations" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -432,11 +432,11 @@ export default function SuperAdminDashboard() {
                           <span className="text-2xl font-bold">{formatNumber(stats.organizations.expired)}</span>
                         </div>
                       </div>
-                      
+
                       <div className="h-[300px] mt-6 flex flex-col items-center justify-center border rounded-md">
                         <Activity className="h-8 w-8 text-muted-foreground mb-2" />
                         <span className="text-muted-foreground">توزيع المؤسسات حسب خطة الاشتراك</span>
-                        
+
                         <div className="w-full max-w-md mt-4 px-8 space-y-4">
                           {/* خطة مجانية */}
                           <div className="space-y-1">
@@ -445,13 +445,13 @@ export default function SuperAdminDashboard() {
                               <span>{stats.subscriptions.free} ({Math.round(stats.subscriptions.free / stats.subscriptions.total * 100)}%)</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-blue-500 rounded-full" 
+                              <div
+                                className="h-full bg-blue-500 rounded-full"
                                 style={{ width: `${stats.subscriptions.free / stats.subscriptions.total * 100}%` }}
                               ></div>
                             </div>
                           </div>
-                          
+
                           {/* خطة أساسية */}
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
@@ -459,13 +459,13 @@ export default function SuperAdminDashboard() {
                               <span>{stats.subscriptions.basic} ({Math.round(stats.subscriptions.basic / stats.subscriptions.total * 100)}%)</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-green-500 rounded-full" 
+                              <div
+                                className="h-full bg-green-500 rounded-full"
                                 style={{ width: `${stats.subscriptions.basic / stats.subscriptions.total * 100}%` }}
                               ></div>
                             </div>
                           </div>
-                          
+
                           {/* خطة متميزة */}
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
@@ -473,13 +473,13 @@ export default function SuperAdminDashboard() {
                               <span>{stats.subscriptions.premium} ({Math.round(stats.subscriptions.premium / stats.subscriptions.total * 100 || 0)}%)</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-purple-500 rounded-full" 
+                              <div
+                                className="h-full bg-purple-500 rounded-full"
                                 style={{ width: `${stats.subscriptions.premium / stats.subscriptions.total * 100 || 0}%` }}
                               ></div>
                             </div>
                           </div>
-                          
+
                           {/* خطة مؤسسات */}
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
@@ -487,8 +487,8 @@ export default function SuperAdminDashboard() {
                               <span>{stats.subscriptions.enterprise} ({Math.round(stats.subscriptions.enterprise / stats.subscriptions.total * 100 || 0)}%)</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-red-500 rounded-full" 
+                              <div
+                                className="h-full bg-red-500 rounded-full"
                                 style={{ width: `${stats.subscriptions.enterprise / stats.subscriptions.total * 100 || 0}%` }}
                               ></div>
                             </div>
@@ -499,7 +499,7 @@ export default function SuperAdminDashboard() {
                   </CardContent>
                 </Card>
               </TabsContent>
-              
+
               <TabsContent value="users" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -524,11 +524,11 @@ export default function SuperAdminDashboard() {
                           <span className="text-2xl font-bold">{formatNumber(stats.users.admins)}</span>
                         </div>
                       </div>
-                      
+
                       <div className="h-[300px] mt-6 flex flex-col items-center justify-center border rounded-md">
                         <Activity className="h-8 w-8 text-muted-foreground mb-2" />
                         <span className="text-muted-foreground">توزيع المستخدمين حسب الدور</span>
-                        
+
                         <div className="w-full max-w-md mt-4 px-8 space-y-4">
                           {/* مسؤول رئيسي */}
                           <div className="space-y-1">
@@ -537,13 +537,13 @@ export default function SuperAdminDashboard() {
                               <span>{stats.users.super_admins}</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-red-500 rounded-full" 
+                              <div
+                                className="h-full bg-red-500 rounded-full"
                                 style={{ width: `${stats.users.super_admins / stats.users.total * 100}%` }}
                               ></div>
                             </div>
                           </div>
-                          
+
                           {/* مشرفين */}
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
@@ -551,13 +551,13 @@ export default function SuperAdminDashboard() {
                               <span>{stats.users.admins}</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-amber-500 rounded-full" 
+                              <div
+                                className="h-full bg-amber-500 rounded-full"
                                 style={{ width: `${stats.users.admins / stats.users.total * 100}%` }}
                               ></div>
                             </div>
                           </div>
-                          
+
                           {/* مستخدمين عاديين */}
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
@@ -565,8 +565,8 @@ export default function SuperAdminDashboard() {
                               <span>{stats.users.total - stats.users.admins - stats.users.super_admins}</span>
                             </div>
                             <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-blue-500 rounded-full" 
+                              <div
+                                className="h-full bg-blue-500 rounded-full"
                                 style={{ width: `${(stats.users.total - stats.users.admins - stats.users.super_admins) / stats.users.total * 100}%` }}
                               ></div>
                             </div>
@@ -577,7 +577,7 @@ export default function SuperAdminDashboard() {
                   </CardContent>
                 </Card>
               </TabsContent>
-              
+
               <TabsContent value="subscriptions" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -606,7 +606,7 @@ export default function SuperAdminDashboard() {
                           <span className="text-2xl font-bold">{formatNumber(stats.subscriptions.enterprise)}</span>
                         </div>
                       </div>
-                      
+
                       <div className="mt-4 grid grid-cols-2 gap-4">
                         <Card>
                           <CardHeader className="pb-2">
@@ -624,7 +624,7 @@ export default function SuperAdminDashboard() {
                             </div>
                           </CardContent>
                         </Card>
-                        
+
                         <Card>
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm">حالة النظام</CardTitle>
@@ -655,6 +655,6 @@ export default function SuperAdminDashboard() {
           </>
         )}
       </div>
-    </SuperAdminLayout>
+    </SuperAdminPureLayout>
   );
 }

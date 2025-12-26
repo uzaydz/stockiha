@@ -2,6 +2,7 @@ import React, { useEffect, startTransition, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getCourseEntryPath } from '@/lib/courseRoutes';
 
 interface ModuleNavigationProps {
   currentModule: number;
@@ -24,10 +25,16 @@ const ModuleNavigation: React.FC<ModuleNavigationProps> = ({
   // Preload adjacent modules using React.lazy for better performance
   useEffect(() => {
     const preloadModule = async (moduleNumber: number) => {
-      if (moduleNumber >= 1 && moduleNumber <= totalModules) {
+      if (moduleNumber >= 0 && moduleNumber <= totalModules) {
         try {
           // Import the module component dynamically based on course slug and module number
-          const modulePath = `../pages/courses/modules/${courseSlug === 'digital-marketing' ? 'DigitalMarketing' : 'ECommerce'}Module${moduleNumber}`;
+          let modulePrefix = 'DigitalMarketing';
+          if (courseSlug === 'e-commerce') {
+            modulePrefix = 'ECommerce';
+          } else if (courseSlug === 'tiktok-ads' || courseSlug === 'tiktok-marketing') {
+            modulePrefix = 'TikTokAds';
+          }
+          const modulePath = `/src/pages/courses/modules/${modulePrefix}Module${moduleNumber}.tsx`;
           await import(/* @vite-ignore */ modulePath);
         } catch (error) {
           // Silently ignore import errors for non-existent modules
@@ -47,7 +54,9 @@ const ModuleNavigation: React.FC<ModuleNavigationProps> = ({
   }, [currentModule, totalModules, courseSlug]);
 
   const goToPreviousModule = () => {
-    if (currentModule > 1 && !isNavigating) {
+    // Support Module0 for TikTok course (starts from 0) and Module1+ for other courses
+    const minModule = (courseSlug === 'tiktok-ads' || courseSlug === 'tiktok-marketing') ? 0 : 1;
+    if (currentModule > minModule && !isNavigating) {
       setIsNavigating(true);
       startTransition(() => {
         navigate(`/dashboard/courses/${courseSlug}/module/${currentModule - 1}`, {
@@ -74,7 +83,7 @@ const ModuleNavigation: React.FC<ModuleNavigationProps> = ({
     if (!isNavigating) {
       setIsNavigating(true);
       startTransition(() => {
-        navigate(`/dashboard/courses/${courseSlug}`, {
+        navigate(getCourseEntryPath(courseSlug), {
           replace: false,
           state: { from: `module-${currentModule}` }
         });

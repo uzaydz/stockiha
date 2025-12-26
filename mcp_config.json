@@ -1,8 +1,17 @@
 {
   "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_c0eee2197d17729ac43e56eea84cb9690cb54e04"
+      ]
+    },
     "Sentry": {
       "command": "npx",
       "args": ["mcp-remote@latest", "https://mcp.sentry.dev/sse"]
     }
   }
-} 
+}

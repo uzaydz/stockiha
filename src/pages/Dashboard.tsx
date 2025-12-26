@@ -60,9 +60,7 @@ const TrialNotificationFallback: FC = () => null;
 const OptimizedStatsFallback: FC<{ timeframe: TimeframeType }> = () => (
   <OfflineSectionMessage title="الإحصائيات الرئيسية" height="h-40" />
 );
-const QuickAccessFallback: FC<{ maxItems?: number }> = () => (
-  <OfflineSectionMessage title="الروابط السريعة" height="h-20" />
-);
+
 const OrdersSectionFallback: FC = () => (
   <OfflineSectionMessage title="ملخص الطلبات" height="h-64" />
 );
@@ -87,10 +85,7 @@ const OptimizedStatsSection = lazyWithOfflineFallback(
   () => import('@/components/dashboard/optimized/OptimizedStatsSection'),
   OptimizedStatsFallback
 );
-const QuickAccessSection = lazyWithOfflineFallback(
-  () => import('@/components/dashboard/optimized/QuickAccessSection'),
-  QuickAccessFallback
-);
+
 const OptimizedOrdersSection = lazyWithOfflineFallback(
   () => import('@/components/dashboard/optimized/OptimizedOrdersSection'),
   OrdersSectionFallback
@@ -128,17 +123,17 @@ const PageLoader = () => (
     <div className="space-y-8">
       {/* تحميل الهيدر */}
       <div className="h-16 bg-muted/30 animate-pulse rounded-lg"></div>
-      
+
       {/* تحميل الإحصائيات */}
       <div className="h-40 bg-muted/30 animate-pulse rounded-lg"></div>
-      
+
       {/* تحميل الروابط السريعة */}
       <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-3">
         {Array.from({ length: 10 }).map((_, i) => (
           <div key={i} className="h-14 sm:h-16 bg-muted/30 animate-pulse rounded-lg"></div>
         ))}
       </div>
-      
+
       {/* تحميل الأقسام الأخرى */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="h-64 bg-muted/30 animate-pulse rounded-lg"></div>
@@ -163,8 +158,8 @@ const ErrorBoundary = ({ error, onRetry }: { error: string; onRetry: () => void 
         <p className="text-muted-foreground max-w-md">
           {error || 'حدث خطأ غير متوقع أثناء تحميل لوحة التحكم'}
         </p>
-        </div>
-      
+      </div>
+
       <div className="flex gap-3">
         <Button
           onClick={onRetry}
@@ -173,7 +168,7 @@ const ErrorBoundary = ({ error, onRetry }: { error: string; onRetry: () => void 
           <RefreshCw className="h-4 w-4" />
           إعادة المحاولة
         </Button>
-        
+
         <Button
           variant="outline"
           onClick={() => window.location.href = '/dashboard/orders'}
@@ -181,9 +176,9 @@ const ErrorBoundary = ({ error, onRetry }: { error: string; onRetry: () => void 
           الذهاب للطلبات
         </Button>
       </div>
-      </div>
     </div>
-  );
+  </div>
+);
 
 // مكون لوحة التحكم الداخلي
 const DashboardContent = () => {
@@ -214,40 +209,37 @@ const DashboardContent = () => {
       isRefreshing={false}
       connectionStatus="connected"
     >
-      <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-4 md:py-6" dir="rtl">
+      <div className="w-full max-w-[1800px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-4 md:py-6 overflow-x-hidden" dir="rtl">
         {/* Header القسم */}
-        <DashboardHeader 
-          toggleSidebar={() => {}} // لم نعد نحتاج sidebar
-          onTimeframeChange={handleTimeframeChange} 
+        <DashboardHeader
+          toggleSidebar={() => { }} // لم نعد نحتاج sidebar
+          onTimeframeChange={handleTimeframeChange}
           onCustomDateChange={handleCustomDateChange}
         />
-        
+
         {/* إشعار الفترة التجريبية */}
         <Suspense fallback={<div className="h-16 bg-muted/30 animate-pulse rounded-lg mb-4"></div>}>
           <TrialNotification />
         </Suspense>
-        
-            <div className="space-y-8">
+
+        <div className="space-y-8">
           {/* قسم الإحصائيات الرئيسية */}
           <Suspense fallback={<SectionLoader height="h-40" />}>
             <OptimizedStatsSection timeframe={timeframe} />
           </Suspense>
 
-          {/* قسم الروابط السريعة */}
-          <Suspense fallback={<SectionLoader height="h-20" />}>
-            <QuickAccessSection maxItems={10} />
-          </Suspense>
-                
+
+
           {/* قسم الطلبات (عادية وأونلاين) */}
           <Suspense fallback={<SectionLoader height="h-64" />}>
             <OptimizedOrdersSection />
           </Suspense>
-              
+
           {/* قسم المخزون منخفض المستوى */}
           <Suspense fallback={<SectionLoader height="h-48" />}>
             <OptimizedInventorySection />
           </Suspense>
-                
+
           {/* قسم التحليلات (الولايات وخريطة الوقت) */}
           <Suspense fallback={<SectionLoader height="h-64" />}>
             <OptimizedAnalyticsSection />
@@ -265,7 +257,7 @@ const DashboardContent = () => {
               <OptimizedMapSection />
             </Suspense>
           </div>
-              </div>
+        </div>
       </div>
     </POSPureLayout>
   );

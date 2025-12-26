@@ -68,7 +68,7 @@ const DigitalMarketingModule1: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/dashboard/courses/digital-marketing')}
+              onClick={() => navigate('/dashboard/courses-operations/digital-marketing')}
               className="text-slate-500 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-slate-800 gap-2"
             >
               <ArrowLeft className="w-4 h-4" />

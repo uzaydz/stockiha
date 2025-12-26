@@ -1,5 +1,5 @@
 /**
- * ⚡ useSyncStats v3.2 - Full Snapshot Edition
+ * ⚡ useSyncStats v3.3 - Full Snapshot Edition + Web Mode Support
  * ============================================================
  *
  * 🚀 التحسينات:
@@ -7,12 +7,13 @@
  * - جلب organization_id تلقائياً من قاعدة البيانات
  * - إرجاع snapshot كامل متوافق مع SyncSnapshot
  * - تحديث تلقائي عند تغيير البيانات
+ * - v3.3: دعم وضع الويب (بدون PowerSync)
  *
  * ============================================================
  */
 
 import { useCallback, useMemo } from 'react';
-import { useQuery, useStatus } from '@powersync/react';
+import { needsPowerSync } from '@/lib/powersync/config';
 import type {
   PowerSyncStatus,
   OutboxDetails,
@@ -23,6 +24,11 @@ import type {
 } from './types';
 import { ERROR_MESSAGES, createEmptyTableStats, EMPTY_SNAPSHOT } from './types';
 import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+
+// ⚡ استيراد PowerSync hooks - يُستخدم فقط في Electron
+// ملاحظة: هذا الملف يُستدعى فقط من NavbarSyncIndicator
+// الذي يتحقق من needsPowerSync() ويعرض WebModeIndicator في الويب
+import { useQuery, useStatus } from '@powersync/react';
 
 // ═══════════════════════════════════════════════════════════════
 // 🔧 TYPES

@@ -51,7 +51,7 @@ export const generateLabelHtml = (
 
     const baseUrl = productUrlBase(product.organization_domain, product.organization_subdomain);
     const slugPart = product.product_slug ? encodeURIComponent(product.product_slug) : product.product_id;
-    const productPageUrl = `${baseUrl}/products/${slugPart}`;
+    const productPageUrl = `${baseUrl}/product-purchase-max-v3/${slugPart}`;
     const isFallbackUrl = baseUrl === 'fallback-base-url.com';
 
     let content = '';

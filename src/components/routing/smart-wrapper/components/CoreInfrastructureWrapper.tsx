@@ -25,6 +25,27 @@ interface CoreInfrastructureWrapperProps {
 }
 
 export const CoreInfrastructureWrapper: React.FC<CoreInfrastructureWrapperProps> = React.memo(({ children }) => {
+  const shouldRenderDesktopTitlebar = (() => {
+    if (typeof window === 'undefined') return false;
+
+    const isElectronLike =
+      ((window as any).electronAPI !== undefined) ||
+      (window.navigator?.userAgent?.includes('Electron')) ||
+      (window.location?.protocol === 'file:');
+
+    const path = window.location?.pathname || '';
+    const isDashboardArea =
+      path.startsWith('/dashboard') ||
+      path.startsWith('/pos') ||
+      path.startsWith('/inventory') ||
+      path.startsWith('/orders') ||
+      path.startsWith('/customers') ||
+      path.startsWith('/analytics');
+
+    // Render on desktop environments and on web dashboard routes.
+    return isElectronLike || isDashboardArea;
+  })();
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -38,8 +59,8 @@ export const CoreInfrastructureWrapper: React.FC<CoreInfrastructureWrapperProps>
                       <NotificationsProvider>
                         <PowerSyncProvider>
                           <POSModeProvider>
-                            <POSActionsProvider>
-                              <DesktopTitlebar />
+                          <POSActionsProvider>
+                              {shouldRenderDesktopTitlebar ? <DesktopTitlebar /> : null}
                               {children}
                             </POSActionsProvider>
                           </POSModeProvider>
@@ -61,6 +82,26 @@ CoreInfrastructureWrapper.displayName = 'CoreInfrastructureWrapper';
 
 // 🎯 Minimal wrapper - مبسط للإلكترون
 export const MinimalCoreInfrastructureWrapper: React.FC<CoreInfrastructureWrapperProps> = React.memo(({ children }) => {
+  const shouldRenderDesktopTitlebar = (() => {
+    if (typeof window === 'undefined') return false;
+
+    const isElectronLike =
+      ((window as any).electronAPI !== undefined) ||
+      (window.navigator?.userAgent?.includes('Electron')) ||
+      (window.location?.protocol === 'file:');
+
+    const path = window.location?.pathname || '';
+    const isDashboardArea =
+      path.startsWith('/dashboard') ||
+      path.startsWith('/pos') ||
+      path.startsWith('/inventory') ||
+      path.startsWith('/orders') ||
+      path.startsWith('/customers') ||
+      path.startsWith('/analytics');
+
+    return isElectronLike || isDashboardArea;
+  })();
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -72,9 +113,9 @@ export const MinimalCoreInfrastructureWrapper: React.FC<CoreInfrastructureWrappe
                   <BusinessProfileProvider>
                     <WorkSessionProvider>
                       <NotificationsProvider>
-                        <POSModeProvider>
+                          <POSModeProvider>
                           <POSActionsProvider>
-                            <DesktopTitlebar />
+                            {shouldRenderDesktopTitlebar ? <DesktopTitlebar /> : null}
                             {children}
                           </POSActionsProvider>
                         </POSModeProvider>

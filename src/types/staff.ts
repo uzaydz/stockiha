@@ -21,6 +21,14 @@ export interface StaffPermissions {
   canManageReturns?: boolean;
   canViewLosses?: boolean;
   canManageLosses?: boolean;
+  canAccessEtat104?: boolean;
+
+  // الجرد (Stocktake) - صفحة مستقلة داخل نظام نقطة البيع
+  canStartStocktake?: boolean;   // إنشاء/بدء جلسة جرد
+  canPerformStocktake?: boolean; // المسح/التسجيل أثناء الجرد
+  canReviewStocktake?: boolean;  // الإغلاق/المراجعة
+  canApproveStocktake?: boolean; // اعتماد التسوية ورفعها للسيرفر
+  canDeleteStocktake?: boolean;  // حذف جلسة جرد
   
   // مركز المنتجات (product-operations)
   canAccessProductOperations?: boolean;
@@ -102,6 +110,21 @@ export interface StaffPermissions {
   // دورات ستوكيها (courses-operations)
   canAccessCoursesOperations?: boolean;
   canViewAllCourses?: boolean;
+
+  // إدارة الموظفين والجلسات
+  canViewStaff?: boolean;
+  canManageStaff?: boolean;
+  canAddStaff?: boolean;
+  canEditStaff?: boolean;
+  canDeleteStaff?: boolean;
+  canManageStaffPermissions?: boolean;
+  canToggleStaffStatus?: boolean;
+  canViewWorkSessions?: boolean;
+  canManageWorkSessions?: boolean;
+  canStartWorkSession?: boolean;
+  canEndWorkSession?: boolean;
+  canViewSessionReports?: boolean;
+  canExportSessionData?: boolean;
   
   // إدارة المتجر (store-operations)
   canAccessStoreOperations?: boolean;
@@ -239,6 +262,12 @@ export const PERMISSION_PRESETS = {
       canManageReturns: true,
       canViewLosses: true,
       canManageLosses: true,
+      canAccessEtat104: true,
+      canStartStocktake: true,
+      canPerformStocktake: true,
+      canReviewStocktake: true,
+      canApproveStocktake: true,
+      canDeleteStocktake: true,
       canAccessProductOperations: true,
       canViewProducts: true,
       canManageProducts: true,
@@ -353,6 +382,19 @@ export const PERMISSION_PRESETS = {
       canViewSupplierReportsInReports: true,
       // أفعال تفصيلية - تقارير الموردين داخل مركز التقارير
       canExportSupplierReportsInReports: true,
+      canViewStaff: true,
+      canManageStaff: true,
+      canAddStaff: true,
+      canEditStaff: true,
+      canDeleteStaff: true,
+      canManageStaffPermissions: true,
+      canToggleStaffStatus: true,
+      canViewWorkSessions: true,
+      canManageWorkSessions: true,
+      canStartWorkSession: true,
+      canEndWorkSession: true,
+      canViewSessionReports: true,
+      canExportSessionData: true,
     } as StaffPermissions,
   },
   
@@ -378,6 +420,9 @@ export const PERMISSION_PRESETS = {
     permissions: {
       accessPOS: true,  // ✅ إضافة صلاحية الوصول لنقطة البيع
       canAccessPosDashboard: true,
+      canStartStocktake: true,
+      canPerformStocktake: true,
+      canReviewStocktake: true,
       canAccessProductOperations: true,
       canViewProducts: true,
       canManageProducts: true,
@@ -437,6 +482,12 @@ export const PERMISSION_LABELS: Record<keyof StaffPermissions, string> = {
   canManageReturns: 'إدارة الإرجاعات',
   canViewLosses: 'عرض الخسائر',
   canManageLosses: 'إدارة الخسائر',
+  canAccessEtat104: 'كشف حساب 104',
+  canStartStocktake: 'بدء جلسة جرد',
+  canPerformStocktake: 'تنفيذ الجرد (المسح/التسجيل)',
+  canReviewStocktake: 'مراجعة الجرد',
+  canApproveStocktake: 'اعتماد الجرد',
+  canDeleteStocktake: 'حذف جلسة جرد',
   canAccessProductOperations: 'مركز المنتجات',
   canViewProducts: 'عرض المنتجات',
   canManageProducts: 'إدارة المنتجات',
@@ -499,6 +550,19 @@ export const PERMISSION_LABELS: Record<keyof StaffPermissions, string> = {
   canExportSupplierReports: 'تصدير تقارير الموردين',
   canAccessCoursesOperations: 'دورات ستوكيها',
   canViewAllCourses: 'عرض جميع الدورات',
+  canViewStaff: 'عرض الموظفين',
+  canManageStaff: 'إدارة الموظفين',
+  canAddStaff: 'إضافة موظف',
+  canEditStaff: 'تعديل موظف',
+  canDeleteStaff: 'حذف موظف',
+  canManageStaffPermissions: 'إدارة صلاحيات الموظفين',
+  canToggleStaffStatus: 'تفعيل/تعطيل الموظفين',
+  canViewWorkSessions: 'عرض جلسات العمل',
+  canManageWorkSessions: 'إدارة جلسات العمل',
+  canStartWorkSession: 'بدء جلسة عمل',
+  canEndWorkSession: 'إنهاء جلسة عمل',
+  canViewSessionReports: 'عرض تقارير الجلسات',
+  canExportSessionData: 'تصدير بيانات الجلسات',
   canAccessStoreOperations: 'إدارة المتجر',
   canViewStoreSettings: 'عرض إعدادات المتجر',
   canManageStoreSettings: 'إدارة إعدادات المتجر',
@@ -548,6 +612,17 @@ export const PERMISSION_GROUPS = [
       'accessPOS',
       'canAccessPosDashboard',
       'canAccessPosAdvanced',
+      'canAccessEtat104',
+    ],
+  },
+  {
+    title: 'الجرد',
+    permissions: [
+      'canStartStocktake',
+      'canPerformStocktake',
+      'canReviewStocktake',
+      'canApproveStocktake',
+      'canDeleteStocktake',
     ],
   },
   {
@@ -665,6 +740,24 @@ export const PERMISSION_GROUPS = [
     permissions: [
       'canAccessCoursesOperations',
       'canViewAllCourses',
+    ],
+  },
+  {
+    title: 'الموظفون والجلسات',
+    permissions: [
+      'canViewStaff',
+      'canManageStaff',
+      'canAddStaff',
+      'canEditStaff',
+      'canDeleteStaff',
+      'canManageStaffPermissions',
+      'canToggleStaffStatus',
+      'canViewWorkSessions',
+      'canManageWorkSessions',
+      'canStartWorkSession',
+      'canEndWorkSession',
+      'canViewSessionReports',
+      'canExportSessionData',
     ],
   },
 ] as const;

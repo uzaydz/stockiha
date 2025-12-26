@@ -1391,14 +1391,15 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-white dark:bg-slate-950 font-tajawal selection:bg-orange-500/20">
+    <div className="min-h-screen w-full flex bg-[#020202] font-tajawal selection:bg-brand selection:text-white">
       {/* Left Side - Visual & Brand (Desktop Only) */}
-      <div className="hidden lg:flex w-1/2 relative bg-slate-900 flex-col justify-between p-12 overflow-hidden">
+      <div className="hidden lg:flex w-1/2 relative bg-[#050505] flex-col justify-between p-12 overflow-hidden">
         {/* Background Effects */}
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light"></div>
-          <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[80%] bg-blue-600/20 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '15s' }} />
-          <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] bg-orange-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '20s', animationDelay: '2s' }} />
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 contrast-150 brightness-100"></div>
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px] bg-brand/5 rounded-full blur-[120px] mix-blend-screen opacity-60"></div>
+          <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[150px]"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_100%)] opacity-30"></div>
         </div>
 
         {/* Brand Logo */}
@@ -1408,10 +1409,9 @@ const LoginForm = () => {
           transition={{ duration: 0.6 }}
           className="relative z-10 flex items-center gap-3"
         >
-          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+          <div className="w-12 h-12 bg-[#0A0A0A] rounded-2xl border border-white/10 flex items-center justify-center shadow-2xl shadow-black/50 relative overflow-hidden">
+            <div className="absolute inset-0 bg-brand/5 blur-xl"></div>
+            <img src="/logo-new.ico" alt="Logo" className="w-6 h-6 object-contain relative z-10" />
           </div>
           <span className="text-2xl font-bold text-white tracking-tight">سطوكيها</span>
         </motion.div>
@@ -1423,20 +1423,20 @@ const LoginForm = () => {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="relative z-10 max-w-lg"
         >
-          <h1 className="text-5xl font-bold text-white leading-tight mb-6">
-            أدر تجارتك <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-orange-200">
-              بذكاء واحترافية
+          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 leading-tight mb-6 tracking-tighter">
+            أدر تجارتك
+            <span className="block text-brand drop-shadow-[0_0_30px_rgba(255,122,0,0.3)]">
+              بذكاء واحترافية.
             </span>
           </h1>
-          <p className="text-lg text-slate-300 leading-relaxed mb-8">
+          <p className="text-xl text-gray-400 leading-relaxed mb-8 font-light">
             المنصة المتكاملة لإدارة المخزون، المبيعات، والعملاء. صممت لتنمو مع طموحك وتسهل عليك اتخاذ القرارات الصحيحة.
           </p>
 
           {/* Feature Pills */}
           <div className="flex flex-wrap gap-3">
             {['إدارة مخزون ذكية', 'تقارير فورية', 'دعم فني متواصل'].map((feature, idx) => (
-              <div key={idx} className="px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 rounded-full text-sm text-white/90">
+              <div key={idx} className="px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full text-sm text-white/80 hover:border-brand/30 transition-colors">
                 {feature}
               </div>
             ))}
@@ -1450,10 +1450,10 @@ const LoginForm = () => {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="relative z-10"
         >
-          <div className="flex items-center gap-4 p-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl max-w-md">
+          <div className="flex items-center gap-4 p-4 bg-[#0F0F0F]/80 backdrop-blur-xl border border-white/10 rounded-2xl max-w-md">
             <div className="flex -space-x-3 space-x-reverse shrink-0">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-700 overflow-hidden">
+                <div key={i} className="w-10 h-10 rounded-full border-2 border-[#050505] bg-[#1A1A1A] overflow-hidden">
                   <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i * 123}`} alt="User" className="w-full h-full" />
                 </div>
               ))}
@@ -1461,28 +1461,27 @@ const LoginForm = () => {
             <div>
               <div className="flex items-center gap-1 mb-1">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <svg key={star} className="w-3 h-3 text-orange-400 fill-current" viewBox="0 0 24 24">
+                  <svg key={star} className="w-3 h-3 text-brand fill-current" viewBox="0 0 24 24">
                     <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                   </svg>
                 ))}
               </div>
-              <p className="text-sm text-slate-300">انضم إلى أكثر من <span className="text-white font-bold">2,000+</span> شركة تثق بنا</p>
+              <p className="text-sm text-gray-400">انضم إلى أكثر من <span className="text-white font-bold">2,000+</span> شركة تثق بنا</p>
             </div>
           </div>
         </motion.div>
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 lg:p-24 relative">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 lg:p-24 relative bg-[#020202]">
         {/* Mobile Header */}
         <div className="lg:hidden absolute top-6 left-6 right-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+            <div className="w-10 h-10 bg-[#0A0A0A] rounded-xl border border-white/10 flex items-center justify-center shadow-md relative overflow-hidden">
+              <div className="absolute inset-0 bg-brand/5 blur-xl"></div>
+              <img src="/logo-new.ico" alt="Logo" className="w-5 h-5 object-contain relative z-10" />
             </div>
-            <span className="text-xl font-bold text-slate-900 dark:text-white">سطوكيها</span>
+            <span className="text-xl font-bold text-white">سطوكيها</span>
           </div>
         </div>
 
@@ -1493,32 +1492,32 @@ const LoginForm = () => {
           className="w-full max-w-md space-y-8"
         >
           <div className="text-center lg:text-right space-y-2">
-            <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">تسجيل الدخول</h2>
-            <p className="text-slate-500 dark:text-slate-400">
+            <h2 className="text-4xl font-black text-white tracking-tight">تسجيل الدخول</h2>
+            <p className="text-gray-400 font-light">
               مرحباً بعودتك! الرجاء إدخال بياناتك للمتابعة
             </p>
           </div>
 
           {currentSubdomain && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl flex items-start gap-3">
-              <div className="mt-0.5 w-8 h-8 bg-blue-100 dark:bg-blue-800/40 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+            <div className="p-4 bg-[#0F0F0F] border border-white/10 rounded-2xl flex items-start gap-3">
+              <div className="mt-0.5 w-8 h-8 bg-brand/10 rounded-xl border border-brand/20 flex items-center justify-center text-brand shrink-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
               <div>
-                <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-0.5">أنت تسجل الدخول إلى</p>
-                <p className="text-sm font-bold text-blue-800 dark:text-blue-300">{currentSubdomain}</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">أنت تسجل الدخول إلى</p>
+                <p className="text-sm font-bold text-white">{currentSubdomain}</p>
               </div>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">البريد الإلكتروني</Label>
+              <Label htmlFor="email" className="text-gray-300 font-medium">البريد الإلكتروني</Label>
               <div className="relative">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-slate-400" />
+                  <Mail className="h-5 w-5 text-gray-500" />
                 </div>
                 <Input
                   id="email"
@@ -1528,7 +1527,7 @@ const LoginForm = () => {
                   placeholder="name@company.com"
                   required
                   autoComplete="username"
-                  className="h-12 pr-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl transition-all"
+                  className="h-12 pr-10 bg-[#0F0F0F] border-white/10 text-white placeholder:text-gray-600 focus:border-brand focus:ring-brand/20 rounded-xl transition-all"
                   dir="rtl"
                 />
               </div>
@@ -1536,14 +1535,14 @@ const LoginForm = () => {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-slate-700 dark:text-slate-300 font-medium">كلمة المرور</Label>
-                <a href="/forgot-password" className="text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 transition-colors">
+                <Label htmlFor="password" className="text-gray-300 font-medium">كلمة المرور</Label>
+                <a href="/forgot-password" className="text-sm font-medium text-brand hover:text-brand-hover transition-colors">
                   نسيت كلمة المرور؟
                 </a>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
+                  <Lock className="h-5 w-5 text-gray-500" />
                 </div>
                 <Input
                   id="password"
@@ -1553,13 +1552,13 @@ const LoginForm = () => {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="h-12 pr-10 pl-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl transition-all"
+                  className="h-12 pr-10 pl-10 bg-[#0F0F0F] border-white/10 text-white placeholder:text-gray-600 focus:border-brand focus:ring-brand/20 rounded-xl transition-all"
                   dir="rtl"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 hover:text-gray-300 transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -1575,17 +1574,17 @@ const LoginForm = () => {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="sr-only"
                   />
-                  <div className={`w-5 h-5 border-2 rounded transition-all duration-200 flex items-center justify-center ${rememberMe ? 'bg-orange-500 border-orange-500' : 'border-slate-300 dark:border-slate-600 bg-transparent group-hover:border-orange-400'}`}>
+                  <div className={`w-5 h-5 border-2 rounded transition-all duration-200 flex items-center justify-center ${rememberMe ? 'bg-brand border-brand' : 'border-white/20 bg-transparent group-hover:border-brand/40'}`}>
                     {rememberMe && <Check className="w-3.5 h-3.5 text-white" />}
                   </div>
                 </div>
-                <span className="mr-2 text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">تذكرني على هذا الجهاز</span>
+                <span className="mr-2 text-sm text-gray-400 group-hover:text-gray-200 transition-colors">تذكرني على هذا الجهاز</span>
               </label>
             </div>
 
             <Button
               type="submit"
-              className="w-full h-12 text-base bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-all duration-300"
+              className="w-full h-12 text-base bg-brand hover:bg-brand-hover text-white font-bold rounded-xl shadow-[0_4px_30px_rgba(255,122,0,0.3)] hover:shadow-[0_4px_40px_rgba(255,122,0,0.4)] transition-all duration-300"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -1603,13 +1602,13 @@ const LoginForm = () => {
           </form>
 
           {!currentSubdomain && (
-            <div className="pt-6 text-center border-t border-slate-100 dark:border-slate-800">
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+            <div className="pt-6 text-center border-t border-white/10">
+              <p className="text-gray-400 text-sm mb-4">
                 ليس لديك حساب مؤسسة بعد؟
               </p>
               <a
                 href="/tenant/signup"
-                className="inline-flex items-center justify-center w-full px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 font-semibold hover:border-orange-500 hover:text-orange-500 dark:hover:border-orange-500 dark:hover:text-orange-500 transition-all duration-300 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800"
+                className="inline-flex items-center justify-center w-full px-6 py-3 border border-white/10 rounded-xl text-white font-semibold hover:border-brand hover:text-brand transition-all duration-300 bg-[#0F0F0F] hover:bg-[#1A1A1A]"
               >
                 <span>إنشاء حساب جديد</span>
               </a>
@@ -1618,7 +1617,7 @@ const LoginForm = () => {
         </motion.div>
 
         <div className="absolute bottom-6 text-center">
-          <p className="text-xs text-slate-400 dark:text-slate-600">
+          <p className="text-xs text-gray-600">
             © 2025 Stockiha. جميع الحقوق محفوظة.
           </p>
         </div>

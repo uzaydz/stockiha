@@ -8,25 +8,26 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { DropdownMenu,
+import {
+  DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
- } from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
-import { 
-  MoreHorizontal, 
-  Edit, 
-  Trash, 
-  UserCheck, 
-  UserMinus, 
-  Lock, 
-  DollarSign, 
-  BarChart3, 
-  Mail, 
-  Phone 
+import {
+  MoreHorizontal,
+  Edit,
+  Trash,
+  UserCheck,
+  UserMinus,
+  Lock,
+  DollarSign,
+  BarChart3,
+  Mail,
+  Phone
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/utils';
@@ -76,7 +77,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
     setSelectedEmployee(employeeWithStats);
     setIsDetailsOpen(true);
   };
-  
+
   const handleEditEmployee = (employee: Employee) => {
     const employeeWithStats: EmployeeWithStats = {
       ...employee,
@@ -87,7 +88,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
     setSelectedEmployee(employeeWithStats);
     setIsEditOpen(true);
   };
-  
+
   const handleAddSalary = (employee: Employee) => {
     const employeeWithStats: EmployeeWithStats = {
       ...employee,
@@ -98,7 +99,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
     setSelectedEmployee(employeeWithStats);
     setIsAddSalaryOpen(true);
   };
-  
+
   const handleResetPassword = (employee: Employee) => {
     const employeeWithStats: EmployeeWithStats = {
       ...employee,
@@ -109,7 +110,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
     setSelectedEmployee(employeeWithStats);
     setIsResetPasswordOpen(true);
   };
-  
+
   const handleViewActivity = (employee: Employee) => {
     const employeeWithStats: EmployeeWithStats = {
       ...employee,
@@ -120,7 +121,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
     setSelectedEmployee(employeeWithStats);
     setIsActivityOpen(true);
   };
-  
+
   const handleViewPerformance = (employee: Employee) => {
     const employeeWithStats: EmployeeWithStats = {
       ...employee,
@@ -131,7 +132,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
     setSelectedEmployee(employeeWithStats);
     setIsPerformanceOpen(true);
   };
-  
+
   const handleToggleStatus = (employee: Employee) => {
     const employeeWithStats: EmployeeWithStats = {
       ...employee,
@@ -142,7 +143,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
     setSelectedEmployee(employeeWithStats);
     setIsStatusDialogOpen(true);
   };
-  
+
   const handleDeleteEmployee = (employee: Employee) => {
     const employeeWithStats: EmployeeWithStats = {
       ...employee,
@@ -156,18 +157,18 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
 
   const confirmToggleStatus = async () => {
     if (!selectedEmployee) return;
-    
+
     try {
       const updatedEmployee = await toggleEmployeeStatus(
-        selectedEmployee.id, 
+        selectedEmployee.id,
         !selectedEmployee.is_active
       );
-      
+
       toast({
         title: 'تم تغيير الحالة',
         description: `تم تغيير حالة ${selectedEmployee.name} بنجاح`,
       });
-      
+
       onDataChange(); // تحديث البيانات
     } catch (error) {
       toast({
@@ -179,17 +180,17 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
       setIsStatusDialogOpen(false);
     }
   };
-  
+
   const confirmDeleteEmployee = async () => {
     if (!selectedEmployee) return;
-    
+
     try {
       await deleteEmployee(selectedEmployee.id);
       toast({
         title: 'تم الحذف',
         description: `تم حذف ${selectedEmployee.name} بنجاح`,
       });
-      
+
       onDataChange(); // تحديث البيانات
     } catch (error) {
       toast({
@@ -205,7 +206,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
   const sendEmail = (email: string) => {
     window.location.href = `mailto:${email}`;
   };
-  
+
   const callPhone = (phone: string) => {
     window.location.href = `tel:${phone}`;
   };
@@ -218,7 +219,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
       </div>
     );
   }
-  
+
   if (employees.length === 0) {
     return (
       <div className="bg-muted/20 rounded-lg p-8 text-center">
@@ -270,7 +271,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
                   >
                     <Mail className="h-4 w-4" />
                   </Button>
-                  
+
                   {employee.phone && (
                     <Button
                       variant="ghost"
@@ -281,7 +282,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
                       <Phone className="h-4 w-4" />
                     </Button>
                   )}
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
@@ -316,7 +317,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
                         تقرير الأداء
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={() => handleToggleStatus(employee)}
                       >
                         {employee.is_active ? (
@@ -331,7 +332,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
                           </>
                         )}
                       </DropdownMenuItem>
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={() => handleDeleteEmployee(employee)}
                         className="text-red-600 focus:text-red-600"
                       >
@@ -346,7 +347,7 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
           ))}
         </TableBody>
       </Table>
-      
+
       {/* الحوارات المنبثقة */}
       {selectedEmployee && (
         <>
@@ -355,39 +356,40 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
             open={isDetailsOpen}
             onOpenChange={setIsDetailsOpen}
           />
-          
+
           <EditEmployeeDialog
             employee={selectedEmployee}
             open={isEditOpen}
             onOpenChange={setIsEditOpen}
             onEmployeeUpdated={onDataChange}
+            existingEmployees={employees}
           />
-          
+
           <AddSalaryDialog
             employee={selectedEmployee}
             open={isAddSalaryOpen}
             onOpenChange={setIsAddSalaryOpen}
-            onSalaryAdded={() => {}}
+            onSalaryAdded={() => { }}
           />
-          
+
           <ResetPasswordDialog
             employee={selectedEmployee}
             open={isResetPasswordOpen}
             onOpenChange={setIsResetPasswordOpen}
           />
-          
+
           <EmployeeActivityDialog
             employee={selectedEmployee}
             open={isActivityOpen}
             onClose={() => setIsActivityOpen(false)}
           />
-          
+
           <EmployeePerformanceDialog
             employee={selectedEmployee}
             open={isPerformanceOpen}
             onClose={() => setIsPerformanceOpen(false)}
           />
-          
+
           <ConfirmDialog
             open={isDeleteDialogOpen}
             onClose={() => setIsDeleteDialogOpen(false)}
@@ -398,14 +400,14 @@ const EmployeeList = ({ employees, isLoading, onDataChange }: EmployeeListProps)
             cancelText="إلغاء"
             variant="destructive"
           />
-          
+
           <ConfirmDialog
             open={isStatusDialogOpen}
             onClose={() => setIsStatusDialogOpen(false)}
             onConfirm={confirmToggleStatus}
             title={selectedEmployee.is_active ? "تعطيل الموظف" : "تفعيل الموظف"}
             description={
-              selectedEmployee.is_active 
+              selectedEmployee.is_active
                 ? `هل أنت متأكد أنك تريد تعطيل حساب الموظف ${selectedEmployee.name}؟`
                 : `هل أنت متأكد أنك تريد تفعيل حساب الموظف ${selectedEmployee.name}؟`
             }

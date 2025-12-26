@@ -300,6 +300,13 @@ export const DashboardRoutes = () => (
             } />
             <Route path="analytics-enhanced" element={<Navigate to="/dashboard/analytics" replace />} />
 
+            {/* اقتراحات الميزات */}
+            <Route path="feature-suggestions" element={
+              <Suspense fallback={<PageLoader message="جاري تحميل اقتراحات الميزات..." />}>
+                <LazyRoutes.FeatureSuggestions />
+              </Suspense>
+            } />
+
             {/* التقارير المالية الشاملة */}
             <Route path="comprehensive-reports" element={
               <PermissionGuard requiredPermissions={['viewReports']}>
@@ -331,7 +338,7 @@ export const DashboardRoutes = () => (
             {/* نقطة البيع المتقدمة */}
             <Route path="pos-advanced" element={
               <ConditionalRoute appId="pos-system">
-                <PermissionGuard requiredPermissions={['accessPOS']}>
+                <PermissionGuard requiredPermissions={['accessPOS', 'canAccessPosAdvanced']}>
                   <Suspense fallback={<PageLoader message="جاري تحميل نقطة البيع المتقدمة..." />}>
                     <LazyRoutes.POSAdvanced />
                   </Suspense>
@@ -339,9 +346,39 @@ export const DashboardRoutes = () => (
               </ConditionalRoute>
             } />
 
-            <Route path="pos-operations/:tab?" element={
+            <Route path="pos-stocktake" element={
               <ConditionalRoute appId="pos-system">
                 <PermissionGuard requiredPermissions={['accessPOS']}>
+                  <PermissionGuard requiredPermissions={[
+                    'startStocktake',
+                    'performStocktake',
+                    'reviewStocktake',
+                    'approveStocktake',
+                    'deleteStocktake',
+                  ]}>
+                    <Suspense fallback={<PageLoader message="جاري تحميل صفحة الجرد..." />}>
+                      <LazyRoutes.POSStocktake />
+                    </Suspense>
+                  </PermissionGuard>
+                </PermissionGuard>
+              </ConditionalRoute>
+            } />
+
+            <Route path="pos-operations/:tab?" element={
+              <ConditionalRoute appId="pos-system">
+                <PermissionGuard requiredPermissions={[
+                  'canAccessPosOperations',
+                  'canViewPosOrders',
+                  'canManagePosOrders',
+                  'canViewDebts',
+                  'canManageDebts',
+                  'canViewReturns',
+                  'canManageReturns',
+                  'canViewLosses',
+                  'canManageLosses',
+                  'canViewInvoices',
+                  'canManageInvoices'
+                ]}>
                   <Suspense fallback={<PageLoader message="جاري تحميل مركز عمليات نقطة البيع..." />}>
                     <LazyRoutes.POSOperationsPage />
                   </Suspense>
@@ -354,7 +391,7 @@ export const DashboardRoutes = () => (
             {/* كشف حساب 104 */}
             <Route path="etat104" element={
               <ConditionalRoute appId="pos-system">
-                <PermissionGuard requiredPermissions={['accessPOS']}>
+                <PermissionGuard requiredPermissions={['canAccessEtat104']}>
                   <Suspense fallback={<PageLoader message="جاري تحميل كشف حساب 104..." />}>
                     <LazyRoutes.Etat104 />
                   </Suspense>
@@ -367,7 +404,7 @@ export const DashboardRoutes = () => (
 
             {/* صفحة الإعدادات الموحدة */}
             <Route path="settings-unified" element={
-              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <PermissionGuard requiredPermissions={['viewSettings', 'manageSettings', 'canAccessSettingsOperations']}>
                 <Suspense fallback={<PageLoader message="جاري تحميل الإعدادات..." />}>
                   <LazyRoutes.UnifiedSettingsPage />
                 </Suspense>
@@ -380,7 +417,7 @@ export const DashboardRoutes = () => (
             {/* إدارة الموظفين والجلسات */}
             <Route path="staff-management" element={
               <ConditionalRoute appId="pos-system">
-                <PermissionGuard requiredPermissions={['manageEmployees']}>
+                <PermissionGuard requiredPermissions={['canManageStaff', 'canViewStaff']}>
                   <Suspense fallback={<PageLoader message="جاري تحميل إدارة الموظفين..." />}>
                     <LazyRoutes.StaffManagement />
                   </Suspense>
@@ -395,7 +432,7 @@ export const DashboardRoutes = () => (
             {/* مركز إدارة الموظفين */}
             <Route path="staff-operations/:tab?" element={
               <ConditionalRoute appId="pos-system">
-                <PermissionGuard requiredPermissions={['manageEmployees']}>
+                <PermissionGuard requiredPermissions={['canManageStaff', 'canViewStaff']}>
                   <Suspense fallback={<PageLoader message="جاري تحميل مركز إدارة الموظفين..." />}>
                     <LazyRoutes.StaffOperationsPage />
                   </Suspense>
@@ -466,7 +503,7 @@ export const DashboardRoutes = () => (
 
             {/* صفحة النطاقات المخصصة - مباشرة بدون tabs */}
             <Route path="custom-domains" element={
-              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <PermissionGuard requiredPermissions={['canViewCustomDomains', 'canManageCustomDomains']}>
                 <Suspense fallback={<PageLoader message="جاري تحميل النطاقات المخصصة..." />}>
                   <LazyRoutes.CustomDomainsPage />
                 </Suspense>
@@ -476,7 +513,23 @@ export const DashboardRoutes = () => (
 
             {/* مركز إدارة المتجر الإلكتروني */}
             <Route path="store-operations/:tab?" element={
-              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <PermissionGuard requiredPermissions={[
+                'canAccessStoreOperations',
+                'canViewStoreSettings',
+                'canManageStoreSettings',
+                'canViewStoreEditor',
+                'canManageStoreEditor',
+                'canViewComponents',
+                'canManageComponents',
+                'canViewThemes',
+                'canManageThemes',
+                'canViewLandingPages',
+                'canManageLandingPages',
+                'canViewThankYouPage',
+                'canManageThankYouPage',
+                'canViewDelivery',
+                'canManageDelivery'
+              ]}>
                 <Suspense fallback={<PageLoader message="جاري تحميل مركز إدارة المتجر..." />}>
                   <LazyRoutes.StoreOperationsPage />
                 </Suspense>
@@ -494,7 +547,7 @@ export const DashboardRoutes = () => (
 
             {/* محرر المتجر V2 - keep as standalone */}
             <Route path="store-editor-v2" element={
-              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <PermissionGuard requiredPermissions={['canManageStoreEditor']}>
                 <Suspense fallback={<PageLoader message="جاري تحميل محرر المتجر V2..." />}>
                   <LazyRoutes.StoreEditorV2 />
                 </Suspense>
@@ -562,6 +615,13 @@ export const DashboardRoutes = () => (
                   </Suspense>
                 </PermissionGuard>
               </ConditionalRoute>
+            } />
+
+            {/* دليل الاستخدام */}
+            <Route path="manual" element={
+              <Suspense fallback={<PageLoader message="جاري تحميل دليل الاستخدام..." />}>
+                <LazyRoutes.StockihaGuide />
+              </Suspense>
             } />
 
             <Route path="call-center/agents" element={
@@ -638,7 +698,11 @@ export const DashboardRoutes = () => (
             } />
 
             <Route path="courses/e-commerce-store" element={<Navigate to="/dashboard/courses-operations/e-commerce-store" replace />} />
+
+            {/* TikTok Ads Course - redirect to POS Courses Center */}
             <Route path="courses/tiktok-marketing" element={<Navigate to="/dashboard/courses-operations/tiktok-marketing" replace />} />
+            <Route path="courses/tiktok-ads" element={<Navigate to="/dashboard/courses-operations/tiktok-marketing" replace />} />
+
             <Route path="courses/traditional-business" element={<Navigate to="/dashboard/courses-operations/traditional-business" replace />} />
             <Route path="courses/service-providers" element={<Navigate to="/dashboard/courses-operations/service-providers" replace />} />
 
@@ -716,55 +780,55 @@ export const DashboardRoutes = () => (
             } />
 
             {/* جميع محاور دورة تيك توك أدس */}
-            <Route path="courses/tiktok-marketing/module/0" element={
+            <Route path="courses/tiktok-ads/module/0" element={
               <Suspense fallback={<PageLoader message="جاري تحميل سياسة تيك توك..." />}>
                 <LazyRoutes.TikTokAdsModule0 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/1" element={
+            <Route path="courses/tiktok-ads/module/1" element={
               <Suspense fallback={<PageLoader message="جاري تحميل المقدمة..." />}>
                 <LazyRoutes.TikTokAdsModule1 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/2" element={
+            <Route path="courses/tiktok-ads/module/2" element={
               <Suspense fallback={<PageLoader message="جاري تحميل الحسابات الإعلانية..." />}>
                 <LazyRoutes.TikTokAdsModule2 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/3" element={
+            <Route path="courses/tiktok-ads/module/3" element={
               <Suspense fallback={<PageLoader message="جاري تحميل أساسيات مدير الإعلانات..." />}>
                 <LazyRoutes.TikTokAdsModule3 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/4" element={
+            <Route path="courses/tiktok-ads/module/4" element={
               <Suspense fallback={<PageLoader message="جاري تحميل أهداف الحملة..." />}>
                 <LazyRoutes.TikTokAdsModule4 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/5" element={
+            <Route path="courses/tiktok-ads/module/5" element={
               <Suspense fallback={<PageLoader message="جاري تحميل إعداد المجموعة الإعلانية..." />}>
                 <LazyRoutes.TikTokAdsModule5 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/6" element={
+            <Route path="courses/tiktok-ads/module/6" element={
               <Suspense fallback={<PageLoader message="جاري تحميل تصميم الإعلان..." />}>
                 <LazyRoutes.TikTokAdsModule6 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/7" element={
+            <Route path="courses/tiktok-ads/module/7" element={
               <Suspense fallback={<PageLoader message="جاري تحميل الإضافات المهمة..." />}>
                 <LazyRoutes.TikTokAdsModule7 />
               </Suspense>
             } />
 
-            <Route path="courses/tiktok-marketing/module/8" element={
+            <Route path="courses/tiktok-ads/module/8" element={
               <Suspense fallback={<PageLoader message="جاري تحميل البكسل والجماهير المخصصة..." />}>
                 <LazyRoutes.TikTokAdsModule8 />
               </Suspense>
@@ -774,6 +838,13 @@ export const DashboardRoutes = () => (
             <Route path="courses/system-training/learn/:moduleId/:lessonId?" element={
               <Suspense fallback={<PageLoader message="جاري تحميل المشغل الموحد..." />}>
                 <LazyRoutes.SystemTrainingStudyPage />
+              </Suspense>
+            } />
+
+            {/* TikTok Ads New Unified Player */}
+            <Route path="courses/tiktok-ads/learn/:moduleId/:lessonId?" element={
+              <Suspense fallback={<PageLoader message="جاري تحميل دورة تيك توك..." />}>
+                <LazyRoutes.TikTokAdsStudyPage />
               </Suspense>
             } />
 

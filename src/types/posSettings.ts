@@ -137,11 +137,11 @@ export const defaultPOSSettings: Omit<POSSettings, 'organization_id'> = {
 
 // خيارات قوالب الوصل
 export const receiptTemplateOptions = [
-  { value: 'apple', label: 'Apple', description: 'تصميم أنيق مثل Apple Store', icon: '🍎' },
-  { value: 'minimal', label: 'بسيط', description: 'تصميم مينيماليست نظيف', icon: '✨' },
-  { value: 'modern', label: 'عصري', description: 'تصميم حديث أنيق', icon: '🎨' },
-  { value: 'classic', label: 'كلاسيكي', description: 'تصميم تقليدي واضح', icon: '📜' },
-  { value: 'custom', label: 'مخصص', description: 'استخدام CSS مخصص', icon: '⚙️' },
+  { value: 'apple', label: 'Apple', description: 'تصميم أنيق مثل Apple Store' },
+  { value: 'minimal', label: 'بسيط', description: 'تصميم مينيماليست نظيف' },
+  { value: 'modern', label: 'عصري', description: 'تصميم حديث أنيق' },
+  { value: 'classic', label: 'كلاسيكي', description: 'تصميم تقليدي واضح' },
+  { value: 'custom', label: 'مخصص', description: 'استخدام CSS مخصص' },
 ] as const;
 
 // خيارات عرض الورق
@@ -186,8 +186,8 @@ export const currencyPositionOptions = [
 
 // خيارات نوع الطابعة
 export const printerTypeOptions = [
-  { value: 'thermal', label: 'طابعة حرارية', description: 'ESC/POS للوصولات', icon: '🖨️' },
-  { value: 'normal', label: 'طابعة عادية', description: 'طابعة ورق A4/A5', icon: '📄' },
+  { value: 'thermal', label: 'طابعة حرارية', description: 'ESC/POS للوصولات' },
+  { value: 'normal', label: 'طابعة عادية', description: 'طابعة ورق A4/A5' },
 ] as const;
 
 // خيارات عدد النسخ

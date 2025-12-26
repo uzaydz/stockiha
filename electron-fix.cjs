@@ -100,7 +100,8 @@ function fixWindows() {
     height: 800,
     show: true,  // عرض النافذة فورًا
     backgroundColor: '#FFFFFF',
-    titleBarStyle: 'default',  // استخدام شريط العنوان الافتراضي
+    titleBarStyle: 'hidden',  // إخفاء شريط العنوان الافتراضي
+    frame: false,  // إزالة الإطار لاستخدام شريط عنوان مخصص
     alwaysOnTop: true,  // جعل النافذة فوق جميع النوافذ الأخرى
     center: true,  // توسيط النافذة على الشاشة
     webPreferences: {

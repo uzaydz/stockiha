@@ -173,16 +173,7 @@ const VirtualizedProductsGrid: React.FC<ProductsGridProps> = React.memo(({
   const rowHeight = viewMode === 'grid' ? 280 : 100;
   const rowCount = Math.ceil(products.length / columnCount);
 
-  // عرض الحالة الفارغة
-  if (isEmpty) {
-    return (
-      <div className="w-full h-full bg-background" ref={ref}>
-        <EmptyState hasFilters={hasFilters} />
-      </div>
-    );
-  }
-
-  // حساب الارتفاع الفعلي
+  // حساب الارتفاع الفعلي - moved before early return
   const calculatedHeight = useMemo(() => {
     if (height > 100) return height;
     const maxRows = Math.min(rowCount, 5);
@@ -198,6 +189,15 @@ const VirtualizedProductsGrid: React.FC<ProductsGridProps> = React.memo(({
     onAddToCart,
     gap
   }), [products, columnCount, favoriteProducts, isReturnMode, isLossMode, onAddToCart, gap]);
+
+  // عرض الحالة الفارغة - moved after all hooks
+  if (isEmpty) {
+    return (
+      <div className="w-full h-full bg-background" ref={ref}>
+        <EmptyState hasFilters={hasFilters} />
+      </div>
+    );
+  }
 
   return (
     <div

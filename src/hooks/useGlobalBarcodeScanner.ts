@@ -23,6 +23,7 @@ export const useGlobalBarcodeScanner = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastKeypressTimeRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
+  const isScannerSequenceRef = useRef<boolean>(false);
   const onBarcodeScannedRef = useRef(onBarcodeScanned);
   // ⚡ إصلاح Memory Leak: تتبع timeout إعادة تعيين المعالجة
   const processingResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,6 +108,7 @@ export const useGlobalBarcodeScanner = ({
       timeoutRef.current = null;
     }
     barcodeBufferRef.current = '';
+    isScannerSequenceRef.current = false;
   }, [minBarcodeLength, maxBarcodeLength]); // إزالة searchByBarcode من التبعيات لأننا نستخدم ref
 
   // معالجة أحداث لوحة المفاتيح
@@ -122,16 +124,23 @@ export const useGlobalBarcodeScanner = ({
 
     const currentTime = Date.now();
     const timeDifference = currentTime - lastKeypressTimeRef.current;
+    const isFastInput = timeDifference > 0 && timeDifference < 100;
+    const isShiftDigit = event.shiftKey && /^[0-9]$/.test(event.key);
 
     // تجاهل الأحداث إذا كان المستخدم يكتب في حقل input
     const target = event.target as HTMLElement;
-
-    if (target && (
+    const isInputField = target && (
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
       target.contentEditable === 'true' ||
       target.getAttribute('role') === 'textbox'
-    )) {
+    );
+
+    if (isInputField && (isFastInput || isScannerSequenceRef.current || isShiftDigit)) {
+      isScannerSequenceRef.current = true;
+      event.preventDefault();
+      (target as HTMLElement)?.blur?.();
+    } else if (isInputField) {
       return;
     }
 
@@ -142,12 +151,16 @@ export const useGlobalBarcodeScanner = ({
 
     // مفاتيح خاصة للتحكم
     if (event.key === 'Enter') {
+      if (isInputField && (isFastInput || isScannerSequenceRef.current)) {
+        event.preventDefault();
+      }
       event.preventDefault();
       processBarcodeIfComplete();
       return;
     }
 
     if (event.key === 'Escape') {
+      isScannerSequenceRef.current = false;
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -168,6 +181,11 @@ export const useGlobalBarcodeScanner = ({
         timeoutRef.current = null;
       }
       barcodeBufferRef.current = '';
+    }
+
+    if (isInputField && isFastInput) {
+      isScannerSequenceRef.current = true;
+      event.preventDefault();
     }
 
     // إضافة الرمز للـ buffer

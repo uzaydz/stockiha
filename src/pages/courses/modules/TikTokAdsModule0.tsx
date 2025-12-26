@@ -282,10 +282,10 @@ const TikTokAdsModule0: React.FC = () => {
         )}
 
         {/* Module Navigation */}
-        <ModuleNavigation 
+        <ModuleNavigation
           currentModule={0}
           totalModules={8}
-          courseSlug="tiktok-marketing"
+          courseSlug="tiktok-ads"
           completedVideos={completedVideos.length}
           totalVideos={tiktokAdsModule0Data.totalVideos}
         />

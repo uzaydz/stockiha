@@ -179,6 +179,9 @@ const LossRow = React.memo<LossRowProps>(({
   onProcess,
   onDelete,
 }) => {
+  const isFromStocktake = typeof (loss as any).external_reference === 'string'
+    && ((loss as any).external_reference as string).startsWith('stocktake:');
+
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { label: string; className: string }> = {
       pending: { label: 'في الانتظار', className: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400' },
@@ -197,36 +200,38 @@ const LossRow = React.memo<LossRowProps>(({
     );
   };
 
-  const getTypeLabel = (type: string) => {
-    const types: Record<string, string> = {
-      damage: 'تلف',
-      damaged: 'تلف',
-      theft: 'سرقة',
-      expiry: 'انتهاء صلاحية',
-      expired: 'انتهاء صلاحية',
-      fire_damage: 'حريق',
-      water_damage: 'فيضان',
-      spoilage: 'تلف طبيعي',
-      breakage: 'كسر',
-      defective: 'معيب',
-      shortage: 'نقص',
-      other: 'أخرى',
-    };
-    return types[type] || type;
-  };
+	  const getTypeLabel = (type: string) => {
+	    const types: Record<string, string> = {
+	      damage: 'تلف',
+	      damaged: 'تلف',
+	      theft: 'سرقة',
+	      expiry: 'انتهاء صلاحية',
+	      expired: 'انتهاء صلاحية',
+	      loss: 'خسارة',
+	      fire_damage: 'حريق',
+	      water_damage: 'فيضان',
+	      spoilage: 'تلف طبيعي',
+	      breakage: 'كسر',
+	      defective: 'معيب',
+	      shortage: 'نقص',
+	      other: 'أخرى',
+	    };
+	    return types[type] || type;
+	  };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'fire_damage': return <Flame className="w-3.5 h-3.5 text-red-500" />;
-      case 'water_damage': return <Droplets className="w-3.5 h-3.5 text-blue-500" />;
-      case 'theft': return <ShieldAlert className="w-3.5 h-3.5 text-purple-500" />;
-      case 'expiry':
-      case 'expired': return <Calendar className="w-3.5 h-3.5 text-amber-500" />;
-      case 'damage':
-      case 'damaged': return <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />;
-      default: return <Bug className="w-3.5 h-3.5 text-zinc-500" />;
-    }
-  };
+	  const getTypeIcon = (type: string) => {
+	    switch (type) {
+	      case 'fire_damage': return <Flame className="w-3.5 h-3.5 text-red-500" />;
+	      case 'water_damage': return <Droplets className="w-3.5 h-3.5 text-blue-500" />;
+	      case 'theft': return <ShieldAlert className="w-3.5 h-3.5 text-purple-500" />;
+	      case 'expiry':
+	      case 'expired': return <Calendar className="w-3.5 h-3.5 text-amber-500" />;
+	      case 'damage':
+	      case 'damaged': return <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />;
+	      case 'loss': return <TrendingDown className="w-3.5 h-3.5 text-rose-500" />;
+	      default: return <Bug className="w-3.5 h-3.5 text-zinc-500" />;
+	    }
+	  };
 
   return (
     <div className={cn(
@@ -238,9 +243,16 @@ const LossRow = React.memo<LossRowProps>(({
       {/* Loss Number */}
       <div className={COL_WIDTHS.lossNumber}>
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono tracking-tight">
-            {loss.loss_number}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 font-mono tracking-tight">
+              {loss.loss_number}
+            </span>
+            {isFromStocktake && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                جرد
+              </span>
+            )}
+          </div>
           <span className="text-[10px] text-zinc-400 flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {new Date(loss.incident_date).toLocaleDateString('ar-DZ')}
@@ -395,7 +407,7 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
 
   // Transform & Filter losses
   const losses = useMemo(() => {
-    let filtered = rawLosses.map(l => ({
+    const mapped = rawLosses.map(l => ({
       id: l.id,
       loss_number: l.loss_number || '',
       loss_type: (l.loss_type as any) || 'other',
@@ -408,11 +420,49 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
       items_count: l.total_items_count || 0,
       reported_by: l.reported_by || '',
       notes: l.notes,
+      external_reference: (l as any).external_reference ?? null,
       organization_id: l.organization_id,
       created_at: l.created_at,
       updated_at: l.updated_at,
       _synced: true,
     } as Loss));
+
+    // ✅ De-dupe stocktake-generated losses (older runs created multiple records per session).
+    // We keep only the newest record per `external_reference = stocktake:<sessionId>`.
+    const byExternalRef = new Map<string, Loss>();
+    const nonStocktake: Loss[] = [];
+
+    for (const loss of mapped) {
+      const ref = typeof (loss as any).external_reference === 'string' ? ((loss as any).external_reference as string) : '';
+      if (ref.startsWith('stocktake:')) {
+        const prev = byExternalRef.get(ref);
+        if (!prev) {
+          byExternalRef.set(ref, loss);
+          continue;
+        }
+        const prevTs = Date.parse((prev.created_at as any) ?? '') || 0;
+        const nextTs = Date.parse((loss.created_at as any) ?? '') || 0;
+        if (nextTs >= prevTs) byExternalRef.set(ref, loss);
+      } else {
+        nonStocktake.push(loss);
+      }
+    }
+
+    let filtered = [...Array.from(byExternalRef.values()), ...nonStocktake];
+
+    // Optional debug log
+    try {
+      if (globalThis?.localStorage?.getItem?.('debug_stocktake') === '1') {
+        // eslint-disable-next-line no-console
+        console.log('[StocktakeDebug][LossesList]', filtered.filter(l => (l as any).external_reference?.startsWith?.('stocktake:')).map(l => ({
+          id: l.id,
+          loss_number: l.loss_number,
+          external_reference: (l as any).external_reference,
+          total_cost_value: l.total_cost_value,
+          created_at: l.created_at,
+        })));
+      }
+    } catch { /* noop */ }
 
     // Type filter
     if (typeFilter !== 'all') {
@@ -1305,7 +1355,8 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
                       selectedLoss.loss_type === 'theft' ? 'سرقة' :
                         selectedLoss.loss_type === 'expiry' || selectedLoss.loss_type === 'expired' ? 'انتهاء صلاحية' :
                           selectedLoss.loss_type === 'fire_damage' ? 'حريق' :
-                            selectedLoss.loss_type === 'water_damage' ? 'فيضان' : 'أخرى'}
+                            selectedLoss.loss_type === 'water_damage' ? 'فيضان' :
+                              selectedLoss.loss_type === 'loss' ? 'خسارة' : 'أخرى'}
                   </span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-zinc-200 dark:border-zinc-700">

@@ -57,6 +57,11 @@ interface StaffTableProps {
   offlineStatus?: Record<string, 'saved' | 'outdated' | 'not_saved'>;
   onUpdateOffline?: (staff: POSStaffSession) => void;
   onCustomizePermissions?: (staff: POSStaffSession) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canToggleActive?: boolean;
+  canManagePermissions?: boolean;
+  canUpdateOffline?: boolean;
 }
 
 // تصميم البطاقة للموبايل
@@ -68,6 +73,11 @@ const StaffCard: React.FC<{
   offlineStatus?: 'saved' | 'outdated' | 'not_saved';
   onUpdateOffline?: (staff: POSStaffSession) => void;
   onCustomizePermissions?: (staff: POSStaffSession) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canToggleActive?: boolean;
+  canManagePermissions?: boolean;
+  canUpdateOffline?: boolean;
 }> = ({
   staffMember,
   onEdit,
@@ -76,6 +86,11 @@ const StaffCard: React.FC<{
   offlineStatus,
   onUpdateOffline,
   onCustomizePermissions,
+  canEdit,
+  canDelete,
+  canToggleActive,
+  canManagePermissions,
+  canUpdateOffline,
 }) => {
   const getPermissionInfo = () => {
     if (staffMember.permissions?.canManageSettings) {
@@ -154,19 +169,21 @@ const StaffCard: React.FC<{
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => onEdit(staffMember)}>
-              <Edit className="ml-2 h-4 w-4" />
-              تعديل البيانات
-            </DropdownMenuItem>
+            {canEdit && (
+              <DropdownMenuItem onClick={() => onEdit(staffMember)}>
+                <Edit className="ml-2 h-4 w-4" />
+                تعديل البيانات
+              </DropdownMenuItem>
+            )}
 
-            {onCustomizePermissions && (
+            {onCustomizePermissions && canManagePermissions && (
               <DropdownMenuItem onClick={() => onCustomizePermissions(staffMember)}>
                 <Settings className="ml-2 h-4 w-4" />
                 تخصيص الصلاحيات
               </DropdownMenuItem>
             )}
 
-            {onUpdateOffline && (
+            {onUpdateOffline && canUpdateOffline && (
               <DropdownMenuItem onClick={() => onUpdateOffline(staffMember)}>
                 <Key className="ml-2 h-4 w-4" />
                 تحديث PIN الأوفلاين
@@ -175,32 +192,36 @@ const StaffCard: React.FC<{
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem
-              onClick={() => onToggleActive(staffMember.id, staffMember.is_active)}
-              className={staffMember.is_active ? "text-orange-600" : "text-green-600"}
-            >
-              {staffMember.is_active ? (
-                <>
-                  <UserX className="ml-2 h-4 w-4" />
-                  تعطيل الحساب
-                </>
-              ) : (
-                <>
-                  <UserCheck className="ml-2 h-4 w-4" />
-                  تفعيل الحساب
-                </>
-              )}
-            </DropdownMenuItem>
+            {canToggleActive && (
+              <DropdownMenuItem
+                onClick={() => onToggleActive(staffMember.id, staffMember.is_active)}
+                className={staffMember.is_active ? "text-orange-600" : "text-green-600"}
+              >
+                {staffMember.is_active ? (
+                  <>
+                    <UserX className="ml-2 h-4 w-4" />
+                    تعطيل الحساب
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="ml-2 h-4 w-4" />
+                    تفعيل الحساب
+                  </>
+                )}
+              </DropdownMenuItem>
+            )}
 
-            <DropdownMenuSeparator />
+            {canDelete && <DropdownMenuSeparator />}
 
-            <DropdownMenuItem
-              onClick={() => onDelete(staffMember.id)}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <Trash2 className="ml-2 h-4 w-4" />
-              حذف نهائياً
-            </DropdownMenuItem>
+            {canDelete && (
+              <DropdownMenuItem
+                onClick={() => onDelete(staffMember.id)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="ml-2 h-4 w-4" />
+                حذف نهائياً
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -239,33 +260,37 @@ const StaffCard: React.FC<{
 
       {/* أزرار سريعة */}
       <div className="flex gap-2 pt-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          onClick={() => onEdit(staffMember)}
-        >
-          <Edit className="h-3.5 w-3.5 ml-1" />
-          تعديل
-        </Button>
-        <Button
-          variant={staffMember.is_active ? "destructive" : "default"}
-          size="sm"
-          className="flex-1"
-          onClick={() => onToggleActive(staffMember.id, staffMember.is_active)}
-        >
-          {staffMember.is_active ? (
-            <>
-              <UserX className="h-3.5 w-3.5 ml-1" />
-              تعطيل
-            </>
-          ) : (
-            <>
-              <UserCheck className="h-3.5 w-3.5 ml-1" />
-              تفعيل
-            </>
-          )}
-        </Button>
+        {canEdit && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => onEdit(staffMember)}
+          >
+            <Edit className="h-3.5 w-3.5 ml-1" />
+            تعديل
+          </Button>
+        )}
+        {canToggleActive && (
+          <Button
+            variant={staffMember.is_active ? "destructive" : "default"}
+            size="sm"
+            className="flex-1"
+            onClick={() => onToggleActive(staffMember.id, staffMember.is_active)}
+          >
+            {staffMember.is_active ? (
+              <>
+                <UserX className="h-3.5 w-3.5 ml-1" />
+                تعطيل
+              </>
+            ) : (
+              <>
+                <UserCheck className="h-3.5 w-3.5 ml-1" />
+                تفعيل
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -279,6 +304,11 @@ const StaffTableResponsive: React.FC<StaffTableProps> = ({
   offlineStatus = {},
   onUpdateOffline,
   onCustomizePermissions,
+  canEdit = true,
+  canDelete = true,
+  canToggleActive = true,
+  canManagePermissions = true,
+  canUpdateOffline = true,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -494,6 +524,11 @@ const StaffTableResponsive: React.FC<StaffTableProps> = ({
                 offlineStatus={offlineStatus[staffMember.id]}
                 onUpdateOffline={onUpdateOffline}
                 onCustomizePermissions={onCustomizePermissions}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                canToggleActive={canToggleActive}
+                canManagePermissions={canManagePermissions}
+                canUpdateOffline={canUpdateOffline}
               />
             ))
           )}
@@ -599,45 +634,51 @@ const StaffTableResponsive: React.FC<StaffTableProps> = ({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onEdit(staffMember)}>
-                            <Edit className="ml-2 h-4 w-4" />
-                            تعديل
-                          </DropdownMenuItem>
-                          {onCustomizePermissions && (
+                          {canEdit && (
+                            <DropdownMenuItem onClick={() => onEdit(staffMember)}>
+                              <Edit className="ml-2 h-4 w-4" />
+                              تعديل
+                            </DropdownMenuItem>
+                          )}
+                          {onCustomizePermissions && canManagePermissions && (
                             <DropdownMenuItem onClick={() => onCustomizePermissions(staffMember)}>
                               <Settings className="ml-2 h-4 w-4" />
                               تخصيص الصلاحيات
                             </DropdownMenuItem>
                           )}
-                          {onUpdateOffline && (
+                          {onUpdateOffline && canUpdateOffline && (
                             <DropdownMenuItem onClick={() => onUpdateOffline(staffMember)}>
                               <Key className="ml-2 h-4 w-4" />
                               تحديث الأوفلاين
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem
-                            onClick={() => onToggleActive(staffMember.id, staffMember.is_active)}
-                          >
-                            {staffMember.is_active ? (
-                              <>
-                                <ShieldOff className="ml-2 h-4 w-4" />
-                                تعطيل
-                              </>
-                            ) : (
-                              <>
-                                <Shield className="ml-2 h-4 w-4" />
-                                تفعيل
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => onDelete(staffMember.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="ml-2 h-4 w-4" />
-                            حذف
-                          </DropdownMenuItem>
+                          {canToggleActive && (
+                            <DropdownMenuItem
+                              onClick={() => onToggleActive(staffMember.id, staffMember.is_active)}
+                            >
+                              {staffMember.is_active ? (
+                                <>
+                                  <ShieldOff className="ml-2 h-4 w-4" />
+                                  تعطيل
+                                </>
+                              ) : (
+                                <>
+                                  <Shield className="ml-2 h-4 w-4" />
+                                  تفعيل
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          )}
+                          {canDelete && <DropdownMenuSeparator />}
+                          {canDelete && (
+                            <DropdownMenuItem
+                              onClick={() => onDelete(staffMember.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="ml-2 h-4 w-4" />
+                              حذف
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

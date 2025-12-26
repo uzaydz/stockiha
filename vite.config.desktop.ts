@@ -172,11 +172,11 @@ export default defineConfig(({ command, mode }) => {
 
     // تسريع الخادم للتطبيق المكتبي
     server: {
-      host: "localhost", // localhost فقط للتطبيق المكتبي
+      host: "127.0.0.1", // Avoid IPv6 (::1) binding issues on some setups
       port: 8080,
       strictPort: true,
       hmr: {
-        host: 'localhost',
+        host: '127.0.0.1',
         protocol: 'ws',
         port: 8080,
         clientPort: 8080,
@@ -314,7 +314,8 @@ export default defineConfig(({ command, mode }) => {
 
       rollupOptions: {
         input: {
-          main: path.resolve(__dirname, 'index.html')
+          main: path.resolve(__dirname, 'index.html'),
+          landing: path.resolve(__dirname, 'landing.html')
         },
         output: {
           format: 'esm',
@@ -448,6 +449,9 @@ export default defineConfig(({ command, mode }) => {
         'react-smooth',
         'prop-types'
       ],
+      // ✅ Force CommonJS interop for deps that are imported as ESM default/named
+      // Fixes: "does not provide an export named 'default'" for prop-types in Electron dev
+      needsInterop: ['prop-types', 'react-is'],
       exclude: [
         // ⚡ PowerSync - MUST be excluded (contains workers and WASM)
         '@powersync/web',

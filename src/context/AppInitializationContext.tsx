@@ -60,6 +60,10 @@ interface AppInitializationContextType {
 // ============================================================================
 
 const AppInitializationContext = createContext<AppInitializationContextType | undefined>(undefined);
+const appInitInFlight = new Map<string, Promise<void>>();
+const appInitLastRun = new Map<string, number>();
+const APP_INIT_DEDUPE_MS = 1500;
+let appInitOptimisticApplied = false;
 
 // ============================================================================
 // Provider Component
@@ -77,11 +81,12 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
 
   // ⚡ OPTIMISTIC INIT: Load data immediately from LocalStorage
   useEffect(() => {
-    if (!isInitialized) {
+    if (!isInitialized && !appInitOptimisticApplied) {
       const optimisticData = getOptimisticData();
       if (optimisticData) {
         console.log('⚡ [AppInitialization] Optimistic Load: Shell ready');
         setData(optimisticData);
+        appInitOptimisticApplied = true;
         // We set initialized to true to show UI, but we still fetch fresh data later
         // We don't verify 'isInitialized' to stop fetching, checking 'data' content is better
       }
@@ -92,13 +97,6 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
    * جلب البيانات من الخادم
    */
   const fetchData = useCallback(async (forceRefresh: boolean = false) => {
-    console.log('[AppInitialization] fetchData called:', {
-      hasAuthUser: !!authUser?.id,
-      userProfileStatus: userProfile === undefined ? 'undefined' : userProfile === null ? 'null' : 'loaded',
-      isSuperAdmin: userProfile?.is_super_admin,
-      isInitialized
-    });
-
     if (!authUser?.id) {
       console.log('⏸️ [AppInitialization] لا يوجد مستخدم مسجل');
       setIsLoading(false);
@@ -113,12 +111,38 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
     }
 
     // تخطي التحميل للسوبر أدمين - ليس لديهم organization
-    if (userProfile?.is_super_admin) {
+    // نتحقق من is_super_admin أو من المسار الحالي
+    const isSuperAdminRoute = window.location.pathname.startsWith('/super-admin');
+    const isSuperAdmin = userProfile?.is_super_admin === true || isSuperAdminRoute;
+
+    if (isSuperAdmin) {
       console.log('👑 [AppInitialization] تخطي التحميل للسوبر أدمين');
       setIsLoading(false);
       setIsInitialized(true);
       return;
     }
+
+    const userKey = authUser.id;
+    if (!forceRefresh) {
+      const lastRun = appInitLastRun.get(userKey) || 0;
+      if (Date.now() - lastRun < APP_INIT_DEDUPE_MS) {
+        return;
+      }
+
+      const existing = appInitInFlight.get(userKey);
+      if (existing) {
+        await existing;
+        return;
+      }
+      appInitLastRun.set(userKey, Date.now());
+    }
+
+    console.log('[AppInitialization] fetchData called:', {
+      hasAuthUser: !!authUser?.id,
+      userProfileStatus: userProfile === undefined ? 'undefined' : userProfile === null ? 'null' : 'loaded',
+      isSuperAdmin: userProfile?.is_super_admin,
+      isInitialized
+    });
 
     // ⚡ التحقق الذكي: إذا لدينا بيانات بالفعل (من Optimistic load)
     // لا نعيد التحميل إلا إذا كانت البيانات "ناقصة" (هيكل عظمي) أو طلب تحديث قسري
@@ -132,27 +156,36 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
       return;
     }
 
+    const run = (async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        console.log('🚀 [AppInitialization] بدء جلب البيانات...');
+
+        const appData = forceRefresh
+          ? await refreshAppInitializationData(authUser.id)
+          : await getAppInitializationData(authUser.id);
+
+        setData(appData);
+        setIsInitialized(true);
+
+        console.log('✅ [AppInitialization] تم جلب البيانات بنجاح');
+
+      } catch (err) {
+        const error = err as Error;
+        console.error('❌ [AppInitialization] خطأ في جلب البيانات:', error);
+        setError(error);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+
+    appInitInFlight.set(userKey, run);
     try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('🚀 [AppInitialization] بدء جلب البيانات...');
-
-      const appData = forceRefresh
-        ? await refreshAppInitializationData(authUser.id)
-        : await getAppInitializationData(authUser.id);
-
-      setData(appData);
-      setIsInitialized(true);
-
-      console.log('✅ [AppInitialization] تم جلب البيانات بنجاح');
-
-    } catch (err) {
-      const error = err as Error;
-      console.error('❌ [AppInitialization] خطأ في جلب البيانات:', error);
-      setError(error);
+      await run;
     } finally {
-      setIsLoading(false);
+      appInitInFlight.delete(userKey);
     }
   }, [authUser?.id, userProfile, isInitialized, data]); // Added data dependency
 

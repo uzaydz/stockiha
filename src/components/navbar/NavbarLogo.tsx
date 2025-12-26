@@ -38,31 +38,31 @@ export function NavbarLogo({
   const handleTouchStart = useCallback(() => setIsPressed(true), []);
   const handleTouchEnd = useCallback(() => setIsPressed(false), []);
 
-  // Size configurations
+  // Size configurations - محسّن للهاتف
   const sizeClasses = {
     sm: {
-      container: "gap-2",
-      logo: "h-6 w-auto",
-      icon: "h-4 w-4",
-      iconContainer: "p-1.5 rounded-lg",
-      text: "text-sm",
-      subtext: "text-[8px]"
+      container: "gap-1.5 sm:gap-2",
+      logo: "h-5 sm:h-6 w-auto",
+      icon: "h-3.5 w-3.5 sm:h-4 sm:w-4",
+      iconContainer: "p-1 sm:p-1.5 rounded-md sm:rounded-lg",
+      text: "text-xs sm:text-sm",
+      subtext: "text-[7px] sm:text-[8px]"
     },
     md: {
-      container: "gap-2.5",
-      logo: "h-8 w-auto", 
-      icon: "h-5 w-5",
-      iconContainer: "p-2 rounded-xl",
-      text: "text-lg",
-      subtext: "text-[10px]"
+      container: "gap-2 sm:gap-2.5",
+      logo: "h-6 sm:h-8 w-auto",
+      icon: "h-4 w-4 sm:h-5 sm:w-5",
+      iconContainer: "p-1.5 sm:p-2 rounded-lg sm:rounded-xl",
+      text: "text-sm sm:text-lg",
+      subtext: "text-[8px] sm:text-[10px]"
     },
     lg: {
-      container: "gap-3",
-      logo: "h-10 w-auto",
-      icon: "h-6 w-6", 
-      iconContainer: "p-2.5 rounded-xl",
-      text: "text-xl",
-      subtext: "text-xs"
+      container: "gap-2 sm:gap-3",
+      logo: "h-8 sm:h-10 w-auto",
+      icon: "h-5 w-5 sm:h-6 sm:w-6",
+      iconContainer: "p-2 sm:p-2.5 rounded-lg sm:rounded-xl",
+      text: "text-base sm:text-xl",
+      subtext: "text-[9px] sm:text-xs"
     }
   };
   

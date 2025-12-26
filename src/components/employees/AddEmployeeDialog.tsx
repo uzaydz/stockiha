@@ -56,349 +56,40 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface AddEmployeeDialogProps {
   onEmployeeAdded: (employee: Employee) => void;
+  existingEmployees?: Employee[];
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// الصلاحيات الافتراضية
-// ═══════════════════════════════════════════════════════════════════════════
-
-const defaultPermissions: EmployeePermissions = {
-  accessPOS: true,
-  manageOrders: false,
-  processPayments: true,
-  manageUsers: false,
-  viewReports: false,
-  manageProducts: false,
-  manageServices: false,
-  manageEmployees: false,
-  viewProducts: true,
-  addProducts: false,
-  editProducts: false,
-  deleteProducts: false,
-  manageProductCategories: false,
-  manageInventory: false,
-  viewInventory: true,
-  viewServices: true,
-  addServices: false,
-  editServices: false,
-  deleteServices: false,
-  trackServices: false,
-  viewOrders: true,
-  viewPOSOrders: false,
-  updateOrderStatus: false,
-  cancelOrders: false,
-  viewCustomers: true,
-  manageCustomers: false,
-  viewDebts: false,
-  recordDebtPayments: false,
-  viewCustomerDebtHistory: false,
-  viewSuppliers: false,
-  manageSuppliers: false,
-  managePurchases: false,
-  viewEmployees: true,
-  viewFinancialReports: false,
-  viewSalesReports: false,
-  viewInventoryReports: false,
-  viewSettings: true,
-  manageProfileSettings: true,
-  manageAppearanceSettings: true,
-  manageSecuritySettings: true,
-  manageNotificationSettings: true,
-  manageOrganizationSettings: false,
-  manageBillingSettings: false,
-  manageIntegrations: false,
-  manageAdvancedSettings: false,
-  manageFlexi: false,
-  manageFlexiAndDigitalCurrency: false,
-  sellFlexiAndDigitalCurrency: false,
-  viewFlexiAndDigitalCurrencySales: false,
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// قوالب الصلاحيات الجاهزة
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface PermissionPreset {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  permissions: Partial<EmployeePermissions>;
-}
-
-const permissionPresets: PermissionPreset[] = [
-  {
-    id: 'full',
-    name: 'صلاحيات كاملة',
-    description: 'جميع الصلاحيات بدون قيود',
-    icon: <Crown className="h-5 w-5" />,
-    color: 'from-amber-500 to-orange-600',
-    permissions: Object.fromEntries(
-      Object.keys(defaultPermissions).map(key => [key, true])
-    ) as EmployeePermissions,
-  },
-  {
-    id: 'manager',
-    name: 'مدير',
-    description: 'إدارة كاملة باستثناء إعدادات النظام',
-    icon: <Building2 className="h-5 w-5" />,
-    color: 'from-blue-500 to-indigo-600',
-    permissions: {
-      ...defaultPermissions,
-      accessPOS: true,
-      processPayments: true,
-      manageOrders: true,
-      viewReports: true,
-      manageProducts: true,
-      viewProducts: true,
-      addProducts: true,
-      editProducts: true,
-      deleteProducts: true,
-      manageProductCategories: true,
-      manageInventory: true,
-      viewInventory: true,
-      viewServices: true,
-      addServices: true,
-      editServices: true,
-      deleteServices: true,
-      trackServices: true,
-      viewOrders: true,
-      viewPOSOrders: true,
-      updateOrderStatus: true,
-      cancelOrders: true,
-      viewCustomers: true,
-      manageCustomers: true,
-      viewDebts: true,
-      recordDebtPayments: true,
-      viewCustomerDebtHistory: true,
-      viewSuppliers: true,
-      manageSuppliers: true,
-      managePurchases: true,
-      viewEmployees: true,
-      viewFinancialReports: true,
-      viewSalesReports: true,
-      viewInventoryReports: true,
-    },
-  },
-  {
-    id: 'cashier',
-    name: 'كاشير',
-    description: 'نقطة البيع والمدفوعات فقط',
-    icon: <Zap className="h-5 w-5" />,
-    color: 'from-emerald-500 to-teal-600',
-    permissions: {
-      ...defaultPermissions,
-      accessPOS: true,
-      processPayments: true,
-      viewProducts: true,
-      viewInventory: true,
-      viewCustomers: true,
-      viewOrders: true,
-      viewPOSOrders: true,
-    },
-  },
-  {
-    id: 'inventory',
-    name: 'مسؤول مخزون',
-    description: 'إدارة المنتجات والمخزون',
-    icon: <Box className="h-5 w-5" />,
-    color: 'from-purple-500 to-violet-600',
-    permissions: {
-      ...defaultPermissions,
-      viewProducts: true,
-      addProducts: true,
-      editProducts: true,
-      manageProductCategories: true,
-      manageInventory: true,
-      viewInventory: true,
-      viewInventoryReports: true,
-    },
-  },
-  {
-    id: 'custom',
-    name: 'تخصيص يدوي',
-    description: 'اختر الصلاحيات بنفسك',
-    icon: <Settings className="h-5 w-5" />,
-    color: 'from-slate-500 to-slate-600',
-    permissions: defaultPermissions,
-  },
-];
-
-// ═══════════════════════════════════════════════════════════════════════════
-// مجموعات الصلاحيات
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface PermissionGroup {
-  id: string;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  permissions: Array<{
-    key: keyof EmployeePermissions;
-    label: string;
-    description?: string;
-  }>;
-}
-
-const permissionGroups: PermissionGroup[] = [
-  {
-    id: 'pos',
-    title: 'نقطة البيع',
-    description: 'الوصول والعمليات في نقطة البيع',
-    icon: <Zap className="h-5 w-5" />,
-    color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
-    permissions: [
-      { key: 'accessPOS', label: 'الوصول لنقطة البيع', description: 'فتح واستخدام نقطة البيع' },
-      { key: 'processPayments', label: 'معالجة المدفوعات', description: 'استلام الدفعات من العملاء' },
-      { key: 'viewPOSOrders', label: 'عرض طلبات نقطة البيع' },
-    ],
-  },
-  {
-    id: 'products',
-    title: 'المنتجات والمخزون',
-    description: 'إدارة المنتجات والفئات والمخزون',
-    icon: <Box className="h-5 w-5" />,
-    color: 'bg-blue-500/10 text-blue-600 border-blue-200',
-    permissions: [
-      { key: 'viewProducts', label: 'عرض المنتجات' },
-      { key: 'addProducts', label: 'إضافة منتجات' },
-      { key: 'editProducts', label: 'تعديل المنتجات' },
-      { key: 'deleteProducts', label: 'حذف المنتجات' },
-      { key: 'manageProductCategories', label: 'إدارة الفئات' },
-      { key: 'viewInventory', label: 'عرض المخزون' },
-      { key: 'manageInventory', label: 'إدارة المخزون' },
-    ],
-  },
-  {
-    id: 'services',
-    title: 'الخدمات',
-    description: 'خدمات الإصلاح والاشتراكات',
-    icon: <Wrench className="h-5 w-5" />,
-    color: 'bg-orange-500/10 text-orange-600 border-orange-200',
-    permissions: [
-      { key: 'viewServices', label: 'عرض الخدمات' },
-      { key: 'addServices', label: 'إضافة خدمات' },
-      { key: 'editServices', label: 'تعديل الخدمات' },
-      { key: 'deleteServices', label: 'حذف الخدمات' },
-      { key: 'trackServices', label: 'متابعة الحالة' },
-    ],
-  },
-  {
-    id: 'orders',
-    title: 'الطلبات والمبيعات',
-    description: 'إدارة الطلبات وتحديث الحالات',
-    icon: <ShoppingCart className="h-5 w-5" />,
-    color: 'bg-violet-500/10 text-violet-600 border-violet-200',
-    permissions: [
-      { key: 'viewOrders', label: 'عرض الطلبات' },
-      { key: 'manageOrders', label: 'إدارة الطلبات' },
-      { key: 'updateOrderStatus', label: 'تحديث حالة الطلب' },
-      { key: 'cancelOrders', label: 'إلغاء الطلبات' },
-    ],
-  },
-  {
-    id: 'customers',
-    title: 'العملاء',
-    description: 'إدارة بيانات العملاء',
-    icon: <Users className="h-5 w-5" />,
-    color: 'bg-cyan-500/10 text-cyan-600 border-cyan-200',
-    permissions: [
-      { key: 'viewCustomers', label: 'عرض العملاء' },
-      { key: 'manageCustomers', label: 'إدارة العملاء' },
-    ],
-  },
-  {
-    id: 'debts',
-    title: 'الديون والدفعات',
-    description: 'إدارة ديون العملاء والتحصيل',
-    icon: <BanknoteIcon className="h-5 w-5" />,
-    color: 'bg-red-500/10 text-red-600 border-red-200',
-    permissions: [
-      { key: 'viewDebts', label: 'عرض الديون' },
-      { key: 'recordDebtPayments', label: 'تسجيل الدفعات' },
-      { key: 'viewCustomerDebtHistory', label: 'سجل ديون العملاء' },
-    ],
-  },
-  {
-    id: 'suppliers',
-    title: 'الموردين والمشتريات',
-    description: 'إدارة الموردين وعمليات الشراء',
-    icon: <Truck className="h-5 w-5" />,
-    color: 'bg-amber-500/10 text-amber-600 border-amber-200',
-    permissions: [
-      { key: 'viewSuppliers', label: 'عرض الموردين' },
-      { key: 'manageSuppliers', label: 'إدارة الموردين' },
-      { key: 'managePurchases', label: 'إدارة المشتريات' },
-    ],
-  },
-  {
-    id: 'employees',
-    title: 'الموظفين',
-    description: 'إدارة الموظفين والصلاحيات',
-    icon: <UserCog className="h-5 w-5" />,
-    color: 'bg-indigo-500/10 text-indigo-600 border-indigo-200',
-    permissions: [
-      { key: 'viewEmployees', label: 'عرض الموظفين' },
-      { key: 'manageEmployees', label: 'إدارة الموظفين' },
-      { key: 'manageUsers', label: 'إدارة المستخدمين' },
-    ],
-  },
-  {
-    id: 'reports',
-    title: 'التقارير',
-    description: 'الوصول للتقارير والتحليلات',
-    icon: <BarChart3 className="h-5 w-5" />,
-    color: 'bg-pink-500/10 text-pink-600 border-pink-200',
-    permissions: [
-      { key: 'viewReports', label: 'عرض التقارير' },
-      { key: 'viewFinancialReports', label: 'التقارير المالية' },
-      { key: 'viewSalesReports', label: 'تقارير المبيعات' },
-      { key: 'viewInventoryReports', label: 'تقارير المخزون' },
-    ],
-  },
-  {
-    id: 'settings',
-    title: 'الإعدادات',
-    description: 'الوصول لإعدادات النظام',
-    icon: <Settings className="h-5 w-5" />,
-    color: 'bg-slate-500/10 text-slate-600 border-slate-200',
-    permissions: [
-      { key: 'viewSettings', label: 'عرض الإعدادات' },
-      { key: 'manageProfileSettings', label: 'إعدادات الملف الشخصي' },
-      { key: 'manageAppearanceSettings', label: 'إعدادات المظهر' },
-      { key: 'manageSecuritySettings', label: 'إعدادات الأمان' },
-      { key: 'manageNotificationSettings', label: 'إعدادات الإشعارات' },
-      { key: 'manageOrganizationSettings', label: 'إعدادات المؤسسة' },
-      { key: 'manageBillingSettings', label: 'إعدادات الفوترة' },
-      { key: 'manageIntegrations', label: 'التكاملات' },
-      { key: 'manageAdvancedSettings', label: 'الإعدادات المتقدمة' },
-    ],
-  },
-  {
-    id: 'flexi',
-    title: 'الفليكسي والعملات الرقمية',
-    description: 'خدمات الشحن والعملات',
-    icon: <CreditCard className="h-5 w-5" />,
-    color: 'bg-teal-500/10 text-teal-600 border-teal-200',
-    permissions: [
-      { key: 'manageFlexi', label: 'إدارة الفليكسي' },
-      { key: 'manageFlexiAndDigitalCurrency', label: 'إدارة العملات الرقمية' },
-      { key: 'sellFlexiAndDigitalCurrency', label: 'البيع' },
-      { key: 'viewFlexiAndDigitalCurrencySales', label: 'عرض المبيعات' },
-    ],
-  },
-];
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  defaultPermissions,
+  permissionPresets,
+  permissionGroups,
+  PermissionGroup,
+  PermissionPreset
+} from '@/constants/employeePermissions';
+import { Copy } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // المكون الرئيسي
 // ═══════════════════════════════════════════════════════════════════════════
 
-const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
+
+const AddEmployeeDialog = ({ onEmployeeAdded, existingEmployees = [] }: AddEmployeeDialogProps) => {
   const { toast } = useToast();
   const { organization } = useAuth();
   const [open, setOpen] = useState(false);
@@ -914,156 +605,179 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
 
           {/* Step 2: الصلاحيات */}
           {currentStep === 2 && (
-            <div className="h-[500px] flex flex-col">
-              {/* قوالب الصلاحيات */}
-              <div className="px-6 pt-4 pb-3 border-b">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-orange-500" />
-                    قوالب سريعة
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Shield className="h-4 w-4" />
-                    <span>{enabledPermissionsCount} / {totalPermissionsCount} صلاحية</span>
+            <div className="flex flex-col h-[600px] overflow-hidden">
+              {/* Toolbar */}
+              <div className="px-6 py-4 border-b space-y-4 bg-background/50 backdrop-blur-sm z-10 shrink-0">
+                {/* Quick Actions Card */}
+                <div className="bg-muted/30 p-4 rounded-xl border border-dashed flex flex-col gap-4">
+                  <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-orange-500" />
+                        أدوات سريعة
+                      </h4>
+                      <p className="text-xs text-muted-foreground">نسخ الصلاحيات أو استخدام قوالب جاهزة</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                      <Select
+                        onValueChange={(value) => {
+                          const emp = existingEmployees.find(e => e.id === value);
+                          if (emp && emp.permissions) {
+                            setPermissions({ ...defaultPermissions, ...emp.permissions });
+                            setSelectedPreset('custom');
+                            toast({
+                              title: 'تم النسخ',
+                              description: `تم نسخ الصلاحيات من ${emp.name}`,
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full md:w-[240px] h-9 bg-background">
+                          <div className="flex items-center gap-2">
+                            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                            <SelectValue placeholder="نسخ من موظف..." />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          {existingEmployees.filter(e => e.permissions).map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                  {permissionPresets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => handlePresetSelect(preset)}
-                      className={cn(
-                        "relative flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center",
-                        selectedPreset === preset.id
-                          ? "border-orange-500 bg-orange-50 dark:bg-orange-950/20"
-                          : "border-transparent bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"
-                      )}
-                    >
-                      <div className={cn(
-                        "h-9 w-9 rounded-lg flex items-center justify-center bg-gradient-to-br text-white",
-                        preset.color
-                      )}>
-                        {preset.icon}
-                      </div>
-                      <span className="text-xs font-medium">{preset.name}</span>
-                      {selectedPreset === preset.id && (
-                        <div className="absolute -top-1 -right-1 h-5 w-5 bg-orange-500 rounded-full flex items-center justify-center">
-                          <Check className="h-3 w-3 text-white" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* بحث */}
-              <div className="px-6 py-3 border-b">
-                <div className="relative">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="ابحث عن صلاحية..."
-                    value={searchPermission}
-                    onChange={(e) => setSearchPermission(e.target.value)}
-                    className="pr-10 h-9"
-                  />
-                </div>
-              </div>
-
-              {/* مجموعات الصلاحيات */}
-              <ScrollArea className="flex-1 px-6">
-                <div className="py-4 space-y-3">
-                  {filteredGroups.map((group) => {
-                    const enabledCount = getGroupEnabledCount(group);
-                    const isExpanded = expandedGroups.includes(group.id);
-                    const allEnabled = enabledCount === group.permissions.length;
-                    const someEnabled = enabledCount > 0 && !allEnabled;
-
-                    return (
-                      <div
-                        key={group.id}
+                  <div className="flex flex-wrap gap-2">
+                    {permissionPresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handlePresetSelect(preset)}
                         className={cn(
-                          "border rounded-xl overflow-hidden transition-all",
-                          isExpanded && "ring-1 ring-orange-200"
+                          "flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border text-sm transition-all",
+                          selectedPreset === preset.id
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-background hover:bg-muted text-muted-foreground border-transparent shadow-sm"
                         )}
                       >
-                        {/* Header */}
-                        <button
-                          type="button"
-                          onClick={() => toggleGroupExpanded(group.id)}
-                          className={cn(
-                            "w-full flex items-center gap-3 p-4 text-right transition-colors",
-                            isExpanded ? "bg-slate-50 dark:bg-slate-800/50" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                          )}
-                        >
-                          <div className={cn(
-                            "h-10 w-10 rounded-lg flex items-center justify-center border",
-                            group.color
-                          )}>
-                            {group.icon}
-                          </div>
-                          <div className="flex-1 text-right">
-                            <div className="font-medium">{group.title}</div>
-                            <div className="text-xs text-muted-foreground">{group.description}</div>
-                          </div>
-                          <Badge variant={allEnabled ? "default" : someEnabled ? "secondary" : "outline"}>
-                            {enabledCount} / {group.permissions.length}
-                          </Badge>
-                          <ChevronLeft className={cn(
-                            "h-4 w-4 text-muted-foreground transition-transform",
-                            isExpanded && "-rotate-90"
-                          )} />
-                        </button>
+                        {preset.id !== 'custom' && <span className="opacity-70">{preset.icon}</span>}
+                        {preset.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                        {/* Content */}
-                        {isExpanded && (
-                          <div className="border-t p-4 bg-white dark:bg-slate-900">
-                            {/* Toggle All */}
-                            <div className="flex items-center justify-between mb-4 pb-3 border-b">
-                              <span className="text-sm text-muted-foreground">تفعيل/تعطيل الكل</span>
-                              <Switch
-                                checked={allEnabled}
-                                onCheckedChange={(checked) => toggleAllInGroup(group, checked)}
-                              />
+                {/* Search & Stats */}
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                  <div className="relative flex-1 w-full">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="ابحث عن صلاحية محددة..."
+                      value={searchPermission}
+                      onChange={(e) => setSearchPermission(e.target.value)}
+                      className="pr-10 h-10"
+                    />
+                  </div>
+                  <div className="flex flex-col w-full md:w-1/3 gap-1.5">
+                    <div className="flex justify-between text-xs px-1">
+                      <span className="text-muted-foreground">قوة الصلاحيات</span>
+                      <span className="font-medium text-orange-600">
+                        {Math.round((enabledPermissionsCount / totalPermissionsCount) * 100)}%
+                      </span>
+                    </div>
+                    <Progress value={(enabledPermissionsCount / totalPermissionsCount) * 100} className="h-2" />
+                  </div>
+                </div>
+              </div>
+
+              {/* List */}
+              <ScrollArea className="flex-1 bg-muted/10">
+                <div className="p-6 space-y-3">
+                  <Accordion type="multiple" className="space-y-3" value={expandedGroups} onValueChange={setExpandedGroups}>
+                    {filteredGroups.map((group) => {
+                      const enabledCount = getGroupEnabledCount(group);
+                      const allEnabled = enabledCount === group.permissions.length;
+                      const someEnabled = enabledCount > 0 && !allEnabled;
+                      const isFullyActive = allEnabled;
+
+                      return (
+                        <AccordionItem key={group.id} value={group.id} className="border rounded-xl bg-card overflow-hidden px-0">
+                          <div className="flex items-center justify-between p-2 pr-4 relative">
+                            <AccordionTrigger className="hover:no-underline py-2 flex-1 group">
+                              <div className="flex items-center gap-4 text-right w-full">
+                                <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center border transition-colors",
+                                  isFullyActive ? "bg-primary/10 border-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                                )}>
+                                  {group.icon}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-semibold text-base group-hover:text-primary transition-colors">{group.title}</div>
+                                  <div className="text-xs text-muted-foreground">{group.description}</div>
+                                </div>
+                                <Badge variant={allEnabled ? "default" : someEnabled ? "secondary" : "outline"} className="ml-2">
+                                  {enabledCount} / {group.permissions.length}
+                                </Badge>
+                              </div>
+                            </AccordionTrigger>
+                          </div>
+
+                          <AccordionContent className="px-4 pb-4 border-t pt-4 bg-muted/5">
+                            <div className="flex items-center justify-between mb-4 bg-muted/50 p-2 rounded-lg border border-dashed">
+                              <div className="text-sm font-medium text-muted-foreground px-2">خيارات سريعة</div>
+                              <div className="flex items-center gap-2">
+                                <span className={cn("text-xs transition-colors", allEnabled ? "text-primary font-medium" : "text-muted-foreground")}>
+                                  {allEnabled ? 'المجموعة مفعلة بالكامل' : 'تفعيل الكل'}
+                                </span>
+                                <Switch checked={allEnabled} onCheckedChange={(c) => toggleAllInGroup(group, c)} />
+                              </div>
                             </div>
 
-                            {/* Permissions Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {group.permissions.map((permission) => (
-                                <label
+                                <div
                                   key={permission.key}
+                                  onClick={() => handlePermissionChange(permission.key, !permissions[permission.key])}
                                   className={cn(
-                                    "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors",
+                                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all relative group select-none",
                                     permissions[permission.key]
-                                      ? "bg-orange-50 dark:bg-orange-950/20 border border-orange-200"
-                                      : "hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent"
+                                      ? "bg-primary/5 border-primary/30 shadow-sm"
+                                      : "bg-background hover:bg-muted/50 hover:border-muted-foreground/30"
                                   )}
                                 >
                                   <Checkbox
                                     checked={!!permissions[permission.key]}
-                                    onCheckedChange={(checked) =>
-                                      handlePermissionChange(permission.key, !!checked)
-                                    }
+                                    onCheckedChange={(c) => handlePermissionChange(permission.key, !!c)}
+                                    className="mt-1"
                                   />
-                                  <div className="flex-1">
-                                    <div className="text-sm font-medium">{permission.label}</div>
+                                  <div className="flex-1 space-y-1">
+                                    <div className="text-sm font-medium flex items-center gap-2">
+                                      {permission.label}
+                                      {permission.isSensitive && (
+                                        <div className="text-orange-500 bg-orange-50 dark:bg-orange-950/30 p-0.5 rounded" title="صلاحية حساسة">
+                                          <AlertTriangle className="h-3 w-3" />
+                                        </div>
+                                      )}
+                                    </div>
                                     {permission.description && (
-                                      <div className="text-xs text-muted-foreground">
-                                        {permission.description}
-                                      </div>
+                                      <div className="text-[11px] text-muted-foreground leading-tight">{permission.description}</div>
                                     )}
                                   </div>
-                                  {permissions[permission.key] && (
-                                    <CheckCircle2 className="h-4 w-4 text-orange-500" />
-                                  )}
-                                </label>
+                                </div>
                               ))}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
+                  </Accordion>
+
+                  {filteredGroups.length === 0 && (
+                    <div className="text-center py-12 text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+                      <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>لا توجد نتائج بحث مطابقة للصلاحيات</p>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             </div>

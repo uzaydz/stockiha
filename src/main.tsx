@@ -9,6 +9,19 @@ import AdminApp from './apps/AdminApp';
 
 import './index.css';
 import './App.css';
+
+// ⚡ خطوط محلية تعمل أوفلاين (Fontsource)
+import '@fontsource/tajawal/400.css';  // عربي - عادي
+import '@fontsource/tajawal/500.css';  // عربي - متوسط
+import '@fontsource/tajawal/700.css';  // عربي - عريض
+import '@fontsource/inter/400.css';    // إنجليزي/فرنسي - عادي
+import '@fontsource/inter/600.css';    // إنجليزي/فرنسي - نصف عريض
+import '@fontsource/inter/700.css';    // إنجليزي/فرنسي - عريض
+import '@fontsource/cairo/400.css';    // عربي بديل - عادي
+import '@fontsource/cairo/700.css';    // عربي بديل - عريض
+import '@fontsource/roboto/400.css';   // عالمي - عادي
+import '@fontsource/roboto/700.css';   // عالمي - عريض
+
 import { ensureCustomFontsLoaded } from './utils/fontLoader';
 import '@/lib/diagnostics/diagnosticsConsole';
 
@@ -16,22 +29,23 @@ import '@/lib/diagnostics/diagnosticsConsole';
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then((registrations) => {
     registrations.forEach((registration) => {
-      registration.unregister().catch(() => {});
+      registration.unregister().catch(() => { });
     });
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 // تسريع التحميل للتطبيق المكتبي
 if (typeof window !== 'undefined' &&
-    window.navigator &&
-    window.navigator.userAgent &&
-    window.navigator.userAgent.includes('Electron')) {
+  window.navigator &&
+  window.navigator.userAgent &&
+  window.navigator.userAgent.includes('Electron')) {
   console.log('🖥️ تطبيق مكتبي مكتشف - تسريع التحميل');
+  document.body.classList.add('electron-app');
   // تعطيل console في الإنتاج للتطبيق المكتبي
   if (import.meta.env.PROD) {
-    console.log = () => {};
-    console.warn = () => {};
-    console.error = () => {};
+    console.log = () => { };
+    console.warn = () => { };
+    console.error = () => { };
   }
 }
 
@@ -59,8 +73,8 @@ const detectAppVariant = (): 'admin' => {
   const isElectron = typeof window !== 'undefined' && (
     (window as any).electronAPI !== undefined ||
     (window.navigator &&
-     window.navigator.userAgent &&
-     window.navigator.userAgent.includes('Electron'))
+      window.navigator.userAgent &&
+      window.navigator.userAgent.includes('Electron'))
   );
 
   const isDesktopApp = isElectron;
@@ -93,7 +107,7 @@ const detectAppVariant = (): 'admin' => {
 // Font loading helpers - محسّن لـ Electron
 (() => {
   document.documentElement.classList.add('font-loading');
-  
+
   // للتطبيق المكتبي: تطبيق الفونت مباشرة بدون انتظار طويل
   const isElectron = window.navigator?.userAgent?.includes('Electron');
   const fontTimeout = setTimeout(() => {
@@ -112,7 +126,7 @@ const detectAppVariant = (): 'admin' => {
       clearTimeout(fontTimeout);
       document.documentElement.classList.remove('font-loading');
       document.documentElement.classList.add('font-loaded');
-  });
+    });
 })();
 
 // تحميل الفونتات برمجياً
@@ -164,8 +178,8 @@ const bootstrap = async () => {
   const isElectron = typeof window !== 'undefined' && (
     (window as any).electronAPI !== undefined ||
     (window.navigator &&
-     window.navigator.userAgent &&
-     window.navigator.userAgent.includes('Electron'))
+      window.navigator.userAgent &&
+      window.navigator.userAgent.includes('Electron'))
   );
 
   if (isElectron) {

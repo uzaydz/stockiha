@@ -95,3 +95,118 @@
     touch-action: manipulation;
   }
 }
+
+/* ========================================
+   تحسينات شاملة للهاتف - Mobile Responsive
+   ======================================== */
+
+/* تقليل الارتفاع على الهاتف */
+@media (max-width: 640px) {
+  .desktop-titlebar {
+    min-height: 44px;
+    max-height: 44px;
+  }
+
+  /* تصغير حجم الأزرار */
+  .desktop-titlebar button {
+    min-height: 24px;
+    min-width: 24px;
+  }
+
+  /* تقليل الـ padding */
+  .desktop-titlebar > div {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  /* تحسين المسافات */
+  .desktop-titlebar .gap-2 {
+    gap: 4px;
+  }
+
+  .desktop-titlebar .gap-1 {
+    gap: 2px;
+  }
+
+  /* تقليل حجم النص */
+  .desktop-titlebar h1 {
+    font-size: 11px;
+  }
+
+  /* إخفاء الفواصل */
+  .desktop-titlebar .w-px {
+    display: none;
+  }
+
+  /* تحسين شريط التبويبات */
+  .desktop-titlebar .no-scrollbar {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+  }
+
+  .desktop-titlebar .no-scrollbar > button {
+    scroll-snap-align: center;
+  }
+}
+
+/* تحسينات للشاشات الصغيرة جداً (iPhone SE, etc) */
+@media (max-width: 375px) {
+  .desktop-titlebar {
+    min-height: 40px;
+    max-height: 40px;
+  }
+
+  .desktop-titlebar button {
+    min-height: 22px;
+    min-width: 22px;
+  }
+
+  .desktop-titlebar h1 {
+    font-size: 10px;
+  }
+
+  /* تقليل حجم الأيقونات */
+  .desktop-titlebar svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* تحسينات للـ Safe Area على الهواتف الحديثة */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .desktop-titlebar {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* تحسينات للوضع الأفقي على الهاتف */
+@media (max-height: 500px) and (orientation: landscape) {
+  .desktop-titlebar {
+    min-height: 36px;
+    max-height: 36px;
+  }
+
+  .desktop-titlebar button {
+    min-height: 20px;
+    min-width: 20px;
+  }
+}
+
+/* التأكد من عدم تجاوز المحتوى */
+.desktop-titlebar {
+  overflow: hidden;
+}
+
+.desktop-titlebar > div {
+  max-width: 100%;
+}
+
+/* تحسين التمرير الأفقي للتبويبات */
+.desktop-titlebar .overflow-x-auto {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.desktop-titlebar .overflow-x-auto::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}

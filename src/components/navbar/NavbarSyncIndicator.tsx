@@ -11,7 +11,7 @@
  * - دعم السكرول داخل المكون
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
 import {
   RefreshCw,
   CheckCircle,
@@ -42,6 +42,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useOrganization } from '@/hooks/useOrganization';
 import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+import { PowerSyncContext } from '@powersync/react';
 
 // ⚡ مكونات المزامنة المحسّنة
 import {
@@ -52,6 +53,9 @@ import {
   OutboxDetailsPanel,
   DiagnosticsPanel
 } from './sync';
+
+// ⚡ كشف بيئة التشغيل
+import { needsPowerSync } from '@/lib/powersync/config';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🔹 Types
@@ -1284,11 +1288,72 @@ function ErrorsDetectionView({ snapshot, powerSyncStatus, onRefresh }: ErrorsDet
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🔹 المكون الرئيسي
+// 🔹 مكون وضع الويب - بدون PowerSync
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function WebModeIndicator({ className }: { className?: string }) {
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return (
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <div className="relative flex items-center justify-center">
+        <div className={cn(
+          "w-2 h-2 rounded-full transition-colors duration-300",
+          isOnline ? "bg-emerald-500" : "bg-slate-400"
+        )} />
+        {isOnline && (
+          <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500/50 animate-ping" />
+        )}
+      </div>
+      <span className={cn(
+        "text-xs font-medium transition-colors duration-300",
+        isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500"
+      )}>
+        {isOnline ? 'متصل' : 'غير متصل'}
+      </span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 المكون الرئيسي - Wrapper للتفريق بين الويب و Electron
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function NavbarSyncIndicator({ className }: NavbarSyncIndicatorProps) {
-  // ⚡ فحص البيئة
+  // ⚡ فحص البيئة - web vs electron
+  // هذا الفحص يحدث مرة واحدة عند تحميل الصفحة
+  const isPowerSyncEnabled = needsPowerSync();
+  const powerSyncCtx = useContext(PowerSyncContext);
+
+  // ⚡ في وضع الويب - عرض مؤشر بسيط بدون PowerSync hooks
+  // أو إذا لم يكن PowerSyncProvider مركّباً (لتجنب crash داخل usePowerSyncStatus)
+  if (!isPowerSyncEnabled || !powerSyncCtx) {
+    return <WebModeIndicator className={className} />;
+  }
+
+  // ⚡ في وضع Electron - استخدام المكون الكامل مع PowerSync
+  return <PowerSyncSyncIndicator className={className} />;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 مكون PowerSync الكامل - يُستخدم فقط في Electron
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function PowerSyncSyncIndicator({ className }: NavbarSyncIndicatorProps) {
   const isDesktopApp = useMemo(() => isElectronApp(), []);
 
   // ⚡ الحالات
@@ -1410,8 +1475,9 @@ export function NavbarSyncIndicator({ className }: NavbarSyncIndicatorProps) {
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "relative flex items-center justify-center h-9 w-9",
-            "rounded-xl transition-all duration-200",
+            "relative flex items-center justify-center",
+            "h-7 w-7 sm:h-9 sm:w-9", // حجم أصغر على الهاتف
+            "rounded-lg sm:rounded-xl transition-all duration-200",
             "hover:bg-white/10 active:scale-95",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20",
             statusColor,
@@ -1424,13 +1490,13 @@ export function NavbarSyncIndicator({ className }: NavbarSyncIndicatorProps) {
 
           {/* Badge للعناصر المعلقة أو الأخطاء */}
           {(totalPending > 0 || hasErrors) && !isSyncing && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 sm:h-3 sm:w-3">
               <span className={cn(
                 "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
                 hasErrors ? "bg-red-400" : "bg-amber-400"
               )} />
               <span className={cn(
-                "relative inline-flex rounded-full h-3 w-3 text-[8px] text-white items-center justify-center font-bold",
+                "relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 text-[7px] sm:text-[8px] text-white items-center justify-center font-bold",
                 hasErrors ? "bg-red-500" : "bg-amber-500"
               )}>
                 {hasErrors ? '!' : (totalPending > 9 ? '9+' : totalPending)}
@@ -1440,7 +1506,7 @@ export function NavbarSyncIndicator({ className }: NavbarSyncIndicatorProps) {
         </button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[420px] p-0" align="end">
+      <PopoverContent className="w-[calc(100vw-16px)] sm:w-[420px] max-w-[420px] p-0" align="end">
         <div className="p-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-3">

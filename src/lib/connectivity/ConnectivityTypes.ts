@@ -240,9 +240,12 @@ export const DEFAULT_CONNECTIVITY_CONFIG: ConnectivityConfig = {
  * Create initial connectivity state
  */
 export function createInitialConnectivityState(): ConnectivityState {
+  const isOnline =
+    typeof navigator !== 'undefined' ? navigator.onLine !== false : false;
+
   return {
-    isOnline: false,  // Start pessimistic until verified
-    quality: 'offline',
+    isOnline,
+    quality: isOnline ? 'good' : 'offline',
     source: 'navigator',
     networkInfo: {
       effectiveType: null,

@@ -193,8 +193,8 @@ export default defineConfig(({ command, mode }) => {
           manualChunks: (id) => {
             // React ecosystem
             if (id.includes('node_modules/react/') ||
-                id.includes('node_modules/react-dom/') ||
-                id.includes('node_modules/scheduler/')) {
+              id.includes('node_modules/react-dom/') ||
+              id.includes('node_modules/scheduler/')) {
               return 'react-core';
             }
 
@@ -210,7 +210,7 @@ export default defineConfig(({ command, mode }) => {
 
             // PowerSync
             if (id.includes('node_modules/@powersync/') ||
-                id.includes('node_modules/@journeyapps/')) {
+              id.includes('node_modules/@journeyapps/')) {
               return 'powersync';
             }
 
@@ -221,23 +221,23 @@ export default defineConfig(({ command, mode }) => {
 
             // Forms
             if (id.includes('node_modules/react-hook-form/') ||
-                id.includes('node_modules/zod/') ||
-                id.includes('node_modules/@hookform/')) {
+              id.includes('node_modules/zod/') ||
+              id.includes('node_modules/@hookform/')) {
               return 'forms';
             }
 
             // Charts - lazy loaded
             if (id.includes('node_modules/chart.js/') ||
-                id.includes('node_modules/react-chartjs-2/') ||
-                id.includes('node_modules/recharts/') ||
-                id.includes('node_modules/@nivo/')) {
+              id.includes('node_modules/react-chartjs-2/') ||
+              id.includes('node_modules/recharts/') ||
+              id.includes('node_modules/@nivo/')) {
               return 'charts';
             }
 
             // PDF/Excel - lazy loaded
             if (id.includes('node_modules/jspdf') ||
-                id.includes('node_modules/exceljs/') ||
-                id.includes('node_modules/xlsx/')) {
+              id.includes('node_modules/exceljs/') ||
+              id.includes('node_modules/xlsx/')) {
               return 'export-tools';
             }
 
@@ -248,7 +248,7 @@ export default defineConfig(({ command, mode }) => {
 
             // Date utilities
             if (id.includes('node_modules/date-fns/') ||
-                id.includes('node_modules/dayjs/')) {
+              id.includes('node_modules/dayjs/')) {
               return 'date-utils';
             }
 

@@ -21,7 +21,6 @@ import {
 import StoreInfoSettings from './StoreInfoSettings';
 import ReceiptAppearanceSettings from './ReceiptAppearanceSettings';
 import PrintingSettings from './PrintingSettings';
-import ReceiptPreview from './ReceiptPreview';
 
 // استيراد هوك إعدادات نقطة البيع وأنواع البيانات
 import { usePOSData } from '@/context/POSDataContext';
@@ -257,20 +256,6 @@ const POSSettings: React.FC<POSSettingsProps> = ({ isOpen, onOpenChange }) => {
                 </TabsContent>
               </div>
             </Tabs>
-          </div>
-
-          {/* الجانب الأيمن - معاينة الوصل */}
-          <div className="w-80 flex-shrink-0 border-l border-border pl-6">
-            <div className="h-full flex flex-col">
-              <div className="flex items-center gap-2 mb-4">
-                <FileText className="h-5 w-5 text-primary" />
-                <h3 className="font-medium">معاينة الوصل</h3>
-              </div>
-              
-              <div className="flex-1 overflow-auto">
-                <ReceiptPreview settings={settings} />
-              </div>
-            </div>
           </div>
         </div>
 

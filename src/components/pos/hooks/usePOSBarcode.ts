@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
 import { unifiedProductService } from '@/services/UnifiedProductService';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 
 interface CartItem {
   product: Product;
@@ -90,6 +91,7 @@ export const usePOSBarcode = ({
 
   // تحويل نتيجة البحث إلى منتج متوافق
   const convertSearchResultToProduct = useCallback((result: BarcodeSearchResult): Product => {
+    const imageSrc = resolveProductImageSrc(result as any, '/placeholder-product.svg');
     return {
       id: result.id,
       name: result.name,
@@ -102,7 +104,7 @@ export const usePOSBarcode = ({
       category_id: result.category_id,
       brand: result.brand,
       images: result.images,
-      thumbnailImage: result.thumbnail_image || '',
+      thumbnailImage: imageSrc,
       stockQuantity: result.stock_quantity,
       stock_quantity: result.stock_quantity,
       features: [],
@@ -145,6 +147,7 @@ export const usePOSBarcode = ({
       if (!productWithDetails) return null;
 
       // تحويل ProductWithDetails إلى Product
+      const productImage = resolveProductImageSrc(productWithDetails as any, '/placeholder-product.svg');
       const product: Product = {
         id: productWithDetails.id,
         name: productWithDetails.name,
@@ -157,8 +160,8 @@ export const usePOSBarcode = ({
         category_id: productWithDetails.category_id,
         brand: (productWithDetails as any).brand,
         images: (productWithDetails as any).images || [],
-        thumbnailImage: productWithDetails.thumbnail_image || '',
-        thumbnail_image: productWithDetails.thumbnail_image,
+        thumbnailImage: productImage,
+        thumbnail_image: productImage,
         stockQuantity: productWithDetails.stock_quantity,
         stock_quantity: productWithDetails.stock_quantity,
         features: [],

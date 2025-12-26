@@ -17,13 +17,13 @@ VITE_DEPLOYMENT_PLATFORM = "cloudflare"
 VITE_DEFAULT_ORGANIZATION_ID = ""
 VITE_YALIDINE_DEFAULT_ORG_ID = "fed872f9-1ade-4351-b020-5598fda976fe"
 VITE_SITE_URL = "https://stockiha.com"
-VITE_CLOUDFLARE_API_TOKEN = "4scqw64VztAyUV-G8tadasQcJbxoBoxaJZoQRq6C"
-VITE_CLOUDFLARE_ZONE_ID = "e873d0f47d42ef6898c34e8f37990c40"
 NODE_ENV = "production"
 ENVIRONMENT = "production"
 VITE_ENABLE_IMG_CDN = "true"
 
 # متغيرات البيئة للـ Functions
-CF_API_TOKEN = "4scqw64VztAyUV-G8tadasQcJbxoBoxaJZoQRq6C"
-CF_ZONE_ID = "e873d0f47d42ef6898c34e8f37990c40"
 CF_PROJECT_NAME = "stockiha"
+
+# ⚠️ لا تضع أي أسرار داخل `wrangler.toml` (مثل API tokens).
+# استخدم Cloudflare Pages Dashboard (Settings → Environment variables) أو:
+# `wrangler pages secret put CF_API_TOKEN --project-name stockiha`

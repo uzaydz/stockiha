@@ -1,10 +1,38 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useUser } from '@/context/UserContext';
 import { useTenant } from '@/context/TenantContext';
 import { RepairOrder } from '@/types/repair';
 import { buildStoreUrl } from '@/lib/utils/store-url';
-import '@/styles/repair-print.css';
+import '@/styles/repair-print.css'; // The new Modular CSS
+import { DEFAULT_REPAIR_RECEIPT_SETTINGS, RepairReceiptSettings } from '@/hooks/useRepairReceiptSettings';
+import { Phone, MapPin, Calendar, User, Smartphone, CreditCard, Scissors, Wrench } from 'lucide-react';
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+const convertToEnglishNumbers = (num: number | string) => {
+  if (num === null || num === undefined) return '';
+  return num.toString().replace(/[٠-٩]/g, (d) => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
+};
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('ar-EG', {
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(date);
+  } catch (e) { return dateString; }
+};
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 interface RepairReceiptPrintProps {
   order: RepairOrder;
@@ -12,8 +40,9 @@ interface RepairReceiptPrintProps {
   storePhone?: string;
   storeAddress?: string;
   storeLogo?: string;
-  trackingUrl: string;
+  trackingUrl: string; // Passed from parent (usually calculated) or we recalc
   queuePosition?: number;
+  receiptSettings?: Partial<RepairReceiptSettings>;
 }
 
 const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
@@ -22,988 +51,232 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
   storePhone,
   storeAddress,
   storeLogo,
-  trackingUrl,
-  queuePosition
+  trackingUrl: propTrackingUrl,
+  queuePosition,
+  receiptSettings
 }) => {
   const { currentOrganization } = useTenant();
 
-  // الحصول على رمز التتبع
-  const trackingCode = order.repair_tracking_code || order.order_number || order.id;
+  // Settings Merge
+  const s: RepairReceiptSettings = useMemo(() => ({
+    ...DEFAULT_REPAIR_RECEIPT_SETTINGS,
+    ...(receiptSettings || {})
+  }), [receiptSettings]);
 
-  // بناء رابط المتجر الصحيح باستخدام الدالة المشتركة
-  const storeUrl = buildStoreUrl(currentOrganization);
+  // Logic & URLs
+  const trackingCode = order.repair_tracking_code || order.order_number || order.id?.slice(0, 8);
 
-  // دالة لضمان ظهور QR codes عند الطباعة وإصلاح مشكلة العرض
-  const ensureQRCodesVisible = () => {
-    // إضافة أنماط إضافية لضمان ظهور QR codes وإصلاح العرض
-    const style = document.createElement('style');
-    style.textContent = `
-      @media print {
-        /* إعدادات الصفحة - بدون هوامش */
-        @page {
-          size: auto;
-          margin: 0;
-          padding: 0;
-        }
-        
-        /* إصلاح مشكلة الصفحة الفارغة - إزالة أي مساحات */
-        html, body {
-          margin: 0 !important;
-          padding: 0 !important;
-          width: 100% !important;
-          height: auto !important;
-          overflow: visible !important;
-          background: white !important;
-          color: black !important;
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-          min-height: 0 !important;
-        }
-        
-        /* إخفاء كل شيء ما عدا الوصل */
-        body *:not(.repair-receipt) {
-          display: none !important;
-          visibility: hidden !important;
-        }
-        
-        /* إظهار الوصل فقط */
-        .repair-receipt {
-          display: block !important;
-          visibility: visible !important;
-          position: static !important;
-          left: auto !important;
-          top: auto !important;
-          transform: none !important;
-          width: auto !important;
-          max-width: 100% !important;
-          margin: 0 !important;
-          padding: 5mm !important;
-          background: white !important;
-          color: black !important;
-          font-family: 'Tajawal', Arial, sans-serif !important;
-          font-size: 12px !important;
-          line-height: 1.4 !important;
-          direction: rtl !important;
-          text-align: center !important;
-          box-shadow: none !important;
-          border: none !important;
-          page-break-inside: avoid !important;
-          overflow: visible !important;
-          box-sizing: border-box !important;
-          /* منع الصفحات الفارغة */
-          page-break-before: auto !important;
-          page-break-after: auto !important;
-          /* ضمان بداية المحتوى من أعلى الصفحة */
-          position: relative !important;
-          top: 0 !important;
-        }
-        
-        /* ضمان ظهور جميع عناصر الوصل */
-        .repair-receipt * {
-          visibility: visible !important;
-          display: block !important;
-          background: transparent !important;
-          color: black !important;
-          border-color: black !important;
-          box-sizing: border-box !important;
-        }
-        
-        /* ضمان ظهور QR codes */
-        .repair-receipt svg,
-        .repair-receipt canvas,
-        .repair-receipt img {
-          visibility: visible !important;
-          display: block !important;
-          margin: 0 auto !important;
-          print-color-adjust: exact !important;
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-        }
-        
-        /* إصلاح مشكلة المساحات */
-        .repair-receipt .center-item,
-        .repair-receipt .center-flex,
-        .repair-receipt .info-row {
-          width: 100% !important;
-          max-width: 100% !important;
-          margin: 0 auto !important;
-          text-align: center !important;
-        }
-        
-        /* إزالة أي مساحات إضافية */
-        .repair-receipt > div {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        /* منع أي مساحات فارغة */
-        .repair-receipt::before,
-        .repair-receipt::after {
-          content: none !important;
-          display: none !important;
-        }
-        
-        /* ضمان عدم وجود صفحات فارغة */
-        @page :first {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        @page :left {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        @page :right {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-
-    // إزالة الأنماط بعد الطباعة
-    setTimeout(() => {
-      if (document.head.contains(style)) {
-        document.head.removeChild(style);
-      }
-    }, 1000);
+  // Safe Subdomain extraction
+  const getSubdomain = (org: any) => {
+    if (!org) return '';
+    if (typeof org === 'string') return org;
+    return org.subdomain || org.slug || org.domain || 'www';
   };
+  const subdomain = getSubdomain(currentOrganization);
+  const storeUrl = buildStoreUrl(subdomain);
 
-  // تطبيق الدالة عند تحميل المكون
-  React.useEffect(() => {
-    // تحقق من صحة الروابط
+  // URLs
+  const finalTrackingUrl = propTrackingUrl && propTrackingUrl.includes('http')
+    ? propTrackingUrl
+    : `${storeUrl}/repair-tracking/${trackingCode}`;
 
-    ensureQRCodesVisible();
+  const adminActionUrl = `${storeUrl}/admin/repair-orders/${order.id}`;
 
-    // إضافة مستمع لحدث الطباعة
-    const handleBeforePrint = () => {
-      ensureQRCodesVisible();
-    };
+  // Financials
+  const isPriceUnknown = !!order.price_to_be_determined_later;
+  const total = order.total_price || 0;
+  const paid = order.paid_amount || 0;
+  const remaining = isPriceUnknown ? 0 : Math.max(0, total - paid);
 
-    window.addEventListener('beforeprint', handleBeforePrint);
-
-    return () => {
-      window.removeEventListener('beforeprint', handleBeforePrint);
-    };
-  }, [storeUrl, trackingCode, order.id]);
-
-  // تنسيق التاريخ - ميلادي عربي مع الأرقام الإنجليزية
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('ar-EG', {
-      calendar: 'gregory',
-      numberingSystem: 'latn',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).format(date);
-  };
-
-  // تحويل الأرقام العربية إلى إنجليزية
-  const convertToEnglishNumbers = (num: number | string) => {
-    return num.toString().replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
-  };
-
-  // اختصار النصوص الطويلة
-  const truncateText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
-
-  // حساب المبلغ المتبقي (فقط إذا لم يكن السعر مؤجل التحديد)
-  const remainingAmount = order.price_to_be_determined_later ? 0 : ((order.total_price || 0) - (order.paid_amount || 0));
+  // Render Icons (Helper to keep JSX clean)
+  const Icon = ({ i: C, size = 12 }: { i: any, size?: number }) => (
+    <span style={{ display: 'inline-block', verticalAlign: 'middle', marginLeft: '4px' }}>
+      <C size={size} strokeWidth={2.5} />
+    </span>
+  );
 
   return (
-    <>
-      {/* تحميل خط Tajawal من Google Fonts - معطل للعمل بدون انترنت */}
-      {/* <link
-        href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap"
-        rel="stylesheet"
-      /> */}
+    <div className="repair-receipt">
 
-      <div
-        className="repair-receipt"
-        dir="rtl"
-        style={{
-          fontFamily: "'Tajawal', Arial, sans-serif",
-          lineHeight: '1.5',
-          fontSize: '13px',
-          width: 'auto',
-          maxWidth: '100%',
-          margin: '0 auto',
-          backgroundColor: 'white',
-          color: 'black',
-          padding: '5mm',
-          boxSizing: 'border-box',
-          position: 'relative',
-          overflow: 'visible',
-          textAlign: 'center',
-          display: 'block'
-        }}
-      >
-        {/* تطبيق خط Tajawal بقوة مع نفس الطريقة المتقدمة الموجودة في وصل الألعاب */}
-        <style dangerouslySetInnerHTML={{
-          __html: `
-            /* @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap'); */
-            
-            *, *::before, *::after {
-              font-family: 'Tajawal', Arial, sans-serif !important;
-              text-align: center !important;
-              box-sizing: border-box !important;
-            }
-            
-            .repair-receipt {
-              font-family: 'Tajawal', Arial, sans-serif !important;
-              text-align: center !important;
-              direction: rtl !important;
-              width: auto !important;
-              max-width: 100% !important;
-              margin: 0 auto !important;
-              padding: 5mm !important;
-            }
-            
-            .repair-receipt * {
-              font-family: 'Tajawal', Arial, sans-serif !important;
-              text-align: center !important;
-              margin-left: auto !important;
-              margin-right: auto !important;
-              box-sizing: border-box !important;
-            }
-            
-            .center-item {
-              text-align: center !important;
-              display: block !important;
-              margin: 0 auto !important;
-              width: 100% !important;
-              max-width: 100% !important;
-            }
-            
-            .center-flex {
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
-              justify-content: center !important;
-              text-align: center !important;
-              width: 100% !important;
-              max-width: 100% !important;
-            }
-            
-            .info-row {
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: center !important;
-              justify-content: center !important;
-              text-align: center !important;
-              margin: 3mm 0 !important;
-              width: 100% !important;
-              max-width: 100% !important;
-            }
-            
-            .info-label {
-              font-size: 11px !important;
-              font-weight: 500 !important;
-              color: #666 !important;
-              margin-bottom: 1mm !important;
-              text-align: center !important;
-              width: 100% !important;
-            }
-            
-            .info-value {
-              font-size: 14px !important;
-              font-weight: 700 !important;
-              color: black !important;
-              text-align: center !important;
-              width: 100% !important;
-            }
-            
-            .section-title {
-              font-size: 16px !important;
-              font-weight: 800 !important;
-              text-align: center !important;
-              margin: 4mm 0 !important;
-              padding: 2mm !important;
-              border: 2px solid black !important;
-              border-radius: 3mm !important;
-              background: #f8f9fa !important;
-              width: 100% !important;
-            }
-            
-            .line-separator {
-              border-top: 2px dashed black !important;
-              margin: 4mm 0 !important;
-              width: 100% !important;
-              height: 0 !important;
-            }
-            
-            @media print {
-              *, *::before, *::after {
-                font-family: 'Tajawal', Arial, sans-serif !important;
-                text-align: center !important;
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-              }
-              
-              .repair-receipt {
-                font-family: 'Tajawal', Arial, sans-serif !important;
-                width: auto !important;
-                max-width: 100% !important;
-                font-size: 12px !important;
-                background: white !important;
-                color: black !important;
-                padding: 5mm !important;
-                text-align: center !important;
-                overflow: visible !important;
-                margin: 0 auto !important;
-              }
-              
-              .no-print {
-                display: none !important;
-              }
-            }
-          `
-        }} />
+      {/* ================================================================== 
+         CUSTOMER COPY 
+      ================================================================== */}
+      {s.showCustomerReceipt && (
+        <div className="rr-customer-section">
 
-        {/* ====================== الجزء الأول: إيصال العميل ====================== */}
-        <div className="center-item">
-
-          {/* رأس الوصل */}
-          <div className="center-flex" style={{
-            borderBottom: '3px solid black',
-            paddingBottom: '4mm',
-            marginBottom: '5mm'
-          }}>
-            {storeLogo && (
-              <div className="center-item" style={{ marginBottom: '3mm' }}>
-                <img
-                  src={storeLogo}
-                  alt={storeName}
-                  className="center-item"
-                  style={{
-                    height: '25mm',
-                    width: '25mm',
-                    objectFit: 'contain',
-                    display: 'block',
-                    margin: '0 auto'
-                  }}
-                />
-              </div>
+          {/* 1. BRAND HEADER */}
+          <div className="rr-header">
+            {s.showStoreLogo && storeLogo && (
+              <img src={storeLogo} alt="Logo" className="rr-logo" style={{ maxHeight: '60px' }} />
             )}
-
-            <div className="center-item">
-              <h1 className="center-item" style={{
-                fontSize: '18px',
-                fontWeight: '900',
-                margin: '0 0 2mm 0',
-                textAlign: 'center',
-                fontFamily: "'Tajawal', Arial, sans-serif"
-              }}>
-                {truncateText(storeName, 25)}
-              </h1>
-            </div>
-
-            {storePhone && (
-              <div className="center-item" style={{ marginTop: '2mm' }}>
-                <p className="center-item" style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  margin: '0',
-                  textAlign: 'center'
-                }}>
-                  📞 {convertToEnglishNumbers(storePhone)}
-                </p>
-              </div>
-            )}
-
-            {storeAddress && (
-              <div className="center-item" style={{ marginTop: '1mm' }}>
-                <p className="center-item" style={{
-                  fontSize: '11px',
-                  margin: '0',
-                  opacity: '0.8',
-                  textAlign: 'center'
-                }}>
-                  📍 {truncateText(storeAddress, 50)}
-                </p>
+            <h1 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0' }}>{storeName}</h1>
+            {s.showStoreInfo && (
+              <div style={{ fontSize: '11px', fontWeight: 500 }}>
+                {storeAddress && <span>{storeAddress}</span>}
+                {storePhone && (
+                  <div className="rr-value ltr" style={{ marginTop: '2px' }}>
+                    <Icon i={Phone} size={10} /> {convertToEnglishNumbers(storePhone)}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* عنوان الوصل */}
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item">
-              🔧 إيصال استلام جهاز للتصليح
-            </div>
+          {/* 2. META STRIP */}
+          <div className="rr-meta-strip">
+            <span>#{convertToEnglishNumbers(order.id?.slice(0, 6) || '')}</span>
+            <span>{formatDate(order.created_at)}</span>
           </div>
 
-          {/* رقم الطلبية المميز */}
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="center-flex" style={{
-              background: 'black',
-              color: 'white',
-              padding: '4mm',
-              borderRadius: '4mm',
-              border: '3px solid black'
-            }}>
-              <div className="center-item" style={{
-                fontSize: '12px',
-                fontWeight: '500',
-                marginBottom: '1mm',
-                color: 'white'
-              }}>
-                رقم الطلبية
-              </div>
-              <div className="center-item" style={{
-                fontSize: '20px',
-                fontWeight: '900',
-                color: 'white',
-                fontFamily: "'Tajawal', Arial, sans-serif",
-                letterSpacing: '1px'
-              }}>
-                #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
-              </div>
+          {/* 3. HERO BLOCK (ORDER #) */}
+          <div className="rr-hero-block">
+            <div className="rr-hero-label">رقم الطلب ORDER NO</div>
+            <div className="rr-hero-value rr-value ltr">
+              #{convertToEnglishNumbers(order.order_number || '---')}
             </div>
-          </div>
-
-          {/* التاريخ */}
-          <div className="info-row center-item">
-            <div className="info-label center-item">📅 التاريخ والوقت</div>
-            <div className="info-value center-item" style={{
-              fontSize: '12px',
-              fontFamily: "'Tajawal', Arial, sans-serif",
-              direction: 'ltr',
-              display: 'inline-block'
-            }}>
-              {formatDate(order.created_at)}
-            </div>
-          </div>
-
-          {/* رقم الترتيب */}
-          {queuePosition && queuePosition > 0 && (
-            <div className="center-item" style={{ marginBottom: '5mm' }}>
-              <div className="center-flex" style={{
-                background: '#fef2f2',
-                border: '3px solid #dc2626',
-                padding: '4mm',
-                borderRadius: '4mm'
-              }}>
-                <div className="center-item" style={{
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  marginBottom: '1mm',
-                  color: '#7f1d1d'
-                }}>
-                  رقم الترتيب في الطابور
-                </div>
-                <div className="center-item" style={{
-                  fontSize: '24px',
-                  fontWeight: '900',
-                  color: '#dc2626',
-                  fontFamily: "'Tajawal', Arial, sans-serif"
-                }}>
-                  {convertToEnglishNumbers(queuePosition)}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="line-separator"></div>
-
-          {/* بيانات العميل */}
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{
-              background: '#ecfdf5',
-              borderColor: '#059669',
-              color: '#059669'
-            }}>
-              👤 بيانات العميل
-            </div>
-
-            <div className="info-row center-item">
-              <div className="info-label center-item">الاسم الكامل</div>
-              <div className="info-value center-item">
-                {truncateText(order.customer_name, 20)}
-              </div>
-            </div>
-
-            <div className="info-row center-item">
-              <div className="info-label center-item">رقم الهاتف</div>
-              <div className="info-value center-item" style={{
-                fontFamily: "'Tajawal', Arial, sans-serif",
-                direction: 'ltr',
-                display: 'inline-block'
-              }}>
-                {convertToEnglishNumbers(order.customer_phone)}
-              </div>
-            </div>
-          </div>
-
-          {/* معلومات الجهاز */}
-          {order.device_type && (
-            <>
-              <div className="line-separator"></div>
-              <div className="center-item" style={{ marginBottom: '5mm' }}>
-                <div className="section-title center-item" style={{
-                  background: '#f3e8ff',
-                  borderColor: '#7c3aed',
-                  color: '#7c3aed'
-                }}>
-                  📱 معلومات الجهاز
-                </div>
-
-                <div className="info-row center-item">
-                  <div className="info-label center-item">نوع الجهاز</div>
-                  <div className="info-value center-item" style={{
-                    color: '#7c3aed',
-                    fontSize: '16px',
-                    fontWeight: '700'
-                  }}>
-                    {order.device_type}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* وصف العطل */}
-          {order.issue_description && (
-            <>
-              <div className="line-separator"></div>
-              <div className="center-item" style={{ marginBottom: '5mm' }}>
-                <div className="section-title center-item" style={{
-                  background: '#fef2f2',
-                  borderColor: '#dc2626',
-                  color: '#dc2626'
-                }}>
-                  🔍 وصف العطل المطلوب إصلاحه
-                </div>
-
-                <div className="center-item" style={{
-                  border: '2px dashed #999',
-                  padding: '4mm',
-                  borderRadius: '3mm',
-                  background: '#f9fafb',
-                  marginTop: '3mm'
-                }}>
-                  <p className="center-item" style={{
-                    fontSize: '13px',
-                    lineHeight: '1.4',
-                    margin: '0',
-                    fontWeight: '500',
-                    textAlign: 'center',
-                    wordWrap: 'break-word',
-                    overflowWrap: 'break-word',
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    {order.issue_description}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* تفاصيل الدفع */}
-          <div className="line-separator"></div>
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{
-              background: '#f0f9ff',
-              borderColor: '#2563eb',
-              color: '#2563eb'
-            }}>
-              💰 تفاصيل الدفع والتكلفة
-            </div>
-
-            {order.price_to_be_determined_later ? (
-              <div className="center-item" style={{ marginTop: '3mm' }}>
-                <div className="center-flex" style={{
-                  background: '#fef3c7',
-                  border: '3px dashed #f59e0b',
-                  padding: '4mm',
-                  borderRadius: '4mm'
-                }}>
-                  <div className="center-item" style={{
-                    fontSize: '14px',
-                    fontWeight: '800',
-                    color: '#92400e'
-                  }}>
-                    💡 السعر سيتم تحديده بعد الكشف والفحص
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="center-item" style={{ marginTop: '3mm' }}>
-                <div className="center-flex" style={{
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '3mm',
-                  padding: '4mm',
-                  background: '#f9fafb'
-                }}>
-                  <div className="info-row center-item">
-                    <div className="info-label center-item">السعر الإجمالي</div>
-                    <div className="info-value center-item" style={{
-                      color: '#059669',
-                      fontSize: '16px',
-                      fontFamily: "'Tajawal', Arial, sans-serif",
-                      direction: 'ltr',
-                      display: 'inline-block'
-                    }}>
-                      {convertToEnglishNumbers((order.total_price || 0).toLocaleString())} دج
-                    </div>
-                  </div>
-
-                  <div className="info-row center-item">
-                    <div className="info-label center-item">المبلغ المدفوع</div>
-                    <div className="info-value center-item" style={{
-                      color: '#2563eb',
-                      fontSize: '16px',
-                      fontFamily: "'Tajawal', Arial, sans-serif",
-                      direction: 'ltr',
-                      display: 'inline-block'
-                    }}>
-                      {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
-                    </div>
-                  </div>
-
-                  {remainingAmount > 0 && (
-                    <div className="center-item" style={{ marginTop: '3mm' }}>
-                      <div className="center-flex" style={{
-                        background: '#fef2f2',
-                        border: '3px solid #dc2626',
-                        padding: '3mm',
-                        borderRadius: '3mm'
-                      }}>
-                        <div className="info-label center-item" style={{ color: '#7f1d1d' }}>
-                          المبلغ المتبقي المطلوب دفعه
-                        </div>
-                        <div className="info-value center-item" style={{
-                          color: '#dc2626',
-                          fontSize: '18px',
-                          fontWeight: '900',
-                          fontFamily: "'Tajawal', Arial, sans-serif",
-                          direction: 'ltr',
-                          display: 'inline-block'
-                        }}>
-                          {convertToEnglishNumbers(remainingAmount.toLocaleString())} دج
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+            {s.showQueuePosition && queuePosition && queuePosition > 0 && (
+              <div style={{ marginTop: '4px', fontSize: '12px', fontWeight: 700 }}>
+                الدور: <span style={{ background: '#000', color: '#fff', padding: '0 4px', borderRadius: '2px' }}>{queuePosition}</span>
               </div>
             )}
           </div>
 
-          {/* QR Code للتتبع - العميل */}
-          <div className="line-separator"></div>
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{
-              background: '#ecfdf5',
-              borderColor: '#059669',
-              color: '#059669'
-            }}>
-              🔗 تتبع حالة التصليح
+          {/* 4. CUSTOMER CARD */}
+          <div className="rr-card">
+            <div className="rr-card-header">
+              <span>بيانات العميل</span>
+              <User size={12} />
             </div>
-
-            <div className="center-item" style={{ marginTop: '3mm' }}>
-              <div className="center-flex" style={{
-                border: '3px solid #059669',
-                borderRadius: '4mm',
-                padding: '4mm',
-                background: '#ecfdf5'
-              }}>
-                <div className="center-item qr-section" style={{ marginBottom: '3mm' }}>
-                  <QRCodeSVG
-                    value={`${storeUrl}/repair-tracking/${trackingCode}`}
-                    size={100}
-                    data-testid="customer-qr-code"
-                  />
-                </div>
-
-                <div className="center-item" style={{ marginTop: '3mm' }}>
-                  <div className="info-label center-item">كود التتبع</div>
-                  <div className="info-value center-item" style={{
-                    color: '#059669',
-                    fontSize: '16px',
-                    fontWeight: '900',
-                    fontFamily: "'Tajawal', Arial, sans-serif",
-                    direction: 'ltr',
-                    display: 'inline-block'
-                  }}>
-                    {convertToEnglishNumbers(trackingCode)}
-                  </div>
-                </div>
-
-                <div className="center-item" style={{ marginTop: '2mm' }}>
-                  <p className="center-item" style={{
-                    fontSize: '10px',
-                    margin: '0',
-                    opacity: '0.8',
-                    textAlign: 'center'
-                  }}>
-                    امسح الكود أو اكتب الرقم لمتابعة حالة التصليح
-                  </p>
-                </div>
+            <div className="rr-card-body">
+              <div className="rr-row">
+                <span className="rr-label">الاسم</span>
+                <span className="rr-value">{order.customer_name}</span>
+              </div>
+              <div className="rr-row">
+                <span className="rr-label">الهاتف</span>
+                <span className="rr-value ltr">{convertToEnglishNumbers(order.customer_phone)}</span>
               </div>
             </div>
           </div>
 
-          {/* ضمان التصليحات */}
-          <div className="line-separator"></div>
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{
-              background: '#fef3c7',
-              borderColor: '#f59e0b',
-              color: '#92400e'
-            }}>
-              🔧 ضمان التصليحات
+          {/* 5. DEVICE CARD */}
+          <div className="rr-card">
+            <div className="rr-card-header">
+              <span>الجهاز والمشكلة</span>
+              <Smartphone size={12} />
             </div>
-
-            <div className="center-item" style={{ marginTop: '3mm' }}>
-              <div className="center-flex" style={{
-                border: '2px solid #f59e0b',
-                borderRadius: '3mm',
-                padding: '4mm',
-                background: '#fffbeb'
-              }}>
-                <p className="center-item" style={{
-                  fontSize: '11px',
-                  lineHeight: '1.5',
-                  margin: '0',
-                  fontWeight: '500',
-                  textAlign: 'center',
-                  color: '#92400e',
-                  wordWrap: 'break-word',
-                  overflowWrap: 'break-word'
-                }}>
-                  يضمن المتجر الخدمة لمدة 24 ساعة بعد استلام الجهاز. في حال استمرار نفس المشكلة، يمكن إعادة الجهاز خلال هذه المدة لإعادة التصليح مجانًا. لا يشمل الضمان ظهور أعطال جديدة غير متعلقة بالإصلاح الأصلي.
-                </p>
+            <div className="rr-card-body">
+              <div className="rr-row">
+                <span className="rr-label">الجهاز</span>
+                <span className="rr-value xl">{order.device_type}</span>
               </div>
-            </div>
-          </div>
-
-          {/* شروط الخدمة */}
-          <div className="line-separator"></div>
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="center-flex" style={{
-              border: '2px solid #e5e7eb',
-              padding: '4mm',
-              borderRadius: '3mm',
-              background: '#f9fafb'
-            }}>
-              <div className="center-item" style={{
-                fontSize: '12px',
-                fontWeight: '700',
-                marginBottom: '3mm'
-              }}>
-                📋 شروط الخدمة
-              </div>
-
-              <div className="center-item" style={{ fontSize: '9px', lineHeight: '1.4' }}>
-                <p className="center-item" style={{ margin: '1mm 0' }}>
-                  • يجب تقديم هذا الإيصال عند الاستلام
-                </p>
-                <p className="center-item" style={{ margin: '1mm 0' }}>
-                  • غير مسؤولين عن فقدان البيانات المخزنة
-                </p>
-                <p className="center-item" style={{ margin: '1mm 0' }}>
-                  • الاستلام خلال 30 يوماً من الإشعار
-                </p>
-                <p className="center-item" style={{ margin: '1mm 0' }}>
-                  • فحص الجهاز جيداً قبل المغادرة
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ====================== الجزء الثاني: إيصال المسؤول ====================== */}
-        <div className="center-item" style={{ marginTop: '8mm' }}>
-
-          {/* عنوان الجزء الإداري */}
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{
-              background: '#fef2f2',
-              borderColor: '#dc2626',
-              color: '#dc2626'
-            }}>
-              🔧 إيصال المسؤول - معالجة التصليح
-            </div>
-          </div>
-
-          {/* معلومات أساسية */}
-          <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-flex" style={{
-              border: '2px solid #dc2626',
-              borderRadius: '3mm',
-              padding: '3mm',
-              background: '#fef2f2'
-            }}>
-              <div className="info-row center-item">
-                <div className="info-label center-item">رقم الطلبية</div>
-                <div className="info-value center-item" style={{
-                  fontSize: '16px',
-                  fontWeight: '900',
-                  color: '#dc2626'
-                }}>
-                  #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
-                </div>
-              </div>
-
-              <div className="info-row center-item">
-                <div className="info-label center-item">العميل</div>
-                <div className="info-value center-item">
-                  {order.customer_name} - {convertToEnglishNumbers(order.customer_phone)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* QR Code للمسؤول - إدارة التصليح */}
-          <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="center-item" style={{
-              fontSize: '14px',
-              fontWeight: '800',
-              marginBottom: '4mm',
-              color: '#dc2626'
-            }}>
-              🔧 أكواد سريعة للمسؤول
-            </div>
-
-            {/* QR لإنهاء التصليح */}
-            <div className="center-item" style={{ marginBottom: '4mm' }}>
-              <div className="center-item complete-qr qr-section" style={{
-                border: '3px solid #dc2626',
-                padding: '4mm',
-                borderRadius: '4mm',
-                background: '#fef2f2',
-                width: '100%'
-              }}>
-                <div className="center-item" style={{
-                  fontSize: '12px',
-                  marginBottom: '3mm',
-                  fontWeight: '800',
-                  color: '#dc2626'
-                }}>
-                  ✅ إنهاء التصليح
-                </div>
-                <QRCodeSVG
-                  value={`${storeUrl}/repair-complete/${order.id}`}
-                  size={80}
-                  data-testid="complete-qr-code"
-                />
-                <div className="center-item" style={{
-                  fontSize: '10px',
-                  marginTop: '2mm',
-                  fontWeight: '600',
-                  color: '#dc2626',
-                  opacity: '0.8'
-                }}>
-                  امسح عند إنهاء التصليح
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* تفاصيل التصليح للمسؤول */}
-          <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-item" style={{
-              fontSize: '12px',
-              fontWeight: '700',
-              marginBottom: '3mm'
-            }}>
-              📝 تفاصيل التصليح
-            </div>
-
-            <div className="center-item" style={{
-              border: '2px solid #e5e7eb',
-              borderRadius: '3mm',
-              padding: '3mm',
-              background: '#f9fafb'
-            }}>
-              <div className="center-item" style={{
-                fontSize: '11px',
-                fontWeight: '700',
-                marginBottom: '2mm'
-              }}>
-                📱 {order.device_type || 'جهاز غير محدد'}
-              </div>
-
               {order.issue_description && (
-                <div className="center-item" style={{
-                  fontSize: '10px',
-                  color: '#666',
-                  lineHeight: '1.4',
-                  wordWrap: 'break-word',
-                  overflowWrap: 'break-word',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {order.issue_description}
+                <div style={{ marginTop: '4px', borderTop: '1px dashed #ccc', paddingTop: '4px' }}>
+                  <div className="rr-desc-text">{order.issue_description}</div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* مساحة للملاحظات */}
-          <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-item" style={{
-              fontSize: '12px',
-              fontWeight: '700',
-              marginBottom: '3mm'
-            }}>
-              📝 ملاحظات المسؤول
+          {/* 6. FINANCIALS */}
+          <div className="rr-card">
+            <div className="rr-card-header">
+              <span>الدفع</span>
+              <CreditCard size={12} />
             </div>
-
-            <div className="center-item" style={{
-              border: '2px dashed #ccc',
-              borderRadius: '3mm',
-              padding: '6mm',
-              background: 'white',
-              minHeight: '15mm'
-            }}>
-              <div className="center-item" style={{
-                fontSize: '9px',
-                color: '#999',
-                fontStyle: 'italic'
-              }}>
-                مساحة للملاحظات والتوقيع...
-              </div>
-            </div>
-          </div>
-
-          {/* معلومات إضافية للمسؤول */}
-          <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-flex" style={{
-              border: '1px solid #e5e7eb',
-              borderRadius: '3mm',
-              padding: '3mm',
-              background: '#f9fafb'
-            }}>
-              <div className="center-item" style={{
-                fontSize: '9px',
-                color: '#666',
-                lineHeight: '1.4'
-              }}>
-                <p style={{ margin: '1mm 0' }}>
-                  • تاريخ الاستلام: {formatDate(order.created_at)}
-                </p>
-                <p style={{ margin: '1mm 0' }}>
-                  • حالة الدفع: {order.price_to_be_determined_later ? 'سيحدد لاحقاً' : remainingAmount > 0 ? 'جزئي' : 'مكتمل'}
-                </p>
-                <p style={{ margin: '1mm 0' }}>
-                  • حالة التصليح: {order.status}
-                </p>
-                <p style={{ margin: '1mm 0' }}>
-                  • كود التتبع: {convertToEnglishNumbers(trackingCode)}
-                </p>
-              </div>
+            <div className="rr-card-body">
+              {isPriceUnknown ? (
+                <div style={{ textAlign: 'center', fontWeight: 'bold' }}>⚠️ السعر يحدد لاحقاً</div>
+              ) : (
+                <>
+                  <div className="rr-row">
+                    <span className="rr-label">الإجمالي</span>
+                    <span className="rr-value ltr">{convertToEnglishNumbers(total)} DA</span>
+                  </div>
+                  <div className="rr-row">
+                    <span className="rr-label">المدفوع</span>
+                    <span className="rr-value ltr">{convertToEnglishNumbers(paid)} DA</span>
+                  </div>
+                  {remaining > 0 && (
+                    <div className="rr-total-block">
+                      <div className="rr-total-row">
+                        <span>الباقي</span>
+                        <span className="rr-value ltr" style={{ fontSize: '16px' }}>{convertToEnglishNumbers(remaining)} DA</span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
+
+          {/* 7. TRACKING QR */}
+          {s.showTrackingQr && (
+            <div className="rr-tracking-block">
+              <div style={{ marginBottom: '5px', fontWeight: 800, fontSize: '11px' }}>تتبع حالة جهازك</div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <QRCodeSVG value={finalTrackingUrl} size={s.trackingQrSize || 90} level="M" />
+              </div>
+              <div style={{ marginTop: '4px', fontSize: '10px', fontWeight: 600 }}>Scan to Track</div>
+            </div>
+          )}
+
+          {/* 8. FOOTER TERMS */}
+          {s.showWarrantyAndTerms && (
+            <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '9px', fontWeight: 500 }}>
+              <p>تطبق الشروط والأحكام. ضمان الصيانة 30 يوماً على القطع المستبدلة فقط.</p>
+            </div>
+          )}
         </div>
-      </div>
-    </>
+      )}
+
+      {/* ================================================================== 
+         ADMIN STICKER (Separate "Cut" Section)
+      ================================================================== */}
+      {s.showAdminReceipt && (
+        <>
+          <div className="rr-cut-separator">
+            <div className="rr-cut-icon"><Scissors size={14} /></div>
+          </div>
+
+          <div className="rr-admin-stub">
+            <div className="rr-admin-header">INTERNAL TICKET (ملصق الجهاز)</div>
+
+            {/* Split Top: ID and Device */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+              <div style={{ fontWeight: 900, fontSize: '24px' }}>#{convertToEnglishNumbers(order.order_number || order.id?.slice(0, 4))}</div>
+              <div style={{ fontWeight: 700, fontSize: '10px' }}>{formatDate(order.created_at)}</div>
+            </div>
+
+            <div style={{ borderBottom: '2px solid #000', marginBottom: '5px' }}></div>
+
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: 900 }}>{order.device_type}</div>
+              <div className="rr-desc-text" style={{ fontSize: '10px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                {order.customer_name} - {convertToEnglishNumbers(order.customer_phone)}
+              </div>
+            </div>
+
+            {/* Bottom: Issues + Action QR */}
+            <div style={{ display: 'flex', gap: '5px', alignItems: 'stretch' }}>
+              {/* Left: Issue Summary */}
+              <div style={{ flex: 1, textAlign: 'right', border: '1px dashed #000', padding: '4px', borderRadius: '4px' }}>
+                <div style={{ fontSize: '9px', fontWeight: 700 }}>العطل:</div>
+                <div style={{ fontSize: '10px', lineHeight: 1.1 }}>{order.issue_description?.substring(0, 50)}...</div>
+              </div>
+
+              {/* Right: QR */}
+              {s.showCompleteQr && (
+                <div style={{ width: '50px', flexShrink: 0 }}>
+                  <QRCodeSVG value={adminActionUrl} size={50} />
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+    </div>
   );
 };
 

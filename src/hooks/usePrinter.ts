@@ -80,6 +80,16 @@ export interface PrintBarcodeOptions {
   showProductName?: boolean;
   showPrice?: boolean;
   showStoreName?: boolean;
+  showBarcodeValue?: boolean;
+  showSku?: boolean;
+  // ⚡ إعدادات القالب والتنسيق
+  templateId?: string;
+  fontFamily?: string;
+  barcodeType?: string;
+  // ⚡ تسريع طباعة الباركود (electron-pos-printer)
+  timeOutPerLine?: number;
+  // ⚡ HTML مخصص للقوالب المعقدة (QR codes, etc)
+  customHtml?: string;
 }
 
 // ============================================================================
@@ -310,13 +320,29 @@ export function usePrinter() {
     barcodes: BarcodeItem[],
     options?: PrintBarcodeOptions
   ): Promise<PrintResult> => {
+    console.log('[usePrinter] 🔍 printBarcodes called');
+    console.log('[usePrinter] isElectron:', isElectron);
+    console.log('[usePrinter] window.electronAPI exists:', !!window.electronAPI);
+    console.log('[usePrinter] window.electronAPI.print exists:', !!window.electronAPI?.print);
+    console.log('[usePrinter] window.electronAPI.print.barcode exists:', typeof window.electronAPI?.print?.barcode);
+
     if (!isElectron) {
+      console.warn('[usePrinter] ⚠️ Not in Electron, using browser fallback');
       toast.warning('طباعة الباركود تعمل بشكل أفضل في تطبيق سطح المكتب');
       return printBarcodesBrowser(barcodes);
     }
 
     try {
       setIsPrinting(true);
+
+      console.log('[usePrinter] 🚀 Calling window.electronAPI.print.barcode...');
+      console.log('[usePrinter] 📋 Options:', {
+        barcodesCount: barcodes.length,
+        printerName: options?.printerName || selectedPrinter,
+        templateId: options?.templateId || 'default',
+        hasCustomHtml: !!options?.customHtml,
+        customHtmlLength: options?.customHtml?.length || 0
+      });
 
       const result = await window.electronAPI.print.barcode({
         barcodes,
@@ -325,7 +351,16 @@ export function usePrinter() {
         labelSize: options?.labelSize || { width: '50mm', height: '30mm' },
         showProductName: options?.showProductName ?? true,
         showPrice: options?.showPrice ?? true,
-        showStoreName: options?.showStoreName ?? false
+        showStoreName: options?.showStoreName ?? false,
+        showBarcodeValue: options?.showBarcodeValue ?? true,
+        showSku: options?.showSku ?? false,
+        // ⚡ إعدادات القالب والتنسيق
+        templateId: options?.templateId || 'default',
+        fontFamily: options?.fontFamily || 'system-ui',
+        barcodeType: options?.barcodeType || 'CODE128',
+        timeOutPerLine: options?.timeOutPerLine,
+        // ⚡ HTML مخصص للقوالب المعقدة
+        customHtml: options?.customHtml
       });
 
       if (result.success) {

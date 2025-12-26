@@ -2,7 +2,7 @@
  * OrdersFilters - مكون فلاتر الطلبيات المحسن
  */
 
-import React, { memo, useState, useCallback } from 'react';
+import React, { memo, useMemo, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,7 +14,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Search, Calendar as CalendarIcon, X, Filter } from 'lucide-react';
 import { useOrders } from '../context/OrdersContext';
-import type { OrderStatus } from '../types';
+import type { OrderStatus, ViewMode } from '../types';
 
 const STATUS_CONFIG: Record<OrderStatus | 'all', { label: string; color: string; bgColor: string }> = {
   all: { label: 'الكل', color: 'text-foreground', bgColor: 'bg-muted' },
@@ -83,8 +83,42 @@ const OrdersFilters: React.FC = () => {
 
   const hasActiveFilters = filters.searchTerm || filters.dateFrom || currentStatus !== 'all';
 
+  const currentViewMode = useMemo<ViewMode>(() => {
+    const mode = filters.viewMode as ViewMode | undefined;
+    return mode === 'mine' || mode === 'unassigned' ? mode : 'all';
+  }, [filters.viewMode]);
+
+  const handleViewModeChange = useCallback((viewMode: ViewMode) => {
+    applyFilters({ viewMode });
+  }, [applyFilters]);
+
   return (
     <div className="space-y-4 p-4 bg-card rounded-xl border border-border/30">
+      {/* View Mode */}
+      <div className="space-y-2">
+        <div className="text-sm text-muted-foreground">عرض</div>
+        <div className="inline-flex rounded-lg border border-border/40 bg-background p-1 gap-1">
+          {([
+            { key: 'all' as const, label: 'الكل' },
+            { key: 'mine' as const, label: 'طلبياتي' },
+            { key: 'unassigned' as const, label: 'غير معيّنة' },
+          ]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => handleViewModeChange(key)}
+              className={[
+                'px-3 py-1.5 text-sm rounded-md transition-colors',
+                currentViewMode === key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-muted/60 text-foreground',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Status Pills */}
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

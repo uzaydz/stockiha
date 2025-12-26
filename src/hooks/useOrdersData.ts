@@ -4,6 +4,7 @@ import { unifiedOrderService } from '@/services/UnifiedOrderService';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/context/TenantContext';
 import { Order } from '@/components/orders/table/OrderTableTypes';
+import { supabase } from '@/lib/supabase';
 // تم إزالة useOptimizedInterval - نستخدم useEffect عادي
 
 // ⚡ دالة إلغاء الطلب مع إرجاع المخزون (Offline-First)

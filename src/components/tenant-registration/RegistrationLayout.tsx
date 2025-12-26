@@ -9,68 +9,81 @@ interface RegistrationLayoutProps {
 
 const RegistrationLayout = ({ children, sidebar }: RegistrationLayoutProps) => {
     return (
-        <div className="min-h-screen w-full flex items-center justify-center bg-[#f8fafc] dark:bg-[#020617] font-tajawal p-4 md:p-6 relative overflow-hidden">
-            {/* Premium Background Elements */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-gradient-to-br from-orange-400/20 to-rose-500/20 rounded-full blur-[120px] opacity-60 dark:opacity-20" />
-                <div className="absolute bottom-[-20%] left-[-10%] w-[60%] h-[60%] bg-gradient-to-tr from-blue-400/20 to-indigo-500/20 rounded-full blur-[120px] opacity-60 dark:opacity-20" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-white/40 dark:bg-slate-900/40 blur-[100px] rounded-full" />
+        <div className="min-h-screen w-full flex bg-[#020202] font-tajawal selection:bg-brand selection:text-white">
+            {/* Left Side - Visual & Brand (Desktop Only) */}
+            <div className="hidden lg:flex w-1/2 relative bg-[#050505] flex-col justify-between p-12 overflow-hidden">
+                {/* Background Effects */}
+                <div className="absolute inset-0">
+                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 contrast-150 brightness-100"></div>
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px] bg-brand/5 rounded-full blur-[120px] mix-blend-screen opacity-60"></div>
+                    <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[150px]"></div>
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_100%)] opacity-30"></div>
+                </div>
+
+                {/* Brand Logo */}
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="relative z-10 flex items-center gap-3"
+                >
+                    <div className="w-12 h-12 bg-[#0A0A0A] rounded-2xl border border-white/10 flex items-center justify-center shadow-2xl shadow-black/50 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-brand/5 blur-xl"></div>
+                        <img src="/logo-new.ico" alt="Logo" className="w-6 h-6 object-contain relative z-10" />
+                    </div>
+                    <span className="text-2xl font-bold text-white tracking-tight">سطوكيها</span>
+                </motion.div>
+
+                {/* Sidebar Content */}
+                <div className="relative z-10 flex-1 flex flex-col justify-center">
+                    {sidebar}
+                </div>
+
+                {/* Footer */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.4 }}
+                    className="relative z-10"
+                >
+                    <div className="flex items-center gap-6 text-xs font-medium text-gray-500">
+                        <a href="#" className="hover:text-brand transition-colors">مركز المساعدة</a>
+                        <a href="#" className="hover:text-brand transition-colors">الشروط والأحكام</a>
+                        <span className="flex-1" />
+                        <span className="opacity-50">© 2025 Stockiha</span>
+                    </div>
+                </motion.div>
             </div>
 
-            {/* Grid Pattern Overlay */}
-            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
-
-            {/* Main Card */}
-            <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="w-full max-w-[1200px] bg-white/80 dark:bg-[#1e293b]/80 backdrop-blur-2xl rounded-[32px] shadow-2xl shadow-slate-200/50 dark:shadow-slate-900/50 border border-white/50 dark:border-slate-700/50 overflow-hidden relative z-10 flex flex-col lg:flex-row min-h-[800px]"
-            >
-                {/* Sidebar / Stepper Section (Left) */}
-                <div className="w-full lg:w-[35%] bg-slate-50/50 dark:bg-slate-900/50 border-b lg:border-b-0 lg:border-l border-slate-200/50 dark:border-slate-700/50 p-8 lg:p-12 flex flex-col justify-between relative">
-                    {/* Brand */}
-                    <div className="flex items-center gap-3 mb-8 lg:mb-0">
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/25 ring-1 ring-orange-500/10">
-                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
+            {/* Right Side - Form */}
+            <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 lg:p-24 relative bg-[#020202]">
+                {/* Mobile Header */}
+                <div className="lg:hidden absolute top-6 left-6 right-6 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-[#0A0A0A] rounded-xl border border-white/10 flex items-center justify-center shadow-md relative overflow-hidden">
+                            <div className="absolute inset-0 bg-brand/5 blur-xl"></div>
+                            <img src="/logo-new.ico" alt="Logo" className="w-5 h-5 object-contain relative z-10" />
                         </div>
-                        <div>
-                            <span className="block text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">سطوكيها</span>
-                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tracking-wide">للأعمال والشركات</span>
-                        </div>
-                    </div>
-
-                    {/* Stepper Content */}
-                    <div className="flex-1 flex flex-col justify-center py-8">
-                        {sidebar}
-                    </div>
-
-                    {/* Footer Links */}
-                    <div className="hidden lg:flex items-center gap-6 text-xs font-medium text-slate-500 dark:text-slate-400">
-                        <a href="#" className="hover:text-orange-600 dark:hover:text-orange-400 transition-colors">مركز المساعدة</a>
-                        <a href="#" className="hover:text-orange-600 dark:hover:text-orange-400 transition-colors">الشروط والأحكام</a>
-                        <span className="flex-1" />
-                        <span className="opacity-50">© 2025</span>
+                        <span className="text-xl font-bold text-white">سطوكيها</span>
                     </div>
                 </div>
 
-                {/* Main Content Section (Right) */}
-                <div className="flex-1 relative flex flex-col bg-white/50 dark:bg-slate-900/20">
-                    {/* Header Actions */}
-                    <div className="absolute top-6 left-6 z-20 flex items-center gap-2">
-                        <ThemeToggle />
-                    </div>
+                {/* Form Container */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="w-full max-w-md"
+                >
+                    {children}
+                </motion.div>
 
-                    {/* Form Container */}
-                    <div className="flex-1 flex flex-col justify-center p-6 sm:p-12 lg:p-20 overflow-y-auto custom-scrollbar">
-                        <div className="w-full max-w-[480px] mx-auto">
-                            {children}
-                        </div>
-                    </div>
+                <div className="absolute bottom-6 text-center">
+                    <p className="text-xs text-gray-600">
+                        © 2025 Stockiha. جميع الحقوق محفوظة.
+                    </p>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 };

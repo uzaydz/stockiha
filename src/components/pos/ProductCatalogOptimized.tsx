@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDebounce } from '@/hooks/useDebounce';
 import { logProductAdd, logError } from '@/utils/inventoryLogger';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 
 interface ProductCatalogOptimizedProps {
   onAddToCart: (product: Product) => void;
@@ -104,17 +105,20 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
           // ⚡ بحث محلي سريع من PowerSync (Offline-First)
           unifiedProductService.setOrganizationId(orgId);
           const localMatches = await unifiedProductService.searchProducts(debouncedSearchQuery, 1500);
-          const transformed = localMatches.map((p: any) => ({
+          const transformed = localMatches.map((p: any) => {
+            const imageSrc = resolveProductImageSrc(p, '/placeholder-product.svg');
+            return ({
             ...p,
             stockQuantity: p.stock_quantity,
             stock_quantity: p.stock_quantity,
-            thumbnailImage: p.thumbnail_image,
-            thumbnail_image: p.thumbnail_image,
+            thumbnailImage: imageSrc,
+            thumbnail_image: imageSrc,
             compareAtPrice: p.compare_at_price,
             compare_at_price: p.compare_at_price,
             createdAt: p.created_at ? new Date(p.created_at) : new Date(),
             updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
-          })) as Product[];
+          });
+          }) as Product[];
           setAllProducts(transformed);
           const filtered = transformed
             .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory));
@@ -148,17 +152,20 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
           }
           
           const res = await unifiedProductService.getProducts(filters, 1, pageSize);
-          const transformed = res.data.map((p: any) => ({
+          const transformed = res.data.map((p: any) => {
+            const imageSrc = resolveProductImageSrc(p, '/placeholder-product.svg');
+            return ({
             ...p,
             stockQuantity: p.stock_quantity,
             stock_quantity: p.stock_quantity,
-            thumbnailImage: p.thumbnail_image,
-            thumbnail_image: p.thumbnail_image,
+            thumbnailImage: imageSrc,
+            thumbnail_image: imageSrc,
             compareAtPrice: p.compare_at_price,
             compare_at_price: p.compare_at_price,
             createdAt: p.created_at ? new Date(p.created_at) : new Date(),
             updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
-          })) as Product[];
+          });
+          }) as Product[];
           
           if (canUseIndexedPagination) {
             setProducts(transformed);
@@ -171,17 +178,20 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
           } else {
             // تحميل كامل للتصفح المحلي
             const allRes = await unifiedProductService.getProducts(filters, 1, 10000);
-            const allTransformed = allRes.data.map((p: any) => ({
+            const allTransformed = allRes.data.map((p: any) => {
+              const imageSrc = resolveProductImageSrc(p, '/placeholder-product.svg');
+              return ({
               ...p,
               stockQuantity: p.stock_quantity,
               stock_quantity: p.stock_quantity,
-              thumbnailImage: p.thumbnail_image,
-              thumbnail_image: p.thumbnail_image,
+              thumbnailImage: imageSrc,
+              thumbnail_image: imageSrc,
               compareAtPrice: p.compare_at_price,
               compare_at_price: p.compare_at_price,
               createdAt: p.created_at ? new Date(p.created_at) : new Date(),
               updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
-            })) as Product[];
+            });
+            }) as Product[];
             setAllProducts(allTransformed);
             const filtered = allTransformed
               .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory));
@@ -260,17 +270,20 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         filters.category_id = selectedCategory;
       }
       const res = await unifiedProductService.getProducts(filters, 1, 10000);
-      const transformed = res.data.map((p: any) => ({
-        ...p,
-        stockQuantity: p.stock_quantity,
-        stock_quantity: p.stock_quantity,
-        thumbnailImage: p.thumbnail_image,
-        thumbnail_image: p.thumbnail_image,
-        compareAtPrice: p.compare_at_price,
-        compare_at_price: p.compare_at_price,
-        createdAt: p.created_at ? new Date(p.created_at) : new Date(),
-        updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
-      })) as Product[];
+      const transformed = res.data.map((p: any) => {
+        const imageSrc = resolveProductImageSrc(p, '/placeholder-product.svg');
+        return ({
+          ...p,
+          stockQuantity: p.stock_quantity,
+          stock_quantity: p.stock_quantity,
+          thumbnailImage: imageSrc,
+          thumbnail_image: imageSrc,
+          compareAtPrice: p.compare_at_price,
+          compare_at_price: p.compare_at_price,
+          createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+          updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+        });
+      }) as Product[];
       setAllProducts(transformed);
       // تطبيق الفلاتر محلياً
       const filtered = transformed
@@ -305,17 +318,20 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
               filters.category_id = selectedCategory;
             }
             const res = await unifiedProductService.getProducts(filters, nextPage, pageSize);
-            const slice = res.data.map((p: any) => ({
-              ...p,
-              stockQuantity: p.stock_quantity,
-              stock_quantity: p.stock_quantity,
-              thumbnailImage: p.thumbnail_image,
-              thumbnail_image: p.thumbnail_image,
-              compareAtPrice: p.compare_at_price,
-              compare_at_price: p.compare_at_price,
-              createdAt: p.created_at ? new Date(p.created_at) : new Date(),
-              updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
-            })) as Product[];
+            const slice = res.data.map((p: any) => {
+              const imageSrc = resolveProductImageSrc(p, '/placeholder-product.svg');
+              return ({
+                ...p,
+                stockQuantity: p.stock_quantity,
+                stock_quantity: p.stock_quantity,
+                thumbnailImage: imageSrc,
+                thumbnail_image: imageSrc,
+                compareAtPrice: p.compare_at_price,
+                compare_at_price: p.compare_at_price,
+                createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+                updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+              });
+            }) as Product[];
             setProducts(prev => prev.concat(slice));
             setCurrentPage(nextPage);
             setHasNextPage(res.hasMore);
@@ -928,17 +944,20 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
                             filters.search = debouncedSearchQuery;
                           }
                           const response = await unifiedProductService.getProducts(filters, currentPage + 1, pageSize);
-                          const transformedProducts = response.data.map((p: any) => ({
-                            ...p,
-                            stockQuantity: p.stock_quantity,
-                            stock_quantity: p.stock_quantity,
-                            thumbnailImage: p.thumbnail_image,
-                            thumbnail_image: p.thumbnail_image,
-                            compareAtPrice: p.compare_at_price,
-                            compare_at_price: p.compare_at_price,
-                            createdAt: p.created_at ? new Date(p.created_at) : new Date(),
-                            updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
-                          })) as Product[];
+                          const transformedProducts = response.data.map((p: any) => {
+                            const imageSrc = resolveProductImageSrc(p, '/placeholder-product.svg');
+                            return ({
+                              ...p,
+                              stockQuantity: p.stock_quantity,
+                              stock_quantity: p.stock_quantity,
+                              thumbnailImage: imageSrc,
+                              thumbnail_image: imageSrc,
+                              compareAtPrice: p.compare_at_price,
+                              compare_at_price: p.compare_at_price,
+                              createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+                              updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+                            });
+                          }) as Product[];
                           setProducts(prev => [...prev, ...transformedProducts]);
                           setCurrentPage(response.page);
                           setTotalPages(Math.ceil(response.total / pageSize));

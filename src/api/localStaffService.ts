@@ -439,6 +439,14 @@ export const localStaffService = {
            WHERE id = ? AND organization_id = ?`,
           [now, staffId, organizationId]
         );
+
+        // تحديث staff_pins أيضاً (إن وجد)
+        await tx.execute(
+          `UPDATE staff_pins
+           SET is_active = 0, updated_at = ?
+           WHERE staff_id = ? AND organization_id = ?`,
+          [now, staffId, organizationId]
+        );
       });
 
       console.log(`[localStaffService] ✅ Marked staff as deleted via PowerSync: ${staffId}`);
@@ -511,6 +519,10 @@ export const localStaffService = {
               }
 
               if (staff) {
+                if (!staff.is_active) {
+                  console.warn('[localStaffService] ⛔️ محاولة دخول لموظف معطل:', staff.staff_name);
+                  return { success: false, error: 'تم تعطيل هذا الموظف' };
+                }
                 console.log('%c[localStaffService] ✅ تم التحقق بنجاح من staff_pins!', 'color: #4CAF50; font-weight: bold');
                 return { success: true, staff };
               }
@@ -535,6 +547,10 @@ export const localStaffService = {
                 created_at: pinRecord.created_at,
                 updated_at: pinRecord.updated_at,
               };
+              if (!staffFromPin.is_active) {
+                console.warn('[localStaffService] ⛔️ محاولة دخول لموظف معطل (staff_pins fallback):', staffFromPin.staff_name);
+                return { success: false, error: 'تم تعطيل هذا الموظف' };
+              }
               console.log('%c[localStaffService] ✅ تم التحقق من staff_pins (fallback):', 'color: #4CAF50; font-weight: bold', staffFromPin.staff_name);
               return { success: true, staff: staffFromPin };
             }
@@ -668,9 +684,10 @@ export const localStaffService = {
         console.log('[localStaffService] ✅ تم تحديث pos_staff_sessions');
 
         // 2. تحديث/إنشاء في staff_pins
-        const pinRecordId = `pin_${staffId}_${Date.now()}`;
+        const pinRecordId = `pin_${staffId}`;
         const staffName = staff?.staff_name || 'موظف';
         const permissionsJson = JSON.stringify(staff?.permissions || {});
+        const isActive = staff ? (staff.is_active ? 1 : 0) : 1;
 
         // 🔧 FIX: استخدام INSERT OR REPLACE بدلاً من UPDATE ثم INSERT
         // هذا يتجنب مشكلة التحقق من نتيجة UPDATE
@@ -682,7 +699,7 @@ export const localStaffService = {
                (SELECT id FROM staff_pins WHERE staff_id = ? AND organization_id = ?),
                ?
              ),
-             ?, ?, ?, ?, ?, ?, 1,
+             ?, ?, ?, ?, ?, ?, ?,
              COALESCE(
                (SELECT created_at FROM staff_pins WHERE staff_id = ? AND organization_id = ?),
                ?
@@ -690,7 +707,7 @@ export const localStaffService = {
              ?`,
           [
             staffId, organizationId, pinRecordId, // للـ id
-            staffId, organizationId, hash, salt, staffName, permissionsJson, // البيانات الجديدة
+            staffId, organizationId, hash, salt, staffName, permissionsJson, isActive, // البيانات الجديدة
             staffId, organizationId, now, // للـ created_at
             now // updated_at
           ]
@@ -791,6 +808,14 @@ export const localStaffService = {
            WHERE id = ? AND organization_id = ?`,
           [isActive ? 1 : 0, now, staffId, organizationId]
         );
+
+        // تحديث staff_pins أيضاً (إن وجد) لمنع دخول أوفلاين عند التعطيل
+        await tx.execute(
+          `UPDATE staff_pins
+           SET is_active = ?, updated_at = ?
+           WHERE staff_id = ? AND organization_id = ?`,
+          [isActive ? 1 : 0, now, staffId, organizationId]
+        );
       });
 
       console.log(
@@ -870,8 +895,6 @@ export const localStaffService = {
     }
   },
 };
-
-
 
 
 

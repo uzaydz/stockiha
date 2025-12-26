@@ -71,6 +71,7 @@ export const ConfirmationCenter = lazy(() => import('../pages/dashboard/Confirma
 
 // ============ نقطة البيع ============
 export const POSOptimized = lazy(() => import('../pages/POSOptimized'));
+export const POSStocktake = lazy(() => import('../pages/POSStocktake'));
 export const POSAdvanced = lazy(() => import('../pages/POSAdvanced'));
 export const POSDashboard = lazy(() => import('../pages/POSDashboard'));
 export const POSOrdersOptimized = lazy(() => import('../pages/POSOrdersOptimized'));

@@ -1,606 +1,762 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Printer, Check, Loader2 } from 'lucide-react';
+import {
+  Printer,
+  Settings,
+  Ticket,
+  FileText,
+  QrCode,
+  MapPin,
+  ShieldCheck,
+  Eye,
+  Loader2
+} from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import { useTenant } from '@/context/TenantContext';
 import { RepairOrder } from '@/types/repair';
 import RepairReceiptPrint from './RepairReceiptPrint';
 import { supabase } from '@/lib/supabase';
-import { buildStoreUrl, buildTrackingUrl } from '@/lib/utils/store-url';
-import { isElectronApp } from '@/lib/platform';
+import { buildTrackingUrl } from '@/lib/utils/store-url';
 import '@/styles/repair-print.css';
-// ⚡ نظام الطباعة الموحد
 import { usePrinter } from '@/hooks/usePrinter';
+import { useRepairReceiptSettings } from '@/hooks/useRepairReceiptSettings';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger
+} from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+
+// ----------------------------------------------------------------------
 
 interface RepairOrderPrintProps {
   order: RepairOrder;
   queuePosition?: number;
+  showPrintButton?: boolean;
+  // Controlled Dialog Props
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-// هوك آمن للوصول إلى POSData مع fallback
-const useSafePOSData = () => {
-  try {
-    const { usePOSData } = require('@/context/POSDataContext');
-    return usePOSData();
-  } catch (error) {
-    // إذا لم يكن POSDataProvider متاحاً، أرجع قيم افتراضية
-    return {
-      posSettings: null,
-      refreshPOSSettings: () => { }
-    };
-  }
-};
+// ----------------------------------------------------------------------
 
-const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePosition }) => {
+const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({
+  order,
+  queuePosition,
+  showPrintButton = true,
+  isOpen: controlledIsOpen,
+  onOpenChange: controlledOnOpenChange
+}) => {
   const { organizationId } = useUser();
   const { currentOrganization } = useTenant();
-  const { posSettings, refreshPOSSettings } = useSafePOSData();
   const receiptRef = useRef<HTMLDivElement>(null);
+
+  // State (Internal)
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPrintSuccess, setIsPrintSuccess] = useState(false);
-  const [fallbackPOSSettings, setFallbackPOSSettings] = useState<any>(null);
   const [calculatedQueuePosition, setCalculatedQueuePosition] = useState<number>(queuePosition || 0);
+  const [fallbackPOSSettings, setFallbackPOSSettings] = useState<any>(null);
 
-  // ⚡ نظام الطباعة الموحد
-  const { printHtml, isElectron: isElectronPrint } = usePrinter();
+  // Derived State for Controlled vs Uncontrolled
+  const isDialogOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+  const onDialogChange = controlledOnOpenChange || setInternalIsOpen;
 
-  // جلب إعدادات نقطة البيع من قاعدة البيانات كبديل
+  // Hooks
+  const { 
+    printHtml, 
+    isElectron: isElectronPrint, 
+    settings: printerSettings, 
+    selectedPrinter, 
+    printers,
+    setSelectedPrinter,
+    fetchPrinters,
+    updateSetting: updatePrinterSetting 
+  } = usePrinter();
+  const { settings: receiptSettings, updateSetting: updateReceiptSetting } = useRepairReceiptSettings(organizationId);
+
+  // 1. Fetch Fallback POS Settings
   useEffect(() => {
     const fetchPOSSettings = async () => {
       if (!organizationId) return;
-
       try {
-
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('pos_settings')
           .select('*')
           .eq('organization_id', organizationId)
           .single();
-
-        if (error) {
-        } else {
-          setFallbackPOSSettings(data);
-        }
-      } catch (error) {
-      }
+        if (data) setFallbackPOSSettings(data);
+      } catch (error) { }
     };
+    fetchPOSSettings();
+  }, [organizationId]);
 
-    // جلب الإعدادات إذا لم تكن متاحة من Context
-    if (!posSettings && organizationId) {
-      fetchPOSSettings();
-    }
-  }, [organizationId, posSettings]);
-
-  // تحديث إعدادات نقطة البيع إذا لم تكن موجودة (فقط إذا كان POSDataProvider متاحاً)
+  // Fetch printers on mount (Electron only)
   useEffect(() => {
-    if (!posSettings && organizationId && refreshPOSSettings && typeof refreshPOSSettings === 'function') {
-      refreshPOSSettings();
+    if (isElectronPrint) {
+      fetchPrinters();
     }
-  }, [posSettings, organizationId, refreshPOSSettings]);
+  }, [isElectronPrint, fetchPrinters]);
 
-  // حساب ترتيب الطلبية في الطابور
+  // 2. Calculate Queue Position if missing
   useEffect(() => {
     const calculateQueuePosition = async () => {
-
-      if (!organizationId || !order) {
-        return;
-      }
-
+      if (!organizationId || !order || queuePosition) return;
       try {
-        // التحقق من أن الطلبية مؤهلة لتكون في الطابور
         const activeStatuses = ['قيد الانتظار', 'جاري التصليح'];
-
         if (!activeStatuses.includes(order.status)) {
           setCalculatedQueuePosition(0);
           return;
         }
-
-        // جلب جميع الطلبات في المؤسسة (بغض النظر عن الحالة) مع تواريخها للفحص
-        const { data: allOrders, error: allError } = await supabase
+        const { data: allOrders } = await supabase
           .from('repair_orders')
-          .select('id, created_at, order_number, status')
+          .select('id')
           .eq('organization_id', organizationId)
           .order('created_at', { ascending: true });
 
-        if (allError) {
-          setCalculatedQueuePosition(queuePosition || 1);
-          return;
-        }
-
-        // العثور على ترتيب الطلبية الحالية في القائمة الإجمالية
-        const currentOrderIndex = allOrders?.findIndex(o => o.id === order.id);
-        const position = currentOrderIndex !== undefined && currentOrderIndex >= 0 ? currentOrderIndex + 1 : 1;
-
-        setCalculatedQueuePosition(position);
-      } catch (error) {
-        setCalculatedQueuePosition(queuePosition || 1);
+        const index = allOrders?.findIndex(o => o.id === order.id);
+        setCalculatedQueuePosition((index ?? -1) + 1);
+      } catch (err) {
+        setCalculatedQueuePosition(1);
       }
     };
-
     calculateQueuePosition();
   }, [order, organizationId, queuePosition]);
 
-  // إنشاء رابط التتبع باستخدام الدالة المشتركة
+  // 3. Prepare Data
   const trackingCode = order.repair_tracking_code || order.order_number || order.id;
-  const trackingUrl = buildTrackingUrl(trackingCode, currentOrganization);
 
-  // الحصول على معلومات المتجر من إعدادات نقطة البيع أولاً، ثم المنظمة كبديل
-  const getStoreInfo = () => {
-    // استخدام إعدادات نقطة البيع من Context أولاً، ثم من قاعدة البيانات، ثم المنظمة
-    const activePOSSettings = posSettings || fallbackPOSSettings;
+  // Fix: Pass correct subdomain or org object to utility
+  const getSubdomain = (org: any) => {
+    if (!org) return '';
+    if (typeof org === 'string') return org;
+    return org.subdomain || org.slug || org.domain || 'www';
+  };
+  const subdomain = getSubdomain(currentOrganization);
 
-    // تسجيل تفصيلي للبيانات الأولية
+  // We use buildTrackingUrl helper but ensure it uses the correct context
+  // Or manually build it to be safe
+  // Build tracking URL using subdomain
+  const baseUrl = process.env.NODE_ENV === 'production' 
+    ? `https://${subdomain || 'www'}.stockiha.com`
+    : `http://${subdomain || 'www'}.localhost:8080`;
+  const trackingUrl = `${baseUrl}/repair-tracking/${trackingCode}`;
 
-    const storeInfo = {
-      storeName: activePOSSettings?.store_name || currentOrganization?.name || 'متجرك للإلكترونيات',
-      storePhone: activePOSSettings?.store_phone || (currentOrganization?.settings?.phone as string) || '',
-      storeAddress: activePOSSettings?.store_address || (currentOrganization?.settings?.address as string) || '',
-      storeLogo: activePOSSettings?.store_logo_url || currentOrganization?.logo_url || ''
-    };
-
-    return storeInfo;
+  const activePOSSettings = fallbackPOSSettings;
+  const storeInfo = {
+    storeName: activePOSSettings?.store_name || currentOrganization?.name || 'Store Name',
+    storePhone: activePOSSettings?.store_phone || currentOrganization?.settings?.phone || '',
+    storeAddress: activePOSSettings?.store_address || currentOrganization?.settings?.address || '',
+    storeLogo: activePOSSettings?.store_logo_url || currentOrganization?.logo_url || ''
   };
 
-  const { storeName, storePhone, storeAddress, storeLogo } = getStoreInfo();
-
-  // وظيفة الطباعة المباشرة المحسنة (تدعم Tauri)
-  const handlePrintClick = async () => {
-    if (isPrinting) return;
+  // 4. Print Logic
+  const handlePrint = async () => {
+    if (isPrinting || !receiptRef.current) return;
 
     try {
       setIsPrinting(true);
+      const content = receiptRef.current.innerHTML;
 
-      // جلب المحتوى المراد طباعته
-      const contentToPrint = receiptRef.current;
-      if (!contentToPrint) {
-        setIsPrinting(false);
-        return;
-      }
+      const widthMm = printerSettings.paper_width || 80;
+      const marginTop = printerSettings.margin_top || 0;
+      const marginRight = printerSettings.margin_right || 0;
+      const marginBottom = printerSettings.margin_bottom || 0;
+      const marginLeft = printerSettings.margin_left || 0;
+      const margin = `${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm`;
 
-      // CSS محسن للطباعة مع إصلاح مشكلة الوصل الأبيض والهوامش
-      const printCSS = `
-        /* @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap'); */
-        
-        /* إعدادات الصفحة مع طباعة تلقائية بمقاسات الورق */
-        @page {
-          size: auto; /* طباعة تلقائية بمقاسات الورق */
-          margin: 8mm 8mm; /* هوامش متوازنة من جميع الجهات */
-          padding: 0;
+      // ⚡ Embed Critical CSS Directly
+      const criticalCSS = `
+        /* ==========================================================================
+           THERMAL PRINT RESET & BASE
+           ========================================================================== */
+        @media print {
+          @page { 
+            size: ${widthMm}mm auto; 
+            margin: ${margin}; 
+            padding: 0; 
+          }
+          body { 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            background-color: #fff !important; 
+            width: ${widthMm}mm !important;
+          }
+          /* Hide everything except info inside the print wrapper */
+          body > *:not(#print-root) { display: none !important; }
+          #print-root { 
+            display: block !important; 
+            width: 100% !important; 
+            max-width: ${widthMm}mm !important;
+            margin: 0 auto !important;
+          }
         }
-        
-        /* إعدادات الصفحة البديلة */
-        @page :first {
-          size: auto;
-          margin: 8mm 8mm;
-        }
-        
-        @page :left {
-          size: auto;
-          margin: 8mm 8mm;
-        }
-        
-        @page :right {
-          size: auto;
-          margin: 8mm 8mm;
-        }
-        
-        /* إعدادات الجسم مع إصلاح مشكلة الوصل الأبيض */
-        body {
-          margin: 0 !important;
-          padding: 0 !important;
-          font-family: 'Tajawal', 'Arial', sans-serif !important;
-          background: white !important;
-          color: black !important;
-          direction: rtl !important;
-          overflow: visible !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-          color-adjust: exact !important;
-        }
-        
-        /* إعدادات الوصل المحسنة */
+
+        /* ==========================================================================
+           REPAIR RECEIPT WRAPPER
+           ========================================================================== */
         .repair-receipt {
-          font-family: 'Tajawal', 'Arial', sans-serif !important;
-          font-size: 13px !important;
-          line-height: 1.4 !important;
-          width: 100% !important;
-          max-width: none !important;
-          margin: 0 !important;
-          padding: 5mm !important;
-          background: white !important;
-          color: black !important;
-          box-sizing: border-box !important;
-          overflow: visible !important;
-          border: none !important;
-          box-shadow: none !important;
-          direction: rtl !important;
-          text-align: center !important;
+          font-family: 'Tajawal', sans-serif;
+          direction: rtl;
+          width: 100%;
+          color: #000;
+          background: #fff;
+          font-size: 12px;
+          line-height: 1.4;
+          box-sizing: border-box;
+          padding: 0 2px;
         }
-        
-        /* ضمان ظهور جميع العناصر */
+
         .repair-receipt * {
-          background: transparent !important;
-          color: black !important;
-          border-color: black !important;
-          box-sizing: border-box !important;
-          word-wrap: break-word !important;
-          overflow-wrap: break-word !important;
-          visibility: visible !important;
-          opacity: 1 !important;
+          box-sizing: border-box;
         }
+
+        /* CARD HEADER (Black) */
+        .rr-header { text-align: center; padding-bottom: 8px; border-bottom: 2px solid #000; margin-bottom: 8px; }
+        .rr-logo { max-width: 60%; height: auto; margin: 0 auto 5px auto; filter: grayscale(100%) contrast(120%); }
+        .rr-meta-strip { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 8px; }
         
-        /* تحسين الصفوف والأقسام */
-        .receipt-row {
-          display: flex !important;
-          justify-content: space-between !important;
-          align-items: flex-start !important;
-          margin: 2px 0 !important;
-          width: 100% !important;
-          flex-wrap: wrap !important;
-        }
-        
-        .receipt-section {
-          margin-bottom: 6px !important;
-          padding: 2px 0 !important;
-          width: 100% !important;
-        }
-        
-        /* تحسين الخطوط الفاصلة */
-        .dashed-line {
-          border-top: 1px dashed black !important;
-          margin: 4px 0 !important;
-          width: 100% !important;
-        }
-        
-        .solid-line {
-          border-top: 1px solid black !important;
-          margin: 3px 0 !important;
-          width: 100% !important;
-        }
-        
-        /* تحسين QR codes والصور */
-        svg {
-          display: block !important;
-          margin: 0 auto !important;
-          background: white !important;
-          border: 1px solid black !important;
-        }
-        
-        img {
-          max-width: 100% !important;
-          height: auto !important;
-          object-fit: contain !important;
-          display: block !important;
-          margin: 0 auto !important;
-        }
-        
-        /* إعدادات الطباعة المتقدمة */
-        @media print {
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            color-adjust: exact !important;
-          }
-          
-          body {
-            background: white !important;
-            color: black !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            display: flex !important;
-            justify-content: center !important; /* توسيط أفقي */
-            align-items: flex-start !important;
-          }
-          
-          .repair-receipt {
-            position: static !important;
-            width: auto !important; /* عرض تلقائي */
-            max-width: calc(100% - 16mm) !important; /* عرض مع هوامش متوازنة */
-            min-width: auto !important;
-            margin: 8mm auto !important; /* هوامش متوازنة */
-            padding: 8mm !important; /* padding متوازن */
-            background: white !important;
-            color: black !important;
-            border: none !important;
-            box-shadow: none !important;
-            page-break-inside: avoid !important;
-            transform: none !important; /* إزالة التحويل */
-            left: auto !important; /* إزالة الموضع المطلق */
-            top: auto !important;
-          }
-          
-          .repair-receipt * {
-            background: transparent !important;
-            color: black !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-          }
-          
-          /* إخفاء العناصر غير المطلوبة */
-          .no-print, .print-hidden {
-            display: none !important;
-            visibility: hidden !important;
-          }
-        }
-        
-        /* تحسينات للطابعات الحرارية الصغيرة */
-        @media print and (max-width: 70mm) {
-          .repair-receipt {
-            width: 70mm !important;
-            max-width: 70mm !important;
-            font-size: 12px !important;
-            line-height: 1.3 !important;
-            padding: 3mm !important;
-          }
-        }
-        
-        /* تحسينات للطابعات المتوسطة */
-        @media print and (min-width: 70mm) and (max-width: 150mm) {
-          .repair-receipt {
-            width: 100% !important;
-            max-width: 140mm !important;
-            font-size: 13px !important;
-            line-height: 1.4 !important;
-            padding: 5mm !important;
-          }
-        }
-        
-        /* تحسينات للطابعات الكبيرة */
-        @media print and (min-width: 150mm) {
-          .repair-receipt {
-            width: 100% !important;
-            max-width: 210mm !important;
-            font-size: 14px !important;
-            line-height: 1.4 !important;
-            padding: 8mm !important;
-          }
-        }
-        
-        /* تحسينات للطباعة الملونة */
-        @media print and (color) {
-          .repair-receipt {
-            background: white !important;
-            color: black !important;
-          }
-        }
-        
-        /* تحسينات للطباعة أحادية اللون */
-        @media print and (monochrome) {
-          .repair-receipt {
-            background: white !important;
-            color: black !important;
-          }
-          
-          .repair-receipt * {
-            background: transparent !important;
-            color: black !important;
-            border-color: black !important;
-          }
-        }
-        
-        /* تحسينات للطباعة عالية الدقة */
-        @media print and (min-resolution: 300dpi) {
-          .repair-receipt {
-            font-size: 12px !important;
-            line-height: 1.3 !important;
-          }
-        }
-        
-        /* تحسينات للطباعة منخفضة الدقة */
-        @media print and (max-resolution: 150dpi) {
-          .repair-receipt {
-            font-size: 15px !important;
-            line-height: 1.5 !important;
-            font-weight: 500 !important;
-          }
-        }
-        
-        /* إزالة أي تأثيرات بصرية قد تتداخل */
-        * {
-          text-shadow: none !important;
-          filter: none !important;
-          transform: none !important;
-          transition: none !important;
-          animation: none !important;
-        }
-        
-        /* تحسين العناوين والنصوص المهمة */
-        h1, h2, h3, h4, h5, h6 {
-          font-weight: bold !important;
-          color: black !important;
-          margin: 0.5rem 0 !important;
-        }
-        
-        /* تحسين المحاذاة */
-        .text-center {
-          text-align: center !important;
-        }
-        
-        .text-right {
-          text-align: right !important;
-        }
-        
-        .text-left {
-          text-align: left !important;
-        }
-        
-        /* تحسين الأسعار والأرقام */
-        .price, .amount, .total {
-          font-weight: bold !important;
-          color: black !important;
-        }
-        
-        /* إعدادات خاصة للنصوص العربية */
-        [dir="rtl"], .rtl {
-          direction: rtl !important;
-          text-align: right !important;
-        }
-        
-        /* تحسين المسافات */
-        .repair-receipt > div,
-        .repair-receipt > section {
-          margin-bottom: 0.5rem !important;
-        }
-        
-        /* إعدادات نهائية للتأكد من الوضوح */
-        @media print {
-          html {
-            background: white !important;
-            color: black !important;
-          }
-          
-          body {
-            background: white !important;
-            color: black !important;
-          }
-          
-          .repair-receipt {
-            background: white !important;
-            color: black !important;
-          }
-          
-          .repair-receipt * {
-            color: black !important;
-            background: transparent !important;
-          }
-        }
+        /* HERO BLOCK */
+        .rr-hero-block { text-align: center; margin-bottom: 12px; border: 3px solid #000; border-radius: 8px; padding: 8px 4px; background: #fff; position: relative; }
+        .rr-hero-label { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 8px; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .rr-hero-value { font-size: 28px; font-weight: 900; line-height: 1; }
+
+        /* CARDS */
+        .rr-card { border: 1px solid #000; border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+        .rr-card-header { background: #000; color: #fff; padding: 4px 8px; font-weight: 800; font-size: 11px; display: flex; justify-content: space-between; align-items: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .rr-card-body { padding: 6px 8px; }
+
+        /* ROWS */
+        .rr-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+        .rr-row:last-child { margin-bottom: 0; }
+        .rr-label { font-weight: 500; font-size: 11px; color: #333; }
+        .rr-value { font-weight: 800; font-size: 12px; text-align: left; }
+        .rr-value.ltr { direction: ltr; unicode-bidi: embed; }
+        .rr-value.xl { font-size: 14px; }
+        .rr-desc-text { font-size: 11px; font-weight: 600; line-height: 1.3; margin-top: 2px; }
+
+        /* TOTAL */
+        .rr-total-block { border-top: 2px dashed #000; padding-top: 8px; margin-top: 8px; }
+        .rr-total-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 900; }
+
+        /* TRACKING */
+        .rr-tracking-block { margin-top: 12px; text-align: center; padding: 10px; border: 2px dotted #000; border-radius: 8px; }
+
+        /* ADMIN STUB */
+        .rr-cut-separator { margin: 20px 0 10px 0; border-top: 2px dashed #000; position: relative; text-align: center; }
+        .rr-cut-icon { position: absolute; top: -12px; left: 20px; background: #fff; padding: 0 4px; font-size: 16px; }
+        .rr-admin-stub { border: 4px solid #000; padding: 8px; text-align: center; }
+        .rr-admin-header { background: #000; color: #fff; font-weight: bold; font-size: 12px; padding: 2px; margin: -8px -8px 8px -8px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       `;
 
-      // إنشاء محتوى HTML للطباعة
-      const printHtmlContent = `
+      const printCSS = `
+        @page { 
+          size: ${widthMm}mm auto; 
+          margin: ${margin}; 
+        }
+        html, body { 
+          margin: 0; 
+          padding: 0; 
+          background: #fff; 
+          width: ${widthMm}mm; 
+          max-width: ${widthMm}mm;
+        }
+        ${criticalCSS}
+      `;
+
+      const fullHtml = `
         <!DOCTYPE html>
-        <html dir="rtl" lang="ar">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>وصل تصليح - ${order.customer_name}</title>
-            <style>${printCSS}</style>
-          </head>
-          <body>
-            ${contentToPrint.innerHTML}
-          </body>
+        <html dir="rtl">
+        <head>
+          <meta charset="UTF-8">
+          <title>Repair Receipt #${order.order_number}</title>
+          <style>
+             @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;700;800;900&display=swap');
+             body { font-family: 'Tajawal', sans-serif; }
+             ${printCSS}
+          </style>
+        </head>
+        <body>
+          <div id="print-root">${content}</div>
+        </body>
         </html>
       `;
 
-      // ⚡ إنشاء container للطباعة
-      const printContainerId = 'repair-print-container';
-
-      // إزالة container قديم إذا وجد
-      const existingContainer = document.getElementById(printContainerId);
-      if (existingContainer) {
-        existingContainer.remove();
-      }
-      const existingStyles = document.getElementById('repair-print-styles-temp');
-      if (existingStyles) {
-        existingStyles.remove();
-      }
-
-      // إنشاء container للطباعة
-      const printContainer = document.createElement('div');
-      printContainer.id = printContainerId;
-      printContainer.innerHTML = printHtmlContent;
-      printContainer.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: white; overflow: auto;';
-
-      // إضافة styles للطباعة
-      const printStyles = document.createElement('style');
-      printStyles.id = 'repair-print-styles-temp';
-      printStyles.textContent = `
-        @media print {
-          body > *:not(#${printContainerId}) { display: none !important; }
-          #${printContainerId} {
-            position: static !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-        }
-      `;
-      document.head.appendChild(printStyles);
-      document.body.appendChild(printContainer);
-
-      // انتظار تحميل المحتوى
-      await new Promise(r => setTimeout(r, 1000));
-
-      // دالة تنظيف وإنهاء الطباعة
-      const cleanupAndFinish = (success: boolean) => {
-        printContainer.remove();
-        printStyles.remove();
-        setIsPrinting(false);
-        if (success) {
-          setIsPrintSuccess(true);
-          setTimeout(() => setIsPrintSuccess(false), 2000);
-        }
-      };
-
-      // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
       if (isElectronPrint) {
-        try {
-          console.log('[RepairPrint] محاولة الطباعة المباشرة عبر Electron...');
-          const result = await printHtml(printHtmlContent, {
-            silent: true, // طباعة صامتة بدون نافذة
-          });
-
-          if (result.success) {
-            console.log('[RepairPrint] تمت الطباعة المباشرة بنجاح');
-            cleanupAndFinish(true);
-            return;
-          } else {
-            console.warn('[RepairPrint] فشلت الطباعة المباشرة:', result.error);
-          }
-        } catch (err) {
-          console.warn('[RepairPrint] خطأ في الطباعة المباشرة، التراجع إلى window.print:', err);
+        // Convert paper width to pageSize format
+        let pageSize: string | { width: number; height: number } = `${widthMm}mm`;
+        
+        await printHtml(fullHtml, {
+          printerName: selectedPrinter || undefined,
+          silent: printerSettings.silent_print || false,
+          pageSize: pageSize
+        });
+      } else {
+        // Browser print with proper settings
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (!printWindow) {
+          console.error('Failed to open print window');
+          setIsPrinting(false);
+          return;
         }
+
+        printWindow.document.write(fullHtml);
+        printWindow.document.close();
+
+        // Wait for content to load then print
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+            // Close window after print dialog closes
+            setTimeout(() => {
+              if (!printWindow.closed) {
+                printWindow.close();
+              }
+            }, 1000);
+          }, 500);
+        };
+
+        // Fallback if onload doesn't fire
+        setTimeout(() => {
+          if (!printWindow.closed && printWindow.document.readyState === 'complete') {
+            printWindow.print();
+            setTimeout(() => {
+              if (!printWindow.closed) {
+                printWindow.close();
+              }
+            }, 1000);
+          }
+        }, 1000);
       }
 
-      // ⚡ الطباعة باستخدام window.print (fallback)
-      console.log('[RepairPrint] استخدام window.print...');
-      window.focus();
-      window.print();
-      cleanupAndFinish(true);
+      setIsPrintSuccess(true);
+      setTimeout(() => setIsPrintSuccess(false), 2000);
+      onDialogChange(false);
 
-    } catch (error) {
-      console.error('[RepairPrint] خطأ:', error);
+    } catch (e) {
+      console.error("Print failed", e);
+    } finally {
       setIsPrinting(false);
     }
   };
 
-  return (
-    <div>
-      {/* زر الطباعة */}
-      <Button
-        variant="outline"
-        className="gap-1"
-        onClick={handlePrintClick}
-        disabled={isPrinting}
-      >
-        {isPrinting ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : isPrintSuccess ? (
-          <Check className="h-4 w-4 text-green-600" />
-        ) : (
-          <Printer className="h-4 w-4" />
-        )}
-        {isPrinting ? 'جارٍ الطباعة...' : isPrintSuccess ? 'تمت الطباعة' : 'طباعة وصل'}
-      </Button>
+  // ----------------------------------------------------------------------
+  // UI Components
+  // ----------------------------------------------------------------------
 
-      {/* مكون الوصل المخفي للطباعة */}
-      <div className="hidden">
-        <div ref={receiptRef}>
-          <RepairReceiptPrint
-            order={order}
-            storeName={storeName}
-            storePhone={storePhone}
-            storeAddress={storeAddress}
-            storeLogo={storeLogo}
-            trackingUrl={trackingUrl}
-            queuePosition={calculatedQueuePosition}
+  const SettingToggle = ({
+    label,
+    checked,
+    onChange,
+    icon: Icon
+  }: {
+    label: string;
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    icon?: any;
+  }) => (
+    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-colors">
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="h-4 w-4 text-gray-500" />}
+        <Label className="cursor-pointer text-sm font-medium">{label}</Label>
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+
+  // The main layout content (Sidebar + Preview)
+  const MainContent = (
+    <div className="flex-1 grid md:grid-cols-[280px_1fr] overflow-hidden bg-white h-full max-h-[600px] md:max-h-[700px]">
+
+      {/* LEFT: SETTINGS SIDEBAR */}
+      <div className="border-l bg-gray-50/50 overflow-y-auto p-4 space-y-6">
+        {/* Main Sections */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+            <Printer className="h-3 w-3" />
+            إعدادات الطابعة
+          </h4>
+          <div className="space-y-3 bg-white p-3 rounded-lg border shadow-sm">
+            {/* Printer Selection (Electron Only) */}
+            {isElectronPrint && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-gray-700">اختر الطابعة</Label>
+                <Select
+                  value={selectedPrinter || undefined}
+                  onValueChange={(value) => {
+                    setSelectedPrinter(value);
+                    updatePrinterSetting('printer_name', value);
+                  }}
+                  disabled={printers.length === 0}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="اختر الطابعة" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {printers.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground text-center">
+                        لا توجد طابعات متاحة
+                      </div>
+                    ) : (
+                      printers.map((printer) => (
+                        <SelectItem key={printer.name} value={printer.name}>
+                          {printer.displayName || printer.name} {printer.isDefault && '(افتراضي)'}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Paper Size Options */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-gray-700">حجم الورق</Label>
+              <Select
+                value={String(printerSettings.paper_width || 80)}
+                onValueChange={(value) => {
+                  updatePrinterSetting('paper_width', parseInt(value, 10));
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="58">58mm (ورق حراري صغير)</SelectItem>
+                  <SelectItem value="80">80mm (ورق حراري قياسي)</SelectItem>
+                  <SelectItem value="110">110mm (ورق حراري كبير)</SelectItem>
+                  <SelectItem value="210">A4 (210mm)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Margins Settings */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-xs font-medium text-gray-700">الهوامش (mm)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-gray-500">أعلى</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={printerSettings.margin_top || 0}
+                    onChange={(e) => updatePrinterSetting('margin_top', parseFloat(e.target.value) || 0)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-gray-500">أسفل</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={printerSettings.margin_bottom || 0}
+                    onChange={(e) => updatePrinterSetting('margin_bottom', parseFloat(e.target.value) || 0)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-gray-500">يمين</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={printerSettings.margin_right || 0}
+                    onChange={(e) => updatePrinterSetting('margin_right', parseFloat(e.target.value) || 0)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-gray-500">يسار</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={printerSettings.margin_left || 0}
+                    onChange={(e) => updatePrinterSetting('margin_left', parseFloat(e.target.value) || 0)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Connection Settings */}
+            {isElectronPrint && (
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center gap-2 mb-2">
+                  <Settings className="h-3 w-3 text-gray-500" />
+                  <Label className="text-xs font-medium text-gray-700">إعدادات الاتصال</Label>
+                </div>
+                <div className="space-y-1">
+                  <SettingToggle
+                    label="الطباعة الصامتة"
+                    checked={printerSettings.silent_print || false}
+                    onChange={(v) => updatePrinterSetting('silent_print', v)}
+                  />
+                  <SettingToggle
+                    label="فتح درج النقود"
+                    checked={printerSettings.open_cash_drawer || false}
+                    onChange={(v) => updatePrinterSetting('open_cash_drawer', v)}
+                  />
+                  <SettingToggle
+                    label="صوت بعد الطباعة"
+                    checked={printerSettings.beep_after_print || false}
+                    onChange={(v) => updatePrinterSetting('beep_after_print', v)}
+                  />
+                  <SettingToggle
+                    label="قطع تلقائي"
+                    checked={printerSettings.auto_cut || false}
+                    onChange={(v) => updatePrinterSetting('auto_cut', v)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+            <Ticket className="h-3 w-3" />
+            أقسام الوصل
+          </h4>
+          <div className="space-y-1">
+            <SettingToggle
+              label="إيصال العميل"
+              icon={FileText}
+              checked={receiptSettings.showCustomerReceipt}
+              onChange={(v) => updateReceiptSetting('showCustomerReceipt', v)}
+            />
+            <SettingToggle
+              label="ملصق المسؤول"
+              icon={Settings}
+              checked={receiptSettings.showAdminReceipt}
+              onChange={(v) => updateReceiptSetting('showAdminReceipt', v)}
+            />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Content Options */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+            <Eye className="h-3 w-3" />
+            خيارات العرض
+          </h4>
+          <div className="space-y-1">
+            <SettingToggle
+              label="شعار المتجر"
+              checked={receiptSettings.showStoreLogo}
+              onChange={(v) => updateReceiptSetting('showStoreLogo', v)}
+            />
+            <SettingToggle
+              label="معلومات الاتصال"
+              icon={MapPin}
+              checked={receiptSettings.showStoreInfo}
+              onChange={(v) => updateReceiptSetting('showStoreInfo', v)}
+            />
+            <SettingToggle
+              label="شروط الضمان"
+              icon={ShieldCheck}
+              checked={receiptSettings.showWarrantyAndTerms}
+              onChange={(v) => updateReceiptSetting('showWarrantyAndTerms', v)}
+            />
+            <SettingToggle
+              label="رقم الطابور"
+              checked={receiptSettings.showQueuePosition}
+              onChange={(v) => updateReceiptSetting('showQueuePosition', v)}
+            />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* QR Codes */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+            <QrCode className="h-3 w-3" />
+            الرموز (QR)
+          </h4>
+          <div className="space-y-1">
+            <SettingToggle
+              label="QR التتبع"
+              checked={receiptSettings.showTrackingQr}
+              onChange={(v) => updateReceiptSetting('showTrackingQr', v)}
+            />
+            <SettingToggle
+              label="QR الإدارة"
+              checked={receiptSettings.showCompleteQr}
+              onChange={(v) => updateReceiptSetting('showCompleteQr', v)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* RIGHT: PREVIEW AREA */}
+      <div className="bg-gray-100/50 relative flex flex-col items-center">
+    <div className="absolute top-2 right-2 z-10 hidden md:block">
+      <Badge variant="outline" className="bg-white/80 backdrop-blur text-[10px] font-mono shadow-sm">
+        {printerSettings.paper_width || 80}mm PREVIEW
+      </Badge>
+    </div>
+
+    <ScrollArea className="flex-1 w-full p-4 md:p-8">
+      <div className="flex justify-center min-h-full pb-8">
+
+        {/* Visual Representation of Paper */}
+        <div
+          className="bg-white shadow-xl relative transition-all duration-300 ease-in-out print-preview-paper"
+          style={{
+            width: `${printerSettings.paper_width === 58 ? '58mm' : '80mm'}`,
+            transform: 'scale(1)',
+            minHeight: '100mm'
+          }}
+        >
+          {/* ⚡ KEY: The Actual Class for legacy scoping if needed: repair-receipt-print-area */}
+          <div ref={receiptRef} className="repair-receipt-print-area">
+            <RepairReceiptPrint
+              order={order}
+              storeName={storeInfo.storeName}
+              storePhone={storeInfo.storePhone}
+              storeAddress={storeInfo.storeAddress}
+              storeLogo={storeInfo.storeLogo}
+              trackingUrl={trackingUrl}
+              queuePosition={calculatedQueuePosition}
+              receiptSettings={receiptSettings}
+            />
+          </div>
+
+          {/* Paper Tear Effect */}
+          <div
+            className="absolute -bottom-2 left-0 w-full h-4 bg-white"
+            style={{
+              clipPath: 'polygon(0% 0%, 5% 100%, 10% 0%, 15% 100%, 20% 0%, 25% 100%, 30% 0%, 35% 100%, 40% 0%, 45% 100%, 50% 0%, 55% 100%, 60% 0%, 65% 100%, 70% 0%, 75% 100%, 80% 0%, 85% 100%, 90% 0%, 95% 100%, 100% 0%)'
+            }}
           />
         </div>
       </div>
+    </ScrollArea>
+      </div>
     </div>
   );
+
+// 1. CONTROLLED DIALOG MODE (External Open/Close)
+if (controlledIsOpen !== undefined) {
+  return (
+    <Dialog open={isDialogOpen} onOpenChange={onDialogChange}>
+      <DialogContent className="max-w-4xl h-[90vh] md:h-auto overflow-hidden flex flex-col p-0 gap-0 border-0 shadow-2xl">
+        {/* HEADER */}
+        <DialogHeader className="p-4 border-b bg-white flex flex-row items-center justify-between space-y-0 z-20">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-primary/5 text-primary rounded-xl">
+              <Printer className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-bold">طباعة وصل التصليح</DialogTitle>
+              <DialogDescription className="text-xs">
+                #{order.order_number || order.id?.slice(0, 5)} • {order.customer_name}
+              </DialogDescription>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {printerSettings.printer_name && (
+              <Badge variant="secondary" className="gap-1 font-normal opacity-80">
+                <Printer className="h-3 w-3" />
+                {printerSettings.printer_name}
+              </Badge>
+            )}
+          </div>
+        </DialogHeader>
+
+        {/* BODY */}
+        {MainContent}
+
+        {/* FOOTER */}
+        <DialogFooter className="p-4 border-t bg-white gap-2 z-20">
+          <Button variant="ghost" onClick={() => onDialogChange(false)} className="hover:bg-gray-100">
+            إغلاق
+          </Button>
+          <Button
+            onClick={handlePrint}
+            className="min-w-[140px] gap-2 shadow-lg shadow-primary/20"
+            disabled={isPrinting}
+          >
+            {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+            {isPrinting ? 'جاري الطباعة...' : 'تأكيد وطباعة'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// 2. INLINE MODE (Used when embedding purely for display, rarely used now)
+if (!showPrintButton) {
+  return MainContent;
+}
+
+// 3. UNCONTROLLED DIALOG MODE (Button Trigger)
+return (
+  <Dialog open={isDialogOpen} onOpenChange={onDialogChange}>
+    {/* TRIGGER */}
+    <DialogTrigger asChild>
+      <Button variant="outline" className="gap-2 h-9 px-4 shadow-sm border-gray-200 hover:bg-white hover:text-primary hover:border-primary/50 transition-all">
+        <Printer className="h-4 w-4" />
+        <span>طباعة الوصل</span>
+      </Button>
+    </DialogTrigger>
+
+    {/* Same Dialog Content as Controlled Mode */}
+    <DialogContent className="max-w-4xl h-[90vh] md:h-auto overflow-hidden flex flex-col p-0 gap-0 border-0 shadow-2xl">
+      <DialogHeader className="p-4 border-b bg-white flex flex-row items-center justify-between space-y-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-primary/5 text-primary rounded-xl">
+            <Printer className="h-5 w-5" />
+          </div>
+          <div>
+            <DialogTitle className="text-base font-bold">طباعة وصل التصليح</DialogTitle>
+            <DialogDescription className="text-xs">
+              #{order.order_number || order.id?.slice(0, 5)} • {order.customer_name}
+            </DialogDescription>
+          </div>
+        </div>
+      </DialogHeader>
+
+      {MainContent}
+
+      <DialogFooter className="p-4 border-t bg-white gap-2 z-20">
+        <Button variant="ghost" onClick={() => onDialogChange(false)}>إغلاق</Button>
+        <Button onClick={handlePrint} className="min-w-[140px] gap-2" disabled={isPrinting}>
+          {isPrinting ? 'جاري...' : 'طباعة'}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
 };
 
 export default RepairOrderPrint;

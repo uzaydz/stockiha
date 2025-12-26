@@ -43,7 +43,8 @@ export const loadNonCriticalCSS = async (): Promise<void> => {
   // CSS الرئيسي محمل بالفعل في head مع /assets/css/main-*.css
   
   // فقط تحميل خط Tajawal إذا لم يكن محملاً
-  await ensureStylesheet('fonts/tajawal.css', '__fonts_tajawal_css');
+  // استخدم مسار مطلق لتفادي كسر التحميل على المسارات العميقة مثل /dashboard/...
+  await ensureStylesheet('/fonts/tajawal.css', '__fonts_tajawal_css');
 
   nonCriticalCSSLoaded = true;
 };

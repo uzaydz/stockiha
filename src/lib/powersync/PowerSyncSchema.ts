@@ -12,10 +12,7 @@
  * ✅ تم إضافة organization_id للجداول المفقودة
  * ✅ جميع الأعمدة موثقة من Supabase
  *
- * عدد الجداول: 54 مُزامن + 14 محلي = 68
- * - org_data: 52 جدول (مع organization_id)
- * - global_data: 2 جدول (subscription_plans, payment_methods)
- * - local-only: 14 جدول (لا تُزامن مع السيرفر)
+ * عدد الجداول يُحسب تلقائياً في الأسفل عبر Object.keys(PowerSyncSchema.tables).length
  *
  * ⚡ الجداول الجديدة (v4.0) - نظام إدارة الموارد البشرية:
  *    - work_shifts (الورديات)
@@ -1080,6 +1077,32 @@ const organizations = new Table(
 );
 
 // ========================================
+// 17.5 ORGANIZATION SETTINGS (إعدادات المؤسسة) ⚡ NEW
+// ========================================
+const organization_settings = new Table(
+  {
+    organization_id: column.text,
+    // Theme settings
+    theme_primary_color: column.text,
+    theme_secondary_color: column.text,
+    theme_mode: column.text,
+    // Site settings
+    site_name: column.text,
+    logo_url: column.text,
+    favicon_url: column.text,
+    default_language: column.text,
+    // Business settings
+    enable_public_site: column.integer,
+    display_text_with_logo: column.integer,
+    merchant_type: column.text,
+    // Timestamps
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { indexes: { org: ['organization_id'] } }
+);
+
+// ========================================
 // 18. ORGANIZATION SUBSCRIPTIONS (الاشتراكات) 🔒
 // ========================================
 const organization_subscriptions = new Table(
@@ -1482,6 +1505,99 @@ const return_items = new Table(
     updated_at: column.text,
   },
   { indexes: { org: ['organization_id'], return: ['return_id'], product: ['product_id'] } }
+);
+
+// ========================================
+// 29. STOCKTAKE (الجرد) - ✅ جديد v4.1
+// ========================================
+const stocktake_sessions = new Table(
+  {
+    organization_id: column.text,
+    scope: column.text, // jsonb
+    mode: column.text,
+    status: column.text,
+    require_approval: column.integer, // boolean
+    started_by: column.text,
+    reviewer_id: column.text,
+    started_at: column.text,
+    closed_at: column.text,
+    notes: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+    reconciliation_order_id: column.text,
+    reconciliation_loss_id: column.text,
+  },
+  { indexes: { org: ['organization_id'], status: ['status'], created: ['created_at'] } }
+);
+
+const stocktake_items = new Table(
+  {
+    session_id: column.text,
+    product_id: column.text,
+    variant_id: column.text,
+    expected_qty: column.real,
+    counted_qty: column.real,
+    delta: column.real, // generated in Postgres, computed locally when needed
+    scan_count: column.integer,
+    last_scanned_at: column.text,
+    source: column.text,
+    proposed_reason: column.text,
+    reconcile_action: column.text,
+    reconcile_notes: column.text,
+    synced: column.integer, // boolean
+    created_at: column.text,
+    updated_at: column.text,
+    organization_id: column.text,
+    variant_key: column.text, // generated in Postgres
+  },
+  { indexes: { org: ['organization_id'], session: ['session_id'], product: ['product_id'] } }
+);
+
+const stocktake_adjustments = new Table(
+  {
+    session_id: column.text,
+    product_id: column.text,
+    variant_id: column.text,
+    delta: column.real,
+    reason: column.text,
+    status: column.text,
+    approved_by: column.text,
+    applied_at: column.text,
+    notes: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+    organization_id: column.text,
+  },
+  { indexes: { org: ['organization_id'], session: ['session_id'], status: ['status'] } }
+);
+
+const stocktake_events = new Table(
+  {
+    session_id: column.text,
+    organization_id: column.text,
+    event_type: column.text,
+    payload: column.text, // jsonb
+    created_by: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { indexes: { org: ['organization_id'], session: ['session_id'], created: ['created_at'] } }
+);
+
+const stocktake_reconciliations = new Table(
+  {
+    session_id: column.text,
+    organization_id: column.text,
+    created_by: column.text,
+    order_id: column.text,
+    loss_id: column.text,
+    status: column.text,
+    error: column.text,
+    applied_at: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { indexes: { org: ['organization_id'], status: ['status'], session: ['session_id'] } }
 );
 
 // ========================================
@@ -2531,6 +2647,62 @@ const user_permissions = new Table(
 );
 
 // ========================================
+// 📦 LOCAL STOCKTAKE (الجرد المحلي) - Offline-first 100%
+// لا يتم إرسال أي مسح للسيرفر إلا عند الإنهاء/الاعتماد
+// ========================================
+const local_stocktake_sessions = new Table(
+  {
+    organization_id: column.text,
+    scope: column.text, // JSON
+    mode: column.text, // cycle | full | blind
+    status: column.text, // in_progress | review | approved | deleted
+    require_approval: column.integer,
+    started_by: column.text,
+    reviewer_id: column.text,
+    started_at: column.text,
+    closed_at: column.text,
+    notes: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+    // meta
+    synced_to_server_at: column.text,
+  },
+  { localOnly: true, indexes: { org: ['organization_id'], status: ['status'], created: ['created_at'] } }
+);
+
+const local_stocktake_items = new Table(
+  {
+    organization_id: column.text,
+    session_id: column.text,
+    product_id: column.text,
+    variant_id: column.text,
+    expected_qty: column.real,
+    counted_qty: column.real,
+    scan_count: column.integer,
+    last_scanned_at: column.text,
+    source: column.text,
+    proposed_reason: column.text,
+    reconcile_action: column.text,
+    reconcile_notes: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { localOnly: true, indexes: { org: ['organization_id'], session: ['session_id'], product: ['product_id'] } }
+);
+
+const local_stocktake_events = new Table(
+  {
+    organization_id: column.text,
+    session_id: column.text,
+    event_type: column.text, // start | scan | close | approve | sync
+    payload: column.text, // JSON
+    created_by: column.text,
+    created_at: column.text,
+  },
+  { localOnly: true, indexes: { org: ['organization_id'], session: ['session_id'], created: ['created_at'] } }
+);
+
+// ========================================
 // 🔔 NOTIFICATION SETTINGS (إعدادات الإشعارات - محلي فقط)
 // ========================================
 const notification_settings = new Table(
@@ -2741,7 +2913,7 @@ const local_printer_settings = new Table(
 
 export const PowerSyncSchema = new Schema({
   // ═══════════════════════════════════════
-  // 🔄 SYNCED TABLES (54 tables)
+  // 🔄 SYNCED TABLES (58 tables)
   // ═══════════════════════════════════════
 
   // Products (9) - تم إضافة inventory_batches و product_serial_numbers
@@ -2793,12 +2965,20 @@ export const PowerSyncSchema = new Schema({
   returns,
   return_items,
 
+  // Stocktake (5) - ✅ جديد v4.1
+  stocktake_sessions,
+  stocktake_items,
+  stocktake_adjustments,
+  stocktake_events,
+  stocktake_reconciliations,
+
   // Subscription Services (1)
   subscription_transactions,
 
-  // System (8)
+  // System (9) - ⚡ تمت إضافة organization_settings
   users,
   organizations,
+  organization_settings,
   organization_subscriptions,
   pos_settings,
   activation_codes,
@@ -2841,6 +3021,10 @@ export const PowerSyncSchema = new Schema({
   cached_notifications,
   notification_sync_queue,
   user_permissions,
+  // Stocktake (local-only, offline-first)
+  local_stocktake_sessions,
+  local_stocktake_items,
+  local_stocktake_events,
   // ⚡ NEW: Notification & Tracking Tables
   notification_settings,
   offline_notifications,

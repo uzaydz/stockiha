@@ -67,6 +67,16 @@ export const useDebouncedSearch = ({
       return;
     }
 
+    // ✅ مسح البحث يجب أن يكون فورياً (بدون انتظار الـ debounce)
+    if (inputValue === '') {
+      setDebouncedValue('');
+      if (onDebouncedChangeRef.current && lastCalledValueRef.current !== '') {
+        lastCalledValueRef.current = '';
+        onDebouncedChangeRef.current('');
+      }
+      return;
+    }
+
     // إذا كانت القيمة أقل من الحد الأدنى، أرسل قيمة فارغة فوراً
     if (inputValue.length < minLength) {
       setDebouncedValue('');

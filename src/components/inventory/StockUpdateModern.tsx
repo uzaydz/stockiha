@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { resolveProductImageSrc } from '@/lib/products/productImageResolver';
 import { useInventoryOptimized } from '@/hooks/useInventoryOptimized';
 import type { InventoryProduct } from '@/lib/api/inventory-optimized';
 
@@ -164,7 +165,7 @@ export default function StockUpdateModern({
           {/* Product Info - ⚡ دعم thumbnail_base64 للعمل Offline */}
           <div className="flex gap-4 p-4 bg-slate-50 rounded-lg">
             {(() => {
-              const imageSrc = (item as any).thumbnail_base64 || item.thumbnail_image;
+              const imageSrc = resolveProductImageSrc(item as any);
               return imageSrc && !imageError ? (
                 <img
                   src={imageSrc}
@@ -469,4 +470,3 @@ function OperationButton({ active, onClick, variant = 'default', children }: Ope
     </button>
   );
 }
-

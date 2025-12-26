@@ -20,7 +20,7 @@ import SyncProducts from '@/components/product/SyncProducts';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import ProductsSkeleton from '@/components/product/ProductsSkeleton';
-import { Grid, List, RefreshCcw, Filter, Search, X, Plus } from 'lucide-react';
+import { Grid, List, RefreshCcw, Filter, Search, X, Plus, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,6 +36,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import ProductsUserGuide, { ProductsHelpButton } from '@/components/product/ProductsUserGuide';
 
 // Define category type
 type CategoryObject = { id: string; name: string; slug: string };
@@ -116,6 +117,9 @@ const ProductsComponent = ({
   const [viewMode, setViewMode] = useLocalStorage<ViewMode>('products-view-mode', 'grid');
   const [showFilters, setShowFilters] = useLocalStorage('products-show-filters', true);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+
+  // حالة دليل الاستخدام
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // Categories cache with optimized loading
   const [categories, setCategories] = useState<CategoryObject[]>([]);
@@ -701,16 +705,29 @@ const ProductsComponent = ({
           <div className="text-sm text-muted-foreground">
             {totalCount} منتج متاح
           </div>
-          <Button
-            onClick={handleCreateProductClick}
-            className="gap-2"
-            size="sm"
-            disabled={!hasManageProductsPermission}
-            title={!hasManageProductsPermission ? "ليس لديك صلاحية لإضافة منتجات" : ""}
-          >
-            <Plus className="h-4 w-4" />
-            إنشاء منتج جديد
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* زر دليل الاستخدام */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsGuideOpen(true)}
+              className="gap-2"
+              title="دليل الاستخدام"
+            >
+              <HelpCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">دليل الاستخدام</span>
+            </Button>
+            <Button
+              onClick={handleCreateProductClick}
+              className="gap-2"
+              size="sm"
+              disabled={!hasManageProductsPermission}
+              title={!hasManageProductsPermission ? "ليس لديك صلاحية لإضافة منتجات" : ""}
+            >
+              <Plus className="h-4 w-4" />
+              إنشاء منتج جديد
+            </Button>
+          </div>
         </div>
 
         {/* Enhanced Filters */}
@@ -893,6 +910,12 @@ const ProductsComponent = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* دليل استخدام المنتجات */}
+      <ProductsUserGuide
+        open={isGuideOpen}
+        onOpenChange={setIsGuideOpen}
+      />
     </>
   );
 

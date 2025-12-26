@@ -6,6 +6,9 @@
 import { supabase } from '@/lib/supabase';
 import { authSingleton } from './authSingleton';
 
+// ⚡ v3.0: Module-level deduplication للتحكم في التحذيرات
+let _loopWarningLogged = false;
+
 interface InterceptionStats {
   getUser: number;
   getSession: number;
@@ -99,8 +102,11 @@ class AuthInterceptorV2 {
     try {
       // إضافة حماية من الحلقة اللانهائية
       if (this.isInInterception) {
-        // ⚡ بدلاً من إرجاع خطأ، نستخدم الدالة الأصلية مباشرة
-        console.warn('[AuthInterceptorV2] ⚠️ Interception loop detected, using original getSession');
+        // ⚡ v3.0: سجل التحذير مرة واحدة فقط
+        if (!_loopWarningLogged && process.env.NODE_ENV === 'development') {
+          _loopWarningLogged = true;
+          console.log('[AuthInterceptorV2] ℹ️ Loop detected - using original getSession (this is normal)');
+        }
         if (this.originalGetSession) {
           return await this.originalGetSession();
         }

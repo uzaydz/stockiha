@@ -46,12 +46,12 @@ export const createLocalExpense = async (data: {
   receipt_url?: string;
   recurring?: any;
 }): Promise<Expense> => {
-  const orgId = localStorage.getItem('currentOrganizationId') || 
-                localStorage.getItem('bazaar_organization_id');
+  const orgId = localStorage.getItem('currentOrganizationId') ||
+    localStorage.getItem('bazaar_organization_id');
   if (!orgId) throw new Error('Organization ID not found');
-  
+
   unifiedExpenseService.setOrganizationId(orgId);
-  
+
   const expenseData: Omit<Expense, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
     title: data.title,
     amount: data.amount,
@@ -64,8 +64,8 @@ export const createLocalExpense = async (data: {
     payment_method: (data.payment_method || 'cash') as any, // ⚡ Default: cash
     reference_number: data.payment_ref || '',
     receipt_url: data.receipt_url || '',
-    source: 'pos_assistant'
+    source: 'pos' // ✅ CHANGED from 'pos_assistant' to 'pos' to match DB constraint
   };
-  
+
   return unifiedExpenseService.createExpense(expenseData);
 };

@@ -39,6 +39,13 @@ export const PERMISSION_ALIASES: Record<string, string[]> = {
   // === المخزون ===
   'viewInventory': ['viewInventory', 'canViewInventory', 'has_inventory_access'],
   'manageInventory': ['manageInventory', 'canManageInventory'],
+
+  // === الجرد (Stocktake) ===
+  'startStocktake': ['startStocktake', 'canStartStocktake'],
+  'performStocktake': ['performStocktake', 'canPerformStocktake'],
+  'reviewStocktake': ['reviewStocktake', 'canReviewStocktake'],
+  'approveStocktake': ['approveStocktake', 'canApproveStocktake'],
+  'deleteStocktake': ['deleteStocktake', 'canDeleteStocktake'],
   
   // === الطلبات ===
   'viewOrders': ['viewOrders', 'canViewOnlineOrders', 'canViewPosOrders'],

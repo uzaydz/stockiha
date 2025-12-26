@@ -132,6 +132,9 @@ export const useKeyboardShortcuts = ({
 
       if (shouldSkip) return;
 
+      // Avoid swallowing Alt+digit scanner sequences inside inputs (common wedge mode)
+      if (isInputField && event.altKey && /^[0-9]$/.test(event.key)) return;
+
       console.log('Key Pressed:', event.key, 'Code:', event.code, 'Modifiers:', { ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey });
 
       for (const shortcut of shortcutsRef.current) {
@@ -475,4 +478,3 @@ export const createPOSShortcuts = (actions: {
     },
   ];
 };
-
